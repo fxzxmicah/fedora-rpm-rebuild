@@ -20,7 +20,6 @@ jobs:
           dnf install -y dnf-plugins-core rpmdevtools rpmrebuild &&
           dnf download filesystem &&
           rpmrebuild --package --directory /workspace --spec-only filesystem.spec *.rpm &&
-          mv /root/rpmbuild/* ./ &&
           ls -l &&
           cat SPECS/*.spec #&&
           #spectool --get-files --all SPECS/*.spec &&
