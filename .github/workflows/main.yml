@@ -19,7 +19,7 @@ jobs:
         docker run --rm -v $(pwd):/workspace -w /workspace fedora:latest bash -c "
           dnf install -y dnf-plugins-core rpmdevtools rpmrebuild &&
           dnf download filesystem &&
-          rpmrebuild --package --directory /workspace --spec-only filesystem.spec *.rpm &&
+          rpmrebuild --package --directory /workspace --spec-only SPECS/filesystem.spec *.rpm &&
           ls -l &&
           cat SPECS/*.spec #&&
           #spectool --get-files --all SPECS/*.spec &&
