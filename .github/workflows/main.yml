@@ -17,13 +17,9 @@ jobs:
     - name: Rebuild RPM
       run: |
         docker run --rm -v $(pwd):/workspace -w /workspace fedora:latest bash -c "
-          dnf install -y dnf-plugins-core rpmdevtools rpmrebuild &&
+          dnf install -y dnf-plugins-core rpmrebuild &&
           dnf download filesystem &&
-          rpmrebuild --package --directory /workspace --spec-only SPECS/filesystem.spec *.rpm &&
-          ls -l &&
-          cat SPECS/*.spec #&&
-          #spectool --get-files --all SPECS/*.spec &&
-          #rpmbuild --define '_topdir /workspace' -ba SPECS/*.spec
+          rpmrebuild --package --directory /workspace --modify 'sed -e "/\/afs/d"' *.rpm
         "
 
     - name: Upload Artifact
