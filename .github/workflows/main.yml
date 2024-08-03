@@ -22,7 +22,7 @@ jobs:
           rpm -ivh --define '_topdir /workspace' *.src.rpm &&
           cat SPECS/*.spec &&
           spectool --get-files --all SPECS/*.spec &&
-          yum-builddep --assumeyes SPECS/*.spec &&
+          dnf builddep -y SPECS/*.spec &&
           rpmbuild --define '_topdir /workspace' -ba SPECS/*.spec
         "
 
