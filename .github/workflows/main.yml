@@ -25,7 +25,7 @@ jobs:
     - name: Apply Patches
       run: |
         for patch in SPECS-PATCHES/*.patch; do
-          file="SPECS/${patch%.patch}.spec"
+          file="SPECS/$(basename "$patch" .patch).spec"
           if [[ -f "$file" ]]; then
             patch "$file" < "$patch"
             echo "Applied patch $patch to $file"
