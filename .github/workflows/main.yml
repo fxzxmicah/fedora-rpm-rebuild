@@ -38,6 +38,7 @@ jobs:
     - name: Rebuild RPM
       run: |
         docker run --rm -v $(pwd):/workspace -w /workspace fedora:latest bash -c "
+          cat SPECS/*.spec && exit 1
           dnf install -y dnf-plugins-core rpmdevtools &&
           spectool --get-files --all SPECS/*.spec &&
           dnf builddep -y SPECS/*.spec &&
