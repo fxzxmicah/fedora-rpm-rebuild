@@ -14,13 +14,29 @@ jobs:
     - name: Setup Docker
       uses: docker/setup-buildx-action@v3
 
-    - name: Rebuild RPM
+    - name: Prepare Source
       run: |
         docker run --rm -v $(pwd):/workspace -w /workspace fedora:latest bash -c "
           dnf install -y dnf-plugins-core rpmdevtools &&
-          dnf download --source filesystem &&
-          rpm -ivh --define '_topdir /workspace' *.src.rpm &&
-          cat SPECS/*.spec &&
+          dnf download --source $(find SPECS-PATCHES -name "*.patch" -exec basename {} .patch \;) &&
+          rpm -ivh --define '_topdir /workspace' *.src.rpm
+        "
+
+    - name: Apply Patches
+      run: |
+        for patch in SPECS-PATCHES/*.patch; do
+          file="SPECS/${patch%.patch}.spec"
+          if [[ -f "$file" ]]; then
+            patch "$file" < "$patch"
+            echo "Applied patch $patch to $file"
+          else
+            echo "Spec file $file does not exist for $patch"
+          fi
+        done
+    
+    - name: Rebuild RPM
+      run: |
+        docker run --rm -v $(pwd):/workspace -w /workspace fedora:latest bash -c "
           spectool --get-files --all SPECS/*.spec &&
           dnf builddep -y SPECS/*.spec &&
           rpmbuild --define '_topdir /workspace' -ba SPECS/*.spec
