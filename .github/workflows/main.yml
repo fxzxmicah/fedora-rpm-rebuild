@@ -17,11 +17,10 @@ jobs:
     - name: Prepare Source
       run: |
         docker run --rm -v $(pwd):/workspace -w /workspace fedora:latest bash -c "
-          dnf install -y dnf-plugins-core rpmdevtools &&
+          dnf install -y dnf-plugins-core &&
           dnf download --source $(find SPECS-PATCHES -name "*.patch" -exec basename {} .patch \;) &&
           rpm -ivh --define '_topdir /workspace' *.src.rpm &&
-          chmod 777 SPECS &&
-          chmod 666 SPECS/*
+          chmod 777 SPECS && chmod 666 SPECS/*
         "
 
     - name: Apply Patches
@@ -39,6 +38,7 @@ jobs:
     - name: Rebuild RPM
       run: |
         docker run --rm -v $(pwd):/workspace -w /workspace fedora:latest bash -c "
+          dnf install -y dnf-plugins-core rpmdevtools &&
           spectool --get-files --all SPECS/*.spec &&
           dnf builddep -y SPECS/*.spec &&
           rpmbuild --define '_topdir /workspace' -ba SPECS/*.spec
