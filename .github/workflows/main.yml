@@ -17,6 +17,7 @@ jobs:
     - name: Prepare Source
       run: |
         docker run --rm -v $(pwd):/workspace -w /workspace fedora:latest bash -c "
+          umask 0000 &&
           dnf install -y dnf-plugins-core rpmdevtools &&
           dnf download --source $(find SPECS-PATCHES -name "*.patch" -exec basename {} .patch \;) &&
           rpm -ivh --define '_topdir /workspace' *.src.rpm
@@ -24,8 +25,6 @@ jobs:
 
     - name: Apply Patches
       run: |
-        chown runner:docker -R SPECS
-        ls -al SPECS/
         for patch in SPECS-PATCHES/*.patch; do
           file="SPECS/$(basename "$patch" .patch).spec"
           if [[ -f "$file" ]]; then
