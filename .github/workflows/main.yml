@@ -24,6 +24,7 @@ jobs:
 
     - name: Apply Patches
       run: |
+        chown runner:docker -R SPECS
         ls -al SPECS/
         for patch in SPECS-PATCHES/*.patch; do
           file="SPECS/$(basename "$patch" .patch).spec"
