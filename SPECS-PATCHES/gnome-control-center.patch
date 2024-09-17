@@ -7,7 +7,7 @@
 -# Disable parental control for RHEL builds
 -%bcond malcontent %[!0%{?rhel}]
 +# Disable malcontent for all builds
-+%bcond_without malcontent
++%bcond malcontent 0
  
  Name:           gnome-control-center
  Version:        46.4
