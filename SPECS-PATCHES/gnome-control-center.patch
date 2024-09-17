@@ -1,0 +1,13 @@
+--- gnome-control-center.spec	2024-09-17 20:28:53.502775955 +0800
++++ gnome-control-center.spec.new	2024-09-17 20:30:57.694361082 +0800
+@@ -12,8 +12,8 @@
+ 
+ %global tarball_version %%(echo %{version} | tr '~' '.')
+ 
+-# Disable parental control for RHEL builds
+-%bcond malcontent %[!0%{?rhel}]
++# Disable malcontent for all builds
++%bcond_without malcontent
+ 
+ Name:           gnome-control-center
+ Version:        46.4
