@@ -1,5 +1,5 @@
 --- filesystem.spec	2024-09-18 11:35:39.833376392 +0800
-+++ filesystem.spec.new	2024-09-18 11:45:19.371696742 +0800
++++ filesystem.spec.new	2024-09-18 13:33:27.140911347 +0800
 @@ -10,9 +10,6 @@
  BuildRequires: iso-codes
  Requires(pre): setup
@@ -106,7 +106,7 @@
  /home
  /lib
  %ifarch x86_64 ppc64 sparc64 s390x aarch64 ppc64le mips64 mips64el riscv64
-@@ -206,17 +183,16 @@
+@@ -206,18 +183,17 @@
  %endif
  /media
  %dir /mnt
@@ -123,9 +123,11 @@
  %dir /usr
  %attr(555,root,root) /usr/bin
 -/usr/games
- /usr/include
+-/usr/include
++%ghost /usr/include
  %dir %attr(555,root,root) /usr/lib
  %dir /usr/lib/sysimage
+ %dir /usr/lib/systemd
 @@ -227,34 +203,18 @@
  %dir /usr/lib/tmpfiles.d
  %dir /usr/lib/locale
@@ -176,7 +178,7 @@
  /usr/share/info
  %dir /usr/share/licenses
  %dir /usr/share/locale
-@@ -276,39 +233,31 @@
+@@ -276,39 +233,30 @@
  /usr/share/metainfo
  /usr/share/mime-info
  /usr/share/misc
@@ -191,7 +193,6 @@
 -/usr/share/zsh
 -/usr/src
 -/usr/tmp
-+%ghost /usr/include
 +%ghost /usr/src
 +%ghost /usr/tmp
  %dir /var
