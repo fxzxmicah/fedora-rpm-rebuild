@@ -1,0 +1,116 @@
+--- evolution-data-server.spec	2024-09-18 18:24:34.644475363 +0800
++++ evolution-data-server.spec.new	2024-09-18 18:52:09.951466951 +0800
+@@ -5,13 +5,11 @@
+ %define krb5_support 1
+ %define largefile_support 1
+ 
+-# disable for i686, because libphonenumber 8.12.57 is not built for it
+-%ifarch i686
++# disable libphonenumber
+ %global phonenum_support 0
+-%else
+-# enabled only for Fedora
+-%global phonenum_support 0%{?fedora}
+-%endif
++
++# disable libgweather
++%global weather_support 0
+ 
+ # Coverity scan can override this to 0, to skip checking in gtk-doc generated code
+ %{!?with_docs: %global with_docs 1}
+@@ -33,7 +31,6 @@
+ %define libsoup_version 3.1.1
+ %define nss_version 3.14
+ %define sqlite_version 3.7.17
+-%define webkit2gtk_version 2.34.0
+ %define webkit2gtk4_version 2.36.0
+ %define json_glib_version 1.0.4
+ 
+@@ -101,7 +98,6 @@
+ BuildRequires: pkgconfig(gtk+-3.0) >= %{gtk3_version}
+ BuildRequires: pkgconfig(gtk4) >= %{gtk4_version}
+ BuildRequires: pkgconfig(goa-1.0) >= %{goa_version}
+-BuildRequires: pkgconfig(gweather4) >= %{libgweather_version}
+ BuildRequires: pkgconfig(libical-glib) >= %{libical_version}
+ BuildRequires: pkgconfig(libsecret-unstable) >= %{libsecret_version}
+ BuildRequires: pkgconfig(libsoup-3.0) >= %{libsoup_version}
+@@ -110,7 +106,6 @@
+ BuildRequires: pkgconfig(nss) >= %{nss_version}
+ BuildRequires: pkgconfig(sqlite3) >= %{sqlite_version}
+ %if %{with_webkitgtk}
+-BuildRequires: pkgconfig(webkit2gtk-4.1) >= %{webkit2gtk_version}
+ BuildRequires: pkgconfig(webkitgtk-6.0) >= %{webkit2gtk4_version}
+ %endif
+ BuildRequires: pkgconfig(json-glib-1.0) >= %{json_glib_version}
+@@ -134,6 +129,10 @@
+ BuildRequires: abseil-cpp-devel
+ %endif
+ 
++%if %{weather_support}
++BuildRequires: pkgconfig(gweather4) >= %{libgweather_version}
++%endif
++
+ # libical 3.0.16 added new API, this ensures to bring it in
+ Requires: libical-glib >= %{libical_version}
+ 
+@@ -149,16 +148,17 @@
+ Requires: %{name}%{?_isa} = %{version}-%{release}
+ 
+ Requires: pkgconfig(goa-1.0) >= %{goa_version}
+-Requires: pkgconfig(gweather4) >= %{libgweather_version}
+ Requires: pkgconfig(libical-glib) >= %{libical_version}
+ Requires: pkgconfig(libsecret-unstable) >= %{libsecret_version}
+ Requires: pkgconfig(libsoup-3.0) >= %{libsoup_version}
+ Requires: pkgconfig(sqlite3) >= %{sqlite_version}
+ %if %{with_webkitgtk}
+-Requires: pkgconfig(webkit2gtk-4.1) >= %{webkit2gtk_version}
+ Requires: pkgconfig(webkitgtk-6.0) >= %{webkit2gtk4_version}
+ %endif
+ Requires: pkgconfig(json-glib-1.0) >= %{json_glib_version}
++%if %{weather_support}
++BuildRequires: pkgconfig(gweather4) >= %{libgweather_version}
++%endif
+ 
+ %description devel
+ Development files needed for building things which link against %{name}.
+@@ -256,6 +256,12 @@
+ %define phonenum_flags -DWITH_PHONENUMBER=OFF
+ %endif
+ 
++%if %{weather_support}
++%define weather_flags -DENABLE_WEATHER=ON
++%else
++%define weather_flags -DENABLE_WEATHER=OFF
++%endif
++
+ %define ssl_flags -DENABLE_SMIME=ON
+ 
+ %if %{with_docs}
+@@ -265,7 +271,7 @@
+ %endif
+ 
+ %if %{with_webkitgtk}
+-%define webkitgtk_flags -DENABLE_OAUTH2_WEBKITGTK=ON -DENABLE_OAUTH2_WEBKITGTK4=ON
++%define webkitgtk_flags -DENABLE_OAUTH2_WEBKITGTK=OFF -DENABLE_OAUTH2_WEBKITGTK4=ON
+ %else
+ %define webkitgtk_flags -DENABLE_OAUTH2_WEBKITGTK=OFF -DENABLE_OAUTH2_WEBKITGTK4=OFF
+ %endif
+@@ -289,7 +295,7 @@
+         -DWITH_SYSTEMDUSERUNITDIR=%{_userunitdir} \
+ 	%ldap_flags %krb5_flags %ssl_flags %webkitgtk_flags \
+ 	%largefile_flags %gtkdoc_flags %phonenum_flags \
+-	%{nil}
++	%weather_flags %{nil}
+ 
+ %cmake_build
+ 
+@@ -425,7 +431,9 @@
+ %{ecal_backends_dir}/libecalbackendfile.so
+ %{ecal_backends_dir}/libecalbackendgtasks.so
+ %{ecal_backends_dir}/libecalbackendhttp.so
++%if %{weather_support}
+ %{ecal_backends_dir}/libecalbackendweather.so
++%endif
+ %{ecal_backends_dir}/libecalbackendwebdavnotes.so
+ %{modules_dir}/module-cache-reaper.so
+ %{modules_dir}/module-google-backend.so
