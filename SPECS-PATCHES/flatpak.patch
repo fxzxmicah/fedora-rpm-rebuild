@@ -1,0 +1,13 @@
+--- flatpak.spec	2024-09-18 13:42:15.639023737 +0800
++++ flatpak.spec.new	2024-09-18 13:43:13.043767782 +0800
+@@ -7,8 +7,8 @@
+ %global wayland_protocols_version 1.32
+ %global wayland_scanner_version 1.15
+ 
+-# Disable parental control for RHEL builds
+-%bcond malcontent %[!0%{?rhel}]
++# Disable malcontent for all builds
++%bcond malcontent 0
+ 
+ Name:           flatpak
+ Version:        1.15.10
