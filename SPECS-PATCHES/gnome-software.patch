@@ -1,0 +1,13 @@
+--- gnome-software.spec	2024-09-18 13:47:05.741041134 +0800
++++ gnome-software.spec.new	2024-09-18 13:47:38.035492301 +0800
+@@ -10,8 +10,8 @@
+ 
+ # Disable WebApps for RHEL builds
+ %bcond webapps %[!0%{?rhel}]
+-# Disable parental control for RHEL builds
+-%bcond malcontent %[!0%{?rhel}]
++# Disable malcontent for all builds
++%bcond malcontent 0
+ # Disable rpm-ostree support for RHEL builds
+ %bcond rpmostree %[!0%{?rhel}]
+ # Disable fedora-langpacks subpackage for RHEL builds
