@@ -1,5 +1,5 @@
 --- filesystem.spec	2024-09-17 22:37:39.949371259 +0800
-+++ filesystem.spec.new	2024-09-18 10:38:31.224322531 +0800
++++ filesystem.spec.new	2024-09-18 11:13:44.094843894 +0800
 @@ -42,11 +42,11 @@
  cd %{buildroot}
  
@@ -31,7 +31,7 @@
  
  sed -n -f %{buildroot}/iso_639.sed /usr/share/xml/iso-codes/iso_639.xml \
    >%{buildroot}/iso_639.tab
-@@ -137,31 +134,16 @@
+@@ -137,31 +134,18 @@
  posix.mkdir("/usr/bin")
  posix.mkdir("/usr/sbin")
  posix.mkdir("/usr/lib")
@@ -51,6 +51,8 @@
 -posix.symlink("../.dwz", "/usr/lib/debug/usr/.dwz")
 -posix.symlink("usr/sbin", "/usr/lib/debug/sbin")
  posix.symlink("usr/%{_lib}", "/%{_lib}")
++posix.symlink("run/media", "/media")
++posix.symlink("var/opt", "/opt")
  posix.mkdir("/run")
  posix.mkdir("/proc")
  posix.mkdir("/sys")
@@ -63,7 +65,7 @@
  posix.mkdir("/var")
  posix.symlink("../run", "/var/run")
  posix.symlink("../run/lock", "/var/lock")
-@@ -170,8 +152,7 @@
+@@ -170,8 +154,7 @@
  %posttrans -p <lua>
  --# we need to restorecon on some dirs created in %pretrans or by other packages
  if posix.access ("/usr/sbin/restorecon", "x") then
@@ -73,7 +75,7 @@
  end
  
  %files content
-@@ -185,20 +166,17 @@
+@@ -185,20 +168,17 @@
  %dir %attr(555,root,root) /
  /bin
  %attr(555,root,root) /boot
@@ -94,7 +96,19 @@
  /home
  /lib
  %ifarch x86_64 ppc64 sparc64 s390x aarch64 ppc64le mips64 mips64el riscv64
-@@ -216,7 +194,6 @@
+@@ -206,17 +186,16 @@
+ %endif
+ /media
+ %dir /mnt
+-%dir /opt
++/opt
+ %ghost %attr(555,root,root) /proc
+ %attr(550,root,root) /root
+ /run
+ /sbin
+-/srv
++%ghost /srv
+ %ghost %attr(555,root,root) /sys
  %attr(1777,root,root) /tmp
  %dir /usr
  %attr(555,root,root) /usr/bin
@@ -102,7 +116,7 @@
  /usr/include
  %dir %attr(555,root,root) /usr/lib
  %dir /usr/lib/sysimage
-@@ -227,25 +204,8 @@
+@@ -227,25 +206,8 @@
  %dir /usr/lib/tmpfiles.d
  %dir /usr/lib/locale
  %dir /usr/lib/modules
@@ -128,7 +142,7 @@
  %endif
  /usr/libexec
  /usr/local
-@@ -254,7 +214,6 @@
+@@ -254,7 +216,6 @@
  /usr/share/aclocal
  /usr/share/appdata
  /usr/share/applications
@@ -136,7 +150,7 @@
  /usr/share/backgrounds
  %dir /usr/share/bash-completion
  /usr/share/bash-completion/completions
-@@ -263,12 +222,9 @@
+@@ -263,12 +224,9 @@
  /usr/share/dict
  /usr/share/doc
  %attr(555,root,root) %dir /usr/share/empty
@@ -149,7 +163,7 @@
  /usr/share/info
  %dir /usr/share/licenses
  %dir /usr/share/locale
-@@ -276,31 +232,22 @@
+@@ -276,39 +234,29 @@
  /usr/share/metainfo
  /usr/share/mime-info
  /usr/share/misc
@@ -162,8 +176,10 @@
 -/usr/share/X11/fonts
  /usr/share/wayland-sessions
 -/usr/share/zsh
- /usr/src
- /usr/tmp
+-/usr/src
+-/usr/tmp
++%ghost /usr/src
++%ghost /usr/tmp
  %dir /var
  /var/adm
  %dir /var/cache
@@ -178,10 +194,11 @@
  /var/log
  /var/mail
 -/var/nis
- /var/opt
+-/var/opt
++%dir /var/opt
  /var/preserve
  %ghost /var/run
-@@ -308,7 +255,6 @@
+ %dir /var/spool
  %attr(755,root,root) /var/spool/lpd
  %attr(775,root,mail) /var/spool/mail
  %attr(1777,root,root) /var/tmp
