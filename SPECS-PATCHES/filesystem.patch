@@ -1,5 +1,5 @@
---- filesystem.spec	2024-09-17 22:37:39.949371259 +0800
-+++ filesystem.spec.new	2024-09-18 11:13:44.094843894 +0800
+--- filesystem.spec	2024-09-18 11:35:39.833376392 +0800
++++ filesystem.spec.new	2024-09-18 11:32:19.448548115 +0800
 @@ -42,11 +42,11 @@
  cd %{buildroot}
  
@@ -13,7 +13,7 @@
 +        etc/{X11/{applnk,fontpath.d,xinit/{xinitrc,xinput}.d},xdg/autostart,opt,skel,sysconfig,keys/ima,pki,bash_completion.d,rwtab.d} \
 +        home mnt root run srv tmp \
 +        usr/{bin,include,%{_lib},lib/{locale,modules,sysimage,systemd/{system,user},sysusers.d,tmpfiles.d},libexec,local/{bin,etc,lib,%{_lib},sbin,src,share/{applications,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x},info},libexec,include},sbin,share/{aclocal,appdata,applications,backgrounds,bash-completion/{completions,helpers},desktop-directories,dict,doc,empty,gnome,help,icons,info,licenses,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x,0p,1p,3p},metainfo,mime-info,misc,pixmaps,sounds,themes,X11,wayland-sessions},src/kernels} \
-+        var/{adm,empty,lib/{misc,rpm-state},local,log,preserve,spool/{mail,lpd},tmp,cache,opt}
++        var/{adm,empty,lib/{misc,rpm-state},local,log,preserve,spool/{mail,lpd},tmp,db,cache,opt}
  )
  for i in "${Paths[@]}"; do
      mkdir -p "$i"
@@ -116,7 +116,7 @@
  /usr/include
  %dir %attr(555,root,root) /usr/lib
  %dir /usr/lib/sysimage
-@@ -227,25 +206,8 @@
+@@ -227,34 +206,18 @@
  %dir /usr/lib/tmpfiles.d
  %dir /usr/lib/locale
  %dir /usr/lib/modules
@@ -142,7 +142,10 @@
  %endif
  /usr/libexec
  /usr/local
-@@ -254,7 +216,6 @@
++%ghost /usr/local/include
++%ghost /usr/local/src
+ %attr(555,root,root) /usr/sbin
+ %dir /usr/share
  /usr/share/aclocal
  /usr/share/appdata
  /usr/share/applications
@@ -150,7 +153,7 @@
  /usr/share/backgrounds
  %dir /usr/share/bash-completion
  /usr/share/bash-completion/completions
-@@ -263,12 +224,9 @@
+@@ -263,12 +226,9 @@
  /usr/share/dict
  /usr/share/doc
  %attr(555,root,root) %dir /usr/share/empty
@@ -163,7 +166,7 @@
  /usr/share/info
  %dir /usr/share/licenses
  %dir /usr/share/locale
-@@ -276,39 +234,29 @@
+@@ -276,39 +236,31 @@
  /usr/share/metainfo
  /usr/share/mime-info
  /usr/share/misc
@@ -178,6 +181,7 @@
 -/usr/share/zsh
 -/usr/src
 -/usr/tmp
++%ghost /usr/include
 +%ghost /usr/src
 +%ghost /usr/tmp
  %dir /var
@@ -185,6 +189,7 @@
  %dir /var/cache
 -/var/cache/bpf
 -/var/db
++%ghost /var/db
  /var/empty
 -/var/ftp
 -/var/games
