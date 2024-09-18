@@ -1,6 +1,16 @@
 --- filesystem.spec	2024-09-18 11:35:39.833376392 +0800
-+++ filesystem.spec.new	2024-09-18 11:32:19.448548115 +0800
-@@ -42,11 +42,11 @@
++++ filesystem.spec.new	2024-09-18 11:45:19.371696742 +0800
+@@ -10,9 +10,6 @@
+ BuildRequires: iso-codes
+ Requires(pre): setup
+ 
+-Provides:   filesystem-afs = %{version}-%{release}
+-Obsoletes:  filesystem-afs <= 3.14-2
+-
+ %description
+ The filesystem package is one of the basic packages that is installed
+ on a Linux system. Filesystem contains the basic directory layout
+@@ -42,11 +39,11 @@
  cd %{buildroot}
  
  Paths=(
@@ -17,7 +27,7 @@
  )
  for i in "${Paths[@]}"; do
      mkdir -p "$i"
-@@ -60,11 +60,8 @@
+@@ -60,11 +57,8 @@
  ln -snf usr/%{_lib} %{_lib}
  ln -snf ../run var/run
  ln -snf ../run/lock var/lock
@@ -31,7 +41,7 @@
  
  sed -n -f %{buildroot}/iso_639.sed /usr/share/xml/iso-codes/iso_639.xml \
    >%{buildroot}/iso_639.tab
-@@ -137,31 +134,18 @@
+@@ -137,31 +131,18 @@
  posix.mkdir("/usr/bin")
  posix.mkdir("/usr/sbin")
  posix.mkdir("/usr/lib")
@@ -65,7 +75,7 @@
  posix.mkdir("/var")
  posix.symlink("../run", "/var/run")
  posix.symlink("../run/lock", "/var/lock")
-@@ -170,8 +154,7 @@
+@@ -170,8 +151,7 @@
  %posttrans -p <lua>
  --# we need to restorecon on some dirs created in %pretrans or by other packages
  if posix.access ("/usr/sbin/restorecon", "x") then
@@ -75,7 +85,7 @@
  end
  
  %files content
-@@ -185,20 +168,17 @@
+@@ -185,20 +165,17 @@
  %dir %attr(555,root,root) /
  /bin
  %attr(555,root,root) /boot
@@ -96,7 +106,7 @@
  /home
  /lib
  %ifarch x86_64 ppc64 sparc64 s390x aarch64 ppc64le mips64 mips64el riscv64
-@@ -206,17 +186,16 @@
+@@ -206,17 +183,16 @@
  %endif
  /media
  %dir /mnt
@@ -116,7 +126,7 @@
  /usr/include
  %dir %attr(555,root,root) /usr/lib
  %dir /usr/lib/sysimage
-@@ -227,34 +206,18 @@
+@@ -227,34 +203,18 @@
  %dir /usr/lib/tmpfiles.d
  %dir /usr/lib/locale
  %dir /usr/lib/modules
@@ -153,7 +163,7 @@
  /usr/share/backgrounds
  %dir /usr/share/bash-completion
  /usr/share/bash-completion/completions
-@@ -263,12 +226,9 @@
+@@ -263,12 +223,9 @@
  /usr/share/dict
  /usr/share/doc
  %attr(555,root,root) %dir /usr/share/empty
@@ -166,7 +176,7 @@
  /usr/share/info
  %dir /usr/share/licenses
  %dir /usr/share/locale
-@@ -276,39 +236,31 @@
+@@ -276,39 +233,31 @@
  /usr/share/metainfo
  /usr/share/mime-info
  /usr/share/misc
