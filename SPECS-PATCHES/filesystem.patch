@@ -1,0 +1,191 @@
+--- filesystem.spec	2024-09-17 22:37:39.949371259 +0800
++++ filesystem.spec.new	2024-09-18 10:38:31.224322531 +0800
+@@ -42,11 +42,11 @@
+ cd %{buildroot}
+ 
+ Paths=(
+-        afs boot dev \
+-        etc/{X11/{applnk,fontpath.d,xinit/{xinitrc,xinput}.d},xdg/autostart,opt,pm/{config.d,power.d,sleep.d},skel,sysconfig,keys/ima,pki,bash_completion.d,rwtab.d,statetab.d} \
+-        home media mnt opt root run srv tmp \
+-        usr/{bin,games,include,%{_lib}/{bpf,games,X11,pm-utils/{module.d,power.d,sleep.d}},lib/{debug/{.dwz,usr},games,locale,modules,sysimage,systemd/{system,user},sysusers.d,tmpfiles.d},libexec,local/{bin,etc,games,lib,%{_lib}/bpf,sbin,src,share/{applications,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x},info},libexec,include,},sbin,share/{aclocal,appdata,applications,augeas/lenses,backgrounds,bash-completion{,/completions,/helpers},desktop-directories,dict,doc,empty,fish/vendor_completions.d,games,gnome,help,icons,idl,info,licenses,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x,0p,1p,3p},metainfo,mime-info,misc,omf,pixmaps,sounds,themes,xsessions,X11/fonts,wayland-sessions,zsh/site-functions},src,src/kernels,src/debug} \
+-        var/{adm,empty,ftp,lib/{games,misc,rpm-state},local,log,nis,preserve,spool/{mail,lpd},tmp,db,cache/bpf,opt,games,yp}
++        boot dev \
++        etc/{X11/{applnk,fontpath.d,xinit/{xinitrc,xinput}.d},xdg/autostart,opt,skel,sysconfig,keys/ima,pki,bash_completion.d,rwtab.d} \
++        home mnt root run srv tmp \
++        usr/{bin,include,%{_lib},lib/{locale,modules,sysimage,systemd/{system,user},sysusers.d,tmpfiles.d},libexec,local/{bin,etc,lib,%{_lib},sbin,src,share/{applications,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x},info},libexec,include},sbin,share/{aclocal,appdata,applications,backgrounds,bash-completion/{completions,helpers},desktop-directories,dict,doc,empty,gnome,help,icons,info,licenses,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x,0p,1p,3p},metainfo,mime-info,misc,pixmaps,sounds,themes,X11,wayland-sessions},src/kernels} \
++        var/{adm,empty,lib/{misc,rpm-state},local,log,preserve,spool/{mail,lpd},tmp,cache,opt}
+ )
+ for i in "${Paths[@]}"; do
+     mkdir -p "$i"
+@@ -60,11 +60,8 @@
+ ln -snf usr/%{_lib} %{_lib}
+ ln -snf ../run var/run
+ ln -snf ../run/lock var/lock
+-ln -snf usr/bin usr/lib/debug/bin
+-ln -snf usr/lib usr/lib/debug/lib
+-ln -snf usr/%{_lib} usr/lib/debug/%{_lib}
+-ln -snf ../.dwz usr/lib/debug/usr/.dwz
+-ln -snf usr/sbin usr/lib/debug/sbin
++ln -snf run/media media
++ln -snf var/opt opt
+ 
+ sed -n -f %{buildroot}/iso_639.sed /usr/share/xml/iso-codes/iso_639.xml \
+   >%{buildroot}/iso_639.tab
+@@ -137,31 +134,16 @@
+ posix.mkdir("/usr/bin")
+ posix.mkdir("/usr/sbin")
+ posix.mkdir("/usr/lib")
+-posix.mkdir("/usr/lib/debug")
+-posix.mkdir("/usr/lib/debug/usr/")
+-posix.mkdir("/usr/lib/debug/usr/bin")
+-posix.mkdir("/usr/lib/debug/usr/sbin")
+-posix.mkdir("/usr/lib/debug/usr/lib")
+-posix.mkdir("/usr/lib/debug/usr/%{_lib}")
+ posix.mkdir("/usr/%{_lib}")
+ posix.symlink("usr/bin", "/bin")
+ posix.symlink("usr/sbin", "/sbin")
+ posix.symlink("usr/lib", "/lib")
+-posix.symlink("usr/bin", "/usr/lib/debug/bin")
+-posix.symlink("usr/lib", "/usr/lib/debug/lib")
+-posix.symlink("usr/%{_lib}", "/usr/lib/debug/%{_lib}")
+-posix.symlink("../.dwz", "/usr/lib/debug/usr/.dwz")
+-posix.symlink("usr/sbin", "/usr/lib/debug/sbin")
+ posix.symlink("usr/%{_lib}", "/%{_lib}")
+ posix.mkdir("/run")
+ posix.mkdir("/proc")
+ posix.mkdir("/sys")
+ posix.chmod("/proc", 0555)
+ posix.chmod("/sys", 0555)
+-st = posix.stat("/media")
+-if st and st.type == "link" then
+-  os.remove("/media")
+-end
+ posix.mkdir("/var")
+ posix.symlink("../run", "/var/run")
+ posix.symlink("../run/lock", "/var/lock")
+@@ -170,8 +152,7 @@
+ %posttrans -p <lua>
+ --# we need to restorecon on some dirs created in %pretrans or by other packages
+ if posix.access ("/usr/sbin/restorecon", "x") then
+-  rpm.execute("/usr/sbin/restorecon", "/var", "/var/run", "/var/lock", "/sys", "/boot", "/dev", "/media", "/afs")
+-  rpm.execute("/usr/sbin/restorecon", "-r", "/usr/lib/debug")
++  rpm.execute("/usr/sbin/restorecon", "/var", "/var/run", "/var/lock", "/sys", "/boot", "/dev", "/media")
+ end
+ 
+ %files content
+@@ -185,20 +166,17 @@
+ %dir %attr(555,root,root) /
+ /bin
+ %attr(555,root,root) /boot
+-%attr(555,root,root) /afs
+ /dev
+ %dir /etc
+ /etc/X11
+ /etc/xdg
+ /etc/opt
+-/etc/pm
+ /etc/skel
+ /etc/sysconfig
+ /etc/keys
+ /etc/pki
+ /etc/bash_completion.d/
+ %dir /etc/rwtab.d
+-%dir /etc/statetab.d
+ /home
+ /lib
+ %ifarch x86_64 ppc64 sparc64 s390x aarch64 ppc64le mips64 mips64el riscv64
+@@ -216,7 +194,6 @@
+ %attr(1777,root,root) /tmp
+ %dir /usr
+ %attr(555,root,root) /usr/bin
+-/usr/games
+ /usr/include
+ %dir %attr(555,root,root) /usr/lib
+ %dir /usr/lib/sysimage
+@@ -227,25 +204,8 @@
+ %dir /usr/lib/tmpfiles.d
+ %dir /usr/lib/locale
+ %dir /usr/lib/modules
+-%dir /usr/lib/debug
+-%dir /usr/lib/debug/.dwz
+-%ghost /usr/lib/debug/bin
+-%ghost /usr/lib/debug/lib
+-%ghost /usr/lib/debug/%{_lib}
+-%ghost %dir /usr/lib/debug/usr
+-%ghost /usr/lib/debug/usr/bin
+-%ghost /usr/lib/debug/usr/sbin
+-%ghost /usr/lib/debug/usr/lib
+-%ghost /usr/lib/debug/usr/%{_lib}
+-%ghost /usr/lib/debug/usr/.dwz
+-%ghost /usr/lib/debug/sbin
+-%attr(555,root,root) /usr/lib/games
+ %ifarch x86_64 ppc64 sparc64 s390x aarch64 ppc64le mips64 mips64el riscv64
+ %attr(555,root,root) /usr/%{_lib}
+-%else
+-%attr(555,root,root) /usr/lib/bpf
+-%attr(555,root,root) /usr/lib/X11
+-%attr(555,root,root) /usr/lib/pm-utils
+ %endif
+ /usr/libexec
+ /usr/local
+@@ -254,7 +214,6 @@
+ /usr/share/aclocal
+ /usr/share/appdata
+ /usr/share/applications
+-/usr/share/augeas
+ /usr/share/backgrounds
+ %dir /usr/share/bash-completion
+ /usr/share/bash-completion/completions
+@@ -263,12 +222,9 @@
+ /usr/share/dict
+ /usr/share/doc
+ %attr(555,root,root) %dir /usr/share/empty
+-/usr/share/fish
+-/usr/share/games
+ /usr/share/gnome
+ /usr/share/help
+ /usr/share/icons
+-/usr/share/idl
+ /usr/share/info
+ %dir /usr/share/licenses
+ %dir /usr/share/locale
+@@ -276,31 +232,22 @@
+ /usr/share/metainfo
+ /usr/share/mime-info
+ /usr/share/misc
+-/usr/share/omf
+ /usr/share/pixmaps
+ /usr/share/sounds
+ /usr/share/themes
+-/usr/share/xsessions
+ %dir /usr/share/X11
+-/usr/share/X11/fonts
+ /usr/share/wayland-sessions
+-/usr/share/zsh
+ /usr/src
+ /usr/tmp
+ %dir /var
+ /var/adm
+ %dir /var/cache
+-/var/cache/bpf
+-/var/db
+ /var/empty
+-/var/ftp
+-/var/games
+ /var/lib
+ /var/local
+ %ghost /var/lock
+ /var/log
+ /var/mail
+-/var/nis
+ /var/opt
+ /var/preserve
+ %ghost /var/run
+@@ -308,7 +255,6 @@
+ %attr(755,root,root) /var/spool/lpd
+ %attr(775,root,mail) /var/spool/mail
+ %attr(1777,root,root) /var/tmp
+-/var/yp
+ 
+ %changelog
+ %autochangelog
