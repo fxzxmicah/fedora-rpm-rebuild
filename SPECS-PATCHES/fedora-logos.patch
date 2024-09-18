@@ -1,0 +1,139 @@
+--- fedora-logos.spec	2024-09-18 11:46:50.926269803 +0800
++++ fedora-logos.spec.new	2024-09-18 12:23:59.740880228 +0800
+@@ -70,6 +70,45 @@
+ PLEASE NOTE: This package does not provide system-logos and cannot be
+ used as a drop-in replacement for fedora-logos.
+ 
++%package anaconda
++Summary:	Fedora icons and pictures used by anaconda
++BuildArch:	noarch
++
++%description anaconda
++This is a collection of Fedora icons and pictures used during the installation
++process. These icons and pictures are essential for creating a visually
++appealing and user-friendly experience during the setup of a new Fedora
++system. This package provides the necessary resources for Anaconda to
++render its interface and menus, making it an essential component for a
++smooth and successful Fedora installation.
++
++%package icewm
++Summary:	Fedora icons and pictures used by icewm
++BuildArch:	noarch
++
++%description icewm
++This package provides a collection of Fedora-specific icons and pictures
++used by icewm, a lightweight and simple window manager for the X
++Window System. icewm allows you to customize your desktop environment
++with a unique look and feel, and this package includes a set of icons and
++images specifically designed for use with icewm. With these icons and
++pictures, you can further personalize your desktop experience and add a
++touch of Fedora flair to your Linux system.
++
++%package kde4
++Summary:	Fedora icons and pictures used by kde4
++BuildArch:	noarch
++
++%description kde4
++KDE4 Icons and Pictures Package provides the Fedora icons and pictures
++used by KDE4, a popular desktop environment. This package is essential for
++the proper functioning of KDE4 on Fedora systems, and ensures that users
++have access to a comprehensive set of icons and graphics. With this
++package installed, end-users can enjoy a seamless and visually appealing
++KDE4 experience, complete with a wide range of icons and pictures to
++enhance their overall desktop experience.
++
++
+ %prep
+ %autosetup -p1
+ 
+@@ -251,15 +290,6 @@
+ %license COPYING
+ %config(noreplace) %{_sysconfdir}/favicon.png
+ %{_datadir}/plymouth/themes/spinner/
+-%if ! 0%{?eln}
+-# No one else before us owns this, so we shall.
+-%dir %{_kde4_sharedir}/kde4/
+-%exclude %{_kde4_iconsdir}/oxygen/*/places/start-here-kde-fedora_classic.png
+-%exclude %{_kde4_iconsdir}/oxygen/scalable/apps/org.fedoraproject.AnacondaInstaller_classic.svg
+-%{_kde4_iconsdir}/oxygen/
+-# DO NOT REMOVE THIS ICON!!! We still support the Leonidas and Solar themes!
+-%{_kde4_appsdir}/ksplash/Themes/Leonidas/2048x1536/logo.png
+-%endif
+ # in -classic
+ %exclude %{_datadir}/pixmaps/bootloader/fedora_classic.icns
+ %exclude %{_datadir}/pixmaps/fedora-gdm-logo_classic.png
+@@ -273,16 +303,6 @@
+ %{_datadir}/pixmaps/*
+ # This lives in the http subpackage
+ %exclude %{_datadir}/pixmaps/poweredby.png
+-%exclude %{_datadir}/anaconda/pixmaps/*_classic*
+-%exclude %{_datadir}/anaconda/pixmaps/*/*_classic*
+-%{_datadir}/anaconda/pixmaps/*
+-%{_datadir}/anaconda/boot/splash.lss
+-%{_datadir}/anaconda/boot/syslinux-splash.png
+-%{_datadir}/anaconda/boot/splash.png
+-%exclude %{_datadir}/icewm/themes/clearlooks/taskbar/*_classic*
+-%exclude %{_datadir}/icewm/themes/clearlooks-2px/taskbar/*_classic*
+-%{_datadir}/icewm/themes/clearlooks/taskbar/*
+-%{_datadir}/icewm/themes/clearlooks-2px/taskbar/*
+ %exclude %{_datadir}/icons/hicolor/*/apps/*_classic*
+ %exclude %{_datadir}/icons/hicolor/*/places/*_classic*
+ %exclude %{_datadir}/icons/Bluecurve/*/apps/*_classic*
+@@ -342,18 +362,7 @@
+ %dir %{_datadir}/icons/hicolor/scalable/
+ %dir %{_datadir}/icons/hicolor/scalable/apps/
+ %dir %{_datadir}/icons/hicolor/scalable/places/
+-%dir %{_datadir}/anaconda
+-%dir %{_datadir}/anaconda/boot/
+-%dir %{_datadir}/anaconda/pixmaps/
+ %dir %{_datadir}/plymouth/
+-%if ! 0%{?eln}
+-# DO NOT REMOVE THESE DIRS!!! We still support the Leonidas and Solar themes!
+-%dir %{_kde4_appsdir}
+-%dir %{_kde4_appsdir}/ksplash
+-%dir %{_kde4_appsdir}/ksplash/Themes/
+-%dir %{_kde4_appsdir}/ksplash/Themes/Leonidas/
+-%dir %{_kde4_appsdir}/ksplash/Themes/Leonidas/2048x1536
+-%endif
+ 
+ %files httpd
+ %license COPYING
+@@ -391,6 +400,38 @@
+ %{_datadir}/pixmaps/system-logo-white_classic.png
+ %{_datadir}/plymouth/themes/charge/*_classic*
+ 
++%files anaconda
++%exclude %{_datadir}/anaconda/pixmaps/*_classic*
++%exclude %{_datadir}/anaconda/pixmaps/*/*_classic*
++%{_datadir}/anaconda/pixmaps/*
++%{_datadir}/anaconda/boot/splash.lss
++%{_datadir}/anaconda/boot/syslinux-splash.png
++%{_datadir}/anaconda/boot/splash.png
++%dir %{_datadir}/anaconda
++%dir %{_datadir}/anaconda/boot/
++%dir %{_datadir}/anaconda/pixmaps/
++
++%files icewm
++%exclude %{_datadir}/icewm/themes/clearlooks/taskbar/*_classic*
++%exclude %{_datadir}/icewm/themes/clearlooks-2px/taskbar/*_classic*
++%{_datadir}/icewm/themes/clearlooks/taskbar/*
++%{_datadir}/icewm/themes/clearlooks-2px/taskbar/*
++
++%files kde4
++%if ! 0%{?eln}
++# No one else before us owns this, so we shall.
++%dir %{_kde4_sharedir}/kde4/
++%exclude %{_kde4_iconsdir}/oxygen/*/places/start-here-kde-fedora_classic.png
++%exclude %{_kde4_iconsdir}/oxygen/scalable/apps/org.fedoraproject.AnacondaInstaller_classic.svg
++%{_kde4_iconsdir}/oxygen/
++# DO NOT REMOVE THIS ICON!!! We still support the Leonidas and Solar themes!
++%{_kde4_appsdir}/ksplash/Themes/Leonidas/2048x1536/logo.png
++%dir %{_kde4_appsdir}
++%dir %{_kde4_appsdir}/ksplash
++%dir %{_kde4_appsdir}/ksplash/Themes/
++%dir %{_kde4_appsdir}/ksplash/Themes/Leonidas/
++%dir %{_kde4_appsdir}/ksplash/Themes/Leonidas/2048x1536
++%endif
+ 
+ 
+ %changelog
