@@ -1,0 +1,22 @@
+--- udisks2.spec	2024-09-20 00:13:08.155665280 +0800
++++ udisks2.spec.new	2024-09-20 00:15:55.287519493 +0800
+@@ -52,9 +52,7 @@
+ BuildRequires: libblockdev-part-devel   >= %{libblockdev_version}
+ BuildRequires: libblockdev-loop-devel   >= %{libblockdev_version}
+ BuildRequires: libblockdev-swap-devel   >= %{libblockdev_version}
+-BuildRequires: libblockdev-mdraid-devel >= %{libblockdev_version}
+ BuildRequires: libblockdev-fs-devel     >= %{libblockdev_version}
+-BuildRequires: libblockdev-crypto-devel >= %{libblockdev_version}
+ BuildRequires: libblockdev-nvme-devel   >= %{libblockdev_version}
+ BuildRequires: libmount-devel
+ BuildRequires: libuuid-devel
+@@ -63,9 +61,7 @@
+ Requires: libblockdev-part   >= %{libblockdev_version}
+ Requires: libblockdev-loop   >= %{libblockdev_version}
+ Requires: libblockdev-swap   >= %{libblockdev_version}
+-Requires: libblockdev-mdraid >= %{libblockdev_version}
+ Requires: libblockdev-fs     >= %{libblockdev_version}
+-Requires: libblockdev-crypto >= %{libblockdev_version}
+ Requires: libblockdev-nvme   >= %{libblockdev_version}
+ 
+ Requires: lib%{name}%{?_isa} = %{version}-%{release}
