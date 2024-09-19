@@ -2,6 +2,7 @@ name: Rebuild RPM
 
 on:
   - push
+  - workflow_dispatch
 
 jobs:
   build:
