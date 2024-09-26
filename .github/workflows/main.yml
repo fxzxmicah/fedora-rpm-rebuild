@@ -1,7 +1,10 @@
-name: Rebuild RPM
+name: Rebuild and Upload
 
 on:
-  - workflow_dispatch
+  push:
+    branches:
+      - main
+  workflow_dispatch:
 
 jobs:
   build:
@@ -14,30 +17,18 @@ jobs:
     - name: Setup Docker
       uses: docker/setup-buildx-action@v3
 
-    - name: Prepare Source
+    - name: Rebuild SRPM and Upload Copr
       run: |
         docker run --rm -v $(pwd):/workspace -w /workspace fedora:latest bash -c '
-          dnf install -y dnf-plugins-core patch &&
+          dnf install -y dnf-plugins-core patch rpm-build copr-cli &&
           dnf download --source $(find SPECS-PATCHES -name "*.patch" -exec basename {} .patch \; | xargs) &&
           rpm -ivh --define "_topdir /workspace" *.src.rpm &&
           for patch in SPECS-PATCHES/*.patch; do
             pushd SPECS;
             patch -p0 < "../$patch" || exit 1;
             popd;
-          done
-        '
-
-    - name: Rebuild SRPM
-      run: |
-        docker run --rm -v $(pwd):/workspace -w /workspace fedora:latest bash -c '
-          dnf install -y rpm-build &&
-          rpmbuild --define "_topdir /workspace" -bs SPECS/*.spec
-        '
-
-    - name: Upload SRPM
-      run: |
-        docker run --rm -v $(pwd):/workspace -w /workspace fedora:latest bash -c '
+          done &&
+          rpmbuild --define "_topdir /workspace" -bs SPECS/*.spec &&
           echo "${{ secrets.COPR_API }}" > copr-api &&
-          dnf install -y copr-cli &&
           copr-cli --config copr-api build --nowait --chroot fedora-$(rpm -E %fedora)-x86_64 rpm-rebuild SRPMS/*.src.rpm
         '
