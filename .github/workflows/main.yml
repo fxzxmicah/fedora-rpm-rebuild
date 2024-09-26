@@ -1,7 +1,6 @@
 name: Rebuild RPM
 
 on:
-  - push
   - workflow_dispatch
 
 jobs:
@@ -18,34 +17,31 @@ jobs:
     - name: Prepare Source
       run: |
         docker run --rm -v $(pwd):/workspace -w /workspace fedora:latest bash -c "
-          dnf install -y dnf-plugins-core &&
+          dnf install -y dnf-plugins-core patch &&
           dnf download --source $(find SPECS-PATCHES -name "*.patch" -exec basename {} .patch \; | xargs) &&
           rpm -ivh --define '_topdir /workspace' *.src.rpm &&
-          chmod 777 SPECS && chmod 666 SPECS/*
+          for patch in SPECS-PATCHES/*.patch; do
+            file="SPECS/$(basename "$patch" .patch).spec"
+            if [[ -f "$file" ]]; then
+              patch "$file" < "$patch"
+              echo "Applied patch $patch to $file"
+            else
+              echo "Spec file $file does not exist for $patch"
+            fi
+          done
         "
 
-    - name: Apply Patches
-      run: |
-        for patch in SPECS-PATCHES/*.patch; do
-          file="SPECS/$(basename "$patch" .patch).spec"
-          if [[ -f "$file" ]]; then
-            patch "$file" < "$patch"
-            echo "Applied patch $patch to $file"
-          else
-            echo "Spec file $file does not exist for $patch"
-          fi
-        done
-    
-    - name: Rebuild RPM
+    - name: Rebuild SRPM
       run: |
         docker run --rm -v $(pwd):/workspace -w /workspace fedora:latest bash -c "
-          dnf install -y dnf-plugins-core rpmdevtools &&
-          dnf builddep -y SPECS/*.spec &&
-          rpmbuild --define '_topdir /workspace' -ba SPECS/*.spec
+          dnf install -y rpm-build &&
+          rpmbuild --define '_topdir /workspace' -bs SPECS/*.spec
         "
 
-    - name: Upload Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: rpm-package
-        path: RPMS/
+    - name: Upload SRPM
+      run: |
+        docker run --rm -v $(pwd):/workspace -w /workspace fedora:latest bash -c "
+          echo "${{ secrets.COPR_API }}" > "$HOME/.config/copr" &&
+          dnf install -y copr-cli &&
+          copr-cli build --nowait --chroot fedora-$(rpm -E %fedora)-x86_64 rpm-rebuild SRPM/*
+        "
