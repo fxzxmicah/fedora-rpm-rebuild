@@ -39,5 +39,5 @@ jobs:
         docker run --rm -v $(pwd):/workspace -w /workspace fedora:latest bash -c '
           echo "${{ secrets.COPR_API }}" > copr-api &&
           dnf install -y copr-cli &&
-          copr-cli --config copr-api build --nowait --chroot fedora-$(rpm -E %fedora)-x86_64 rpm-rebuild SRPM/*.src.rpm
+          copr-cli --config copr-api build --nowait --chroot fedora-$(rpm -E %fedora)-x86_64 rpm-rebuild SRPMS/*.src.rpm
         '
