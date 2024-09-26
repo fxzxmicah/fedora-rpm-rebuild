@@ -16,28 +16,28 @@ jobs:
 
     - name: Prepare Source
       run: |
-        docker run --rm -v $(pwd):/workspace -w /workspace fedora:latest bash -c "
+        docker run --rm -v $(pwd):/workspace -w /workspace fedora:latest bash -c '
           dnf install -y dnf-plugins-core patch &&
           dnf download --source $(find SPECS-PATCHES -name "*.patch" -exec basename {} .patch \; | xargs) &&
-          rpm -ivh --define '_topdir /workspace' *.src.rpm &&
+          rpm -ivh --define "_topdir /workspace" *.src.rpm &&
           for patch in SPECS-PATCHES/*.patch; do
             pushd SPECS;
             patch -p0 < "$patch";
             popd;
-          done;
-        "
+          done
+        '
 
     - name: Rebuild SRPM
       run: |
-        docker run --rm -v $(pwd):/workspace -w /workspace fedora:latest bash -c "
+        docker run --rm -v $(pwd):/workspace -w /workspace fedora:latest bash -c '
           dnf install -y rpm-build &&
-          rpmbuild --define '_topdir /workspace' -bs SPECS/*.spec
-        "
+          rpmbuild --define "_topdir /workspace" -bs SPECS/*.spec
+        '
 
     - name: Upload SRPM
       run: |
-        docker run --rm -v $(pwd):/workspace -w /workspace fedora:latest bash -c "
+        docker run --rm -v $(pwd):/workspace -w /workspace fedora:latest bash -c '
           echo "${{ secrets.COPR_API }}" > "$HOME/.config/copr" &&
           dnf install -y copr-cli &&
           copr-cli build --nowait --chroot fedora-$(rpm -E %fedora)-x86_64 rpm-rebuild SRPM/*
-        "
+        '
