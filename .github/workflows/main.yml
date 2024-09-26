@@ -21,14 +21,10 @@ jobs:
           dnf download --source $(find SPECS-PATCHES -name "*.patch" -exec basename {} .patch \; | xargs) &&
           rpm -ivh --define '_topdir /workspace' *.src.rpm &&
           for patch in SPECS-PATCHES/*.patch; do
-            file="SPECS/$(basename "$patch" .patch).spec"
-            if [[ -f "$file" ]]; then
-              patch "$file" < "$patch"
-              echo "Applied patch $patch to $file"
-            else
-              echo "Spec file $file does not exist for $patch"
-            fi
-          done
+            pushd SPECS;
+            patch -p0 < "$patch";
+            popd;
+          done;
         "
 
     - name: Rebuild SRPM
