@@ -22,7 +22,7 @@ jobs:
           rpm -ivh --define "_topdir /workspace" *.src.rpm &&
           for patch in SPECS-PATCHES/*.patch; do
             pushd SPECS;
-            patch -p0 < "$patch";
+            patch -p0 < "../$patch" || exit 1;
             popd;
           done
         '
@@ -37,7 +37,7 @@ jobs:
     - name: Upload SRPM
       run: |
         docker run --rm -v $(pwd):/workspace -w /workspace fedora:latest bash -c '
-          echo "${{ secrets.COPR_API }}" > "$HOME/.config/copr" &&
+          echo "${{ secrets.COPR_API }}" > copr-api &&
           dnf install -y copr-cli &&
-          copr-cli build --nowait --chroot fedora-$(rpm -E %fedora)-x86_64 rpm-rebuild SRPM/*
+          copr-cli --config copr-api build --nowait --chroot fedora-$(rpm -E %fedora)-x86_64 rpm-rebuild SRPM/*.src.rpm
         '
