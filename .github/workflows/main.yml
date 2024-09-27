@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  job:
     runs-on: ubuntu-latest
 
     steps:
@@ -30,5 +30,6 @@ jobs:
           done &&
           rpmbuild --define "_topdir /workspace" -bs SPECS/*.spec &&
           echo "${{ secrets.COPR_API }}" > copr-api &&
-          copr-cli --config copr-api build --nowait --chroot fedora-$(rpm -E %fedora)-x86_64 rpm-rebuild SRPMS/*.src.rpm
+          . /etc/os-release &&
+          copr-cli --config copr-api build --nowait --chroot ${ID}-${VERSION_ID}-$(uname -m) rpm-rebuild SRPMS/*.src.rpm
         '
