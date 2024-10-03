@@ -1,5 +1,5 @@
 --- filesystem.spec	2024-09-18 11:35:39.833376392 +0800
-+++ filesystem.spec.new	2024-09-18 13:33:27.140911347 +0800
++++ filesystem.spec.new	2024-10-04 00:14:32.690206342 +0800
 @@ -10,9 +10,6 @@
  BuildRequires: iso-codes
  Requires(pre): setup
@@ -22,7 +22,7 @@
 +        boot dev \
 +        etc/{X11/{applnk,fontpath.d,xinit/{xinitrc,xinput}.d},xdg/autostart,opt,skel,sysconfig,keys/ima,pki,bash_completion.d,rwtab.d} \
 +        home mnt root run srv tmp \
-+        usr/{bin,include,%{_lib},lib/{locale,modules,sysimage,systemd/{system,user},sysusers.d,tmpfiles.d},libexec,local/{bin,etc,lib,%{_lib},sbin,src,share/{applications,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x},info},libexec,include},sbin,share/{aclocal,appdata,applications,backgrounds,bash-completion/{completions,helpers},desktop-directories,dict,doc,empty,gnome,help,icons,info,licenses,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x,0p,1p,3p},metainfo,mime-info,misc,pixmaps,sounds,themes,X11,wayland-sessions},src/kernels} \
++        usr/{bin,include,%{_lib},lib/{locale,modules,sysimage,systemd/{system,user},sysusers.d,tmpfiles.d},libexec,local/{bin,etc,lib,%{_lib},sbin,share/{applications,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x},info},libexec},sbin,share/{aclocal,appdata,applications,backgrounds,bash-completion/{completions,helpers},desktop-directories,dict,doc,empty,gnome,help,icons,info,licenses,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x,0p,1p,3p},metainfo,mime-info,misc,pixmaps,sounds,themes,X11,wayland-sessions},src/kernels} \
 +        var/{adm,empty,lib/{misc,rpm-state},local,log,preserve,spool/{mail,lpd},tmp,db,cache,opt}
  )
  for i in "${Paths[@]}"; do
