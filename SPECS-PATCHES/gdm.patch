@@ -1,0 +1,39 @@
+--- gdm.spec	2024-10-10 00:48:03.702463413 +0800
++++ gdm.spec.new	2024-10-10 00:54:07.103000751 +0800
+@@ -25,7 +25,6 @@
+ Patch:          0001-Honor-initial-setup-being-disabled-by-distro-install.patch
+ Patch:          0001-data-add-system-dconf-databases-to-gdm-profile.patch
+ Patch:          0001-xorg-detect.patch
+-Patch:          0001-Add-headless-session-files.patch
+ 
+ BuildRequires:  dconf
+ BuildRequires:  desktop-file-utils
+@@ -68,12 +67,8 @@
+ Requires: libXau >= 1.0.4-4
+ Requires: pam
+ Requires: /sbin/nologin
+-Requires: setxkbmap
+ Requires: systemd >= 186
+ Requires: system-logos
+-Requires: xhost xmodmap xrdb
+-Requires: xorg-x11-xinit
+-Requires: python3-pam
+ 
+ # Until the greeter gets dynamic user support, it can't
+ # use a user bus
+@@ -244,7 +239,6 @@
+ %{_libexecdir}/gdm-simple-chooser
+ %{_libexecdir}/gdm-wayland-session
+ %{_libexecdir}/gdm-x-session
+-%{_libexecdir}/gdm-headless-login-session
+ %{_sbindir}/gdm
+ %{_bindir}/gdmflexiserver
+ %{_bindir}/gdm-config
+@@ -276,7 +270,6 @@
+ %{_sysconfdir}/pam.d/gdm-launch-environment
+ %{_udevrulesdir}/61-gdm.rules
+ %{_unitdir}/gdm.service
+-%{_unitdir}/gnome-headless-session@.service
+ %dir %{_userunitdir}/gnome-session@gnome-login.target.d/
+ %{_userunitdir}/gnome-session@gnome-login.target.d/session.conf
+ %{_sysusersdir}/%{name}.conf
