@@ -1,0 +1,76 @@
+--- gcr.spec	2024-10-09 23:23:27.937476381 +0800
++++ gcr.spec.new	2024-10-09 23:43:39.746368686 +0800
+@@ -2,6 +2,9 @@
+ %global has_valgrind 1
+ %endif
+ 
++# Disable ssh_agent for all builds
++%bcond ssh_agent 0
++
+ Name:           gcr
+ Version:        4.3.0
+ Release:        1%{?dist}
+@@ -32,14 +35,17 @@
+ BuildRequires:  valgrind-devel
+ %endif
+ BuildRequires:  /usr/bin/gpg2
+-BuildRequires:  /usr/bin/ssh-add
+-BuildRequires:  /usr/bin/ssh-agent
+ BuildRequires:  /usr/bin/xsltproc
+ 
+ Requires: %{name}-libs%{?_isa} = %{version}-%{release}
+ Requires: /usr/bin/gpg2
++
++%if %{with ssh_agent}
++BuildRequires:  /usr/bin/ssh-add
++BuildRequires:  /usr/bin/ssh-agent
+ Requires: /usr/bin/ssh-add
+ Requires: /usr/bin/ssh-agent
++%endif
+ 
+ %description
+ gcr is a library for displaying certificates, and crypto UI, accessing
+@@ -76,7 +82,12 @@
+ %autosetup -p1
+ 
+ %build
+-%meson
++%meson \
++%if %{with ssh_agent}
++           -Dssh_agent=true
++%else
++           -Dssh_agent=false
++%endif
+ %meson_build
+ 
+ %install
+@@ -84,21 +95,29 @@
+ %find_lang gcr-4
+ 
+ %post
++%if %{with ssh_agent}
+ %systemd_user_post gcr-ssh-agent.service
++%endif
+ 
+ %preun
++%if %{with ssh_agent}
+ %systemd_user_preun gcr-ssh-agent.service
++%endif
+ 
+ %postun
++%if %{with ssh_agent}
+ %systemd_user_postun_with_restart gcr-ssh-agent.service
++%endif
+ 
+ %files
+ %doc NEWS README.md
+ %{_bindir}/gcr-viewer-gtk4
++%if %{with ssh_agent}
+ %{_libexecdir}/gcr-ssh-agent
+ %{_libexecdir}/gcr4-ssh-askpass
+ %{_userunitdir}/gcr-ssh-agent.service
+ %{_userunitdir}/gcr-ssh-agent.socket
++%endif
+ 
+ %files libs -f gcr-4.lang
+ %license COPYING
