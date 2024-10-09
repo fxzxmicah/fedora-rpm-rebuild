@@ -1,0 +1,23 @@
+--- gnome-keyring.spec	2024-10-09 22:51:54.535601558 +0800
++++ gnome-keyring.spec.new	2024-10-09 22:58:32.666685238 +0800
+@@ -2,7 +2,8 @@
+ %global gcr_version 3.27.90
+ %global gcrypt_version 1.2.2
+ 
+-%bcond_without ssh_agent
++# Disable ssh_agent for all builds
++%bcond ssh_agent 0
+ 
+ Name:           gnome-keyring
+ Version:        46.2
+@@ -39,9 +40,9 @@
+ %if %{with ssh_agent}
+ Requires: /usr/bin/ssh-add
+ Requires: /usr/bin/ssh-agent
+-%endif
+ # for /usr/libexec/gcr-ssh-askpass
+ Requires: gcr3
++%endif
+ 
+ %description
+ The gnome-keyring session daemon manages passwords and other types of
