@@ -1,5 +1,5 @@
 --- gcr.spec	2024-10-09 23:23:27.937476381 +0800
-+++ gcr.spec.new	2024-10-09 23:43:39.746368686 +0800
++++ gcr.spec.new	2024-10-10 00:07:01.163536537 +0800
 @@ -2,6 +2,9 @@
  %global has_valgrind 1
  %endif
@@ -30,7 +30,7 @@
  
  %description
  gcr is a library for displaying certificates, and crypto UI, accessing
-@@ -76,7 +82,12 @@
+@@ -76,29 +82,45 @@
  %autosetup -p1
  
  %build
@@ -44,9 +44,12 @@
  %meson_build
  
  %install
-@@ -84,21 +95,29 @@
+ %meson_install
  %find_lang gcr-4
  
++mv %{buildroot}%{_bindir}/gcr-viewer-gtk4 %{buildroot}%{_bindir}/gcr-viewer
++mv %{buildroot}%{_libexecdir}/gcr4-ssh-askpass %{buildroot}%{_libexecdir}/gcr-ssh-askpass
++
  %post
 +%if %{with ssh_agent}
  %systemd_user_post gcr-ssh-agent.service
@@ -64,10 +67,12 @@
  
  %files
  %doc NEWS README.md
- %{_bindir}/gcr-viewer-gtk4
+-%{_bindir}/gcr-viewer-gtk4
++%{_bindir}/gcr-viewer
++%{_libexecdir}/gcr-ssh-askpass
 +%if %{with ssh_agent}
  %{_libexecdir}/gcr-ssh-agent
- %{_libexecdir}/gcr4-ssh-askpass
+-%{_libexecdir}/gcr4-ssh-askpass
  %{_userunitdir}/gcr-ssh-agent.service
  %{_userunitdir}/gcr-ssh-agent.socket
 +%endif
