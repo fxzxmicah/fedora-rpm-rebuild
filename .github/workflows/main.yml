@@ -27,9 +27,9 @@ jobs:
           dnf download --source $(find SPECS-PATCHES -name "*.patch" -exec basename {} .patch \; | xargs) &&
           rpm -ivh --define "_topdir /workspace" *.src.rpm &&
           for patch in SPECS-PATCHES/*.patch; do
-            pushd SPECS;
-            patch -p0 < "../$patch" || exit 1;
-            popd;
+            pushd SPECS > /dev/null;
+            patch -p0 < "../$patch" || { echo "Patch $patch Failed!"; exit 1; }
+            popd  > /dev/null;
           done &&
           rpmbuild --define "_topdir /workspace" -bs SPECS/*.spec &&
           echo "${{ secrets.COPR_API }}" > copr-api &&
