@@ -11,6 +11,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - name: Get Version
+      run: echo "version=$(echo ${GITHUB_REF#refs/heads/} | grep -o '[0-9]*')" >> $GITHUB_ENV
+
     - name: Checkout Code
       uses: actions/checkout@v4
 
@@ -19,7 +22,7 @@ jobs:
 
     - name: Rebuild SRPM and Upload Copr
       run: |
-        docker run --rm -v $(pwd):/workspace -w /workspace fedora:latest bash -c '
+        docker run --rm -v $(pwd):/workspace -w /workspace fedora:${{ env.version }} bash -c '
           dnf install -y dnf-plugins-core patch rpm-build copr-cli &&
           dnf download --source $(find SPECS-PATCHES -name "*.patch" -exec basename {} .patch \; | xargs) &&
           rpm -ivh --define "_topdir /workspace" *.src.rpm &&
