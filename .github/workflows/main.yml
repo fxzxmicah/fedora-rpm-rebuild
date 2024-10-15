@@ -3,7 +3,7 @@ name: Rebuild and Upload
 on:
   push:
     branches:
-      - main
+      - "f[0-9]+"
   workflow_dispatch:
 
 jobs:
