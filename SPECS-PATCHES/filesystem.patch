@@ -1,33 +1,33 @@
---- filesystem.spec	2024-09-18 11:35:39.833376392 +0800
-+++ filesystem.spec.new	2024-10-04 00:14:32.690206342 +0800
-@@ -10,9 +10,6 @@
+--- filesystem.spec	2024-11-01 21:19:09.930724633 +0800
++++ filesystem.spec.new	2024-11-01 21:19:12.069725096 +0800
+@@ -13,9 +13,6 @@
  BuildRequires: iso-codes
  Requires(pre): setup
  
 -Provides:   filesystem-afs = %{version}-%{release}
 -Obsoletes:  filesystem-afs <= 3.14-2
 -
- %description
- The filesystem package is one of the basic packages that is installed
- on a Linux system. Filesystem contains the basic directory layout
-@@ -42,11 +39,11 @@
+ %if %{with merged_sbin}
+ # A virtual provides that packages can use to make sure that the
+ # symlinks from /usr/sbin/foo to /usr/bin/foo will be automatically
+@@ -55,11 +52,11 @@
  cd %{buildroot}
  
  Paths=(
 -        afs boot dev \
--        etc/{X11/{applnk,fontpath.d,xinit/{xinitrc,xinput}.d},xdg/autostart,opt,pm/{config.d,power.d,sleep.d},skel,sysconfig,keys/ima,pki,bash_completion.d,rwtab.d,statetab.d} \
+-        etc/{X11/{applnk,fontpath.d,xinit/{xinitrc,xinput}.d},xdg/autostart,opt,pm/{config.d,power.d,sleep.d},skel,sysconfig,keys/ima,pki,bash_completion.d,default,rwtab.d,statetab.d} \
 -        home media mnt opt root run srv tmp \
--        usr/{bin,games,include,%{_lib}/{bpf,games,X11,pm-utils/{module.d,power.d,sleep.d}},lib/{debug/{.dwz,usr},games,locale,modules,sysimage,systemd/{system,user},sysusers.d,tmpfiles.d},libexec,local/{bin,etc,games,lib,%{_lib}/bpf,sbin,src,share/{applications,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x},info},libexec,include,},sbin,share/{aclocal,appdata,applications,augeas/lenses,backgrounds,bash-completion{,/completions,/helpers},desktop-directories,dict,doc,empty,fish/vendor_completions.d,games,gnome,help,icons,idl,info,licenses,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x,0p,1p,3p},metainfo,mime-info,misc,omf,pixmaps,sounds,themes,xsessions,X11/fonts,wayland-sessions,zsh/site-functions},src,src/kernels,src/debug} \
+-        usr/{bin,games,include,%{_lib}/{bpf,games,X11,pm-utils/{module.d,power.d,sleep.d}},lib/{debug/{.dwz,usr},games,locale,modules,sysimage,systemd/{system,user},sysusers.d,tmpfiles.d},libexec,local/{bin,etc,games,lib,%{_lib}/bpf,src,share/{applications,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x},info},libexec,include,},share/{aclocal,appdata,applications,augeas/lenses,backgrounds,bash-completion{,/completions,/helpers},desktop-directories,dict,doc,empty,fish/vendor_completions.d,games,gnome,help,icons,idl,info,licenses,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x,0p,1p,3p},metainfo,mime-info,misc,modulefiles,omf,pixmaps,sounds,themes,xsessions,X11/fonts,wayland-sessions,zsh/site-functions},src,src/kernels,src/debug} \
 -        var/{adm,empty,ftp,lib/{games,misc,rpm-state},local,log,nis,preserve,spool/{mail,lpd},tmp,db,cache/bpf,opt,games,yp}
 +        boot dev \
-+        etc/{X11/{applnk,fontpath.d,xinit/{xinitrc,xinput}.d},xdg/autostart,opt,skel,sysconfig,keys/ima,pki,bash_completion.d,rwtab.d} \
++        etc/{X11,xdg/autostart,opt,skel,sysconfig,keys/ima,pki,bash_completion.d,default,rwtab.d} \
 +        home mnt root run srv tmp \
-+        usr/{bin,include,%{_lib},lib/{locale,modules,sysimage,systemd/{system,user},sysusers.d,tmpfiles.d},libexec,local/{bin,etc,lib,%{_lib},sbin,share/{applications,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x},info},libexec},sbin,share/{aclocal,appdata,applications,backgrounds,bash-completion/{completions,helpers},desktop-directories,dict,doc,empty,gnome,help,icons,info,licenses,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x,0p,1p,3p},metainfo,mime-info,misc,pixmaps,sounds,themes,X11,wayland-sessions},src/kernels} \
++        usr/{bin,include,%{_lib},lib/{locale,modules,sysimage,systemd/{system,user},sysusers.d,tmpfiles.d},libexec,local/{bin,etc,lib,%{_lib},share/{applications,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x},info},libexec},share/{aclocal,appdata,applications,backgrounds,bash-completion/{completions,helpers},desktop-directories,dict,doc,empty,gnome,help,icons,info,licenses,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x,0p,1p,3p},metainfo,mime-info,misc,pixmaps,sounds,themes,X11,wayland-sessions},src} \
 +        var/{adm,empty,lib/{misc,rpm-state},local,log,preserve,spool/{mail,lpd},tmp,db,cache,opt}
  )
  for i in "${Paths[@]}"; do
      mkdir -p "$i"
-@@ -60,11 +57,8 @@
+@@ -73,11 +70,8 @@
  ln -snf usr/%{_lib} %{_lib}
  ln -snf ../run var/run
  ln -snf ../run/lock var/lock
@@ -39,16 +39,15 @@
 +ln -snf run/media media
 +ln -snf var/opt opt
  
- sed -n -f %{buildroot}/iso_639.sed /usr/share/xml/iso-codes/iso_639.xml \
-   >%{buildroot}/iso_639.tab
-@@ -137,31 +131,18 @@
+ %if %{with merged_sbin}
+ ln -snf bin usr/sbin
+@@ -157,41 +151,27 @@
+ posix.mkdir("/usr")
  posix.mkdir("/usr/bin")
- posix.mkdir("/usr/sbin")
  posix.mkdir("/usr/lib")
 -posix.mkdir("/usr/lib/debug")
 -posix.mkdir("/usr/lib/debug/usr/")
 -posix.mkdir("/usr/lib/debug/usr/bin")
--posix.mkdir("/usr/lib/debug/usr/sbin")
 -posix.mkdir("/usr/lib/debug/usr/lib")
 -posix.mkdir("/usr/lib/debug/usr/%{_lib}")
  posix.mkdir("/usr/%{_lib}")
@@ -75,7 +74,26 @@
  posix.mkdir("/var")
  posix.symlink("../run", "/var/run")
  posix.symlink("../run/lock", "/var/lock")
-@@ -170,8 +151,7 @@
+ 
+ %if %{with merged_sbin}
+ posix.symlink("bin", "/usr/sbin")
+-posix.symlink("bin", "/usr/lib/debug/usr/sbin")
+ posix.symlink("bin", "/usr/local/sbin")
+ %else
+ posix.mkdir("/usr/sbin")
+-posix.mkdir("/usr/lib/debug/usr/sbin")
+ %endif
+ 
+ %if %{with merged_sbin}
+@@ -203,7 +183,6 @@
+ end
+ print('}')
+ }
+-
+ %filetriggerin -p <lua> -- /usr/bin
+ --# This implements filesystem(unmerged-sbin-symlinks) feature.
+ st = posix.stat("/usr/sbin")
+@@ -346,8 +325,7 @@
  %posttrans -p <lua>
  --# we need to restorecon on some dirs created in %pretrans or by other packages
  if posix.access ("/usr/sbin/restorecon", "x") then
@@ -84,10 +102,10 @@
 +  rpm.execute("/usr/sbin/restorecon", "/var", "/var/run", "/var/lock", "/sys", "/boot", "/dev", "/media")
  end
  
- %files content
-@@ -185,20 +165,17 @@
- %dir %attr(555,root,root) /
+ %if %{with merged_sbin}
+@@ -367,13 +345,11 @@
  /bin
+ /sbin
  %attr(555,root,root) /boot
 -%attr(555,root,root) /afs
  /dev
@@ -99,14 +117,15 @@
  /etc/skel
  /etc/sysconfig
  /etc/keys
- /etc/pki
+@@ -381,7 +357,6 @@
  /etc/bash_completion.d/
+ %dir /etc/default
  %dir /etc/rwtab.d
 -%dir /etc/statetab.d
  /home
  /lib
  %ifarch x86_64 ppc64 sparc64 s390x aarch64 ppc64le mips64 mips64el riscv64
-@@ -206,18 +183,17 @@
+@@ -389,11 +364,11 @@
  %endif
  /media
  %dir /mnt
@@ -115,20 +134,22 @@
  %ghost %attr(555,root,root) /proc
  %attr(550,root,root) /root
  /run
- /sbin
 -/srv
 +%ghost /srv
  %ghost %attr(555,root,root) /sys
  %attr(1777,root,root) /tmp
  %dir /usr
- %attr(555,root,root) /usr/bin
+@@ -403,8 +378,7 @@
+ %else
+ %attr(555,root,root) /usr/sbin
+ %endif
 -/usr/games
 -/usr/include
 +%ghost /usr/include
  %dir %attr(555,root,root) /usr/lib
  %dir /usr/lib/sysimage
  %dir /usr/lib/systemd
-@@ -227,34 +203,18 @@
+@@ -414,25 +388,8 @@
  %dir /usr/lib/tmpfiles.d
  %dir /usr/lib/locale
  %dir /usr/lib/modules
@@ -153,10 +174,18 @@
 -%attr(555,root,root) /usr/lib/pm-utils
  %endif
  /usr/libexec
- /usr/local
+ %dir /usr/local
+@@ -443,16 +400,14 @@
+ %endif
+ /usr/local/etc
+ /usr/local/bin
+-/usr/local/games
+-/usr/local/include
 +%ghost /usr/local/include
+ /usr/local/lib*
+ /usr/local/share
+-/usr/local/src
 +%ghost /usr/local/src
- %attr(555,root,root) /usr/sbin
  %dir /usr/share
  /usr/share/aclocal
  /usr/share/appdata
@@ -165,7 +194,7 @@
  /usr/share/backgrounds
  %dir /usr/share/bash-completion
  /usr/share/bash-completion/completions
-@@ -263,12 +223,9 @@
+@@ -461,12 +416,9 @@
  /usr/share/dict
  /usr/share/doc
  %attr(555,root,root) %dir /usr/share/empty
@@ -178,10 +207,11 @@
  /usr/share/info
  %dir /usr/share/licenses
  %dir /usr/share/locale
-@@ -276,39 +233,30 @@
+@@ -474,40 +426,30 @@
  /usr/share/metainfo
  /usr/share/mime-info
  /usr/share/misc
+-%dir /usr/share/modulefiles
 -/usr/share/omf
  /usr/share/pixmaps
  /usr/share/sounds
