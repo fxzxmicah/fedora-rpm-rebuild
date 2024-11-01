@@ -1,5 +1,5 @@
---- gcr.spec	2024-10-09 23:23:27.937476381 +0800
-+++ gcr.spec.new	2024-10-10 00:07:01.163536537 +0800
+--- gcr.spec	2024-11-01 22:29:42.039175476 +0800
++++ gcr.spec.new	2024-11-01 22:40:23.872833527 +0800
 @@ -2,6 +2,9 @@
  %global has_valgrind 1
  %endif
@@ -9,7 +9,7 @@
 +
  Name:           gcr
  Version:        4.3.0
- Release:        1%{?dist}
+ Release:        3%{?dist}
 @@ -32,14 +35,17 @@
  BuildRequires:  valgrind-devel
  %endif
@@ -34,12 +34,12 @@
  %autosetup -p1
  
  %build
--%meson
-+%meson \
+-%meson -Dcrypto=gnutls
++%meson -Dcrypto=gnutls \
 +%if %{with ssh_agent}
-+           -Dssh_agent=true
++          -Dssh_agent=true
 +%else
-+           -Dssh_agent=false
++          -Dssh_agent=false
 +%endif
  %meson_build
  
@@ -50,18 +50,18 @@
 +mv %{buildroot}%{_bindir}/gcr-viewer-gtk4 %{buildroot}%{_bindir}/gcr-viewer
 +mv %{buildroot}%{_libexecdir}/gcr4-ssh-askpass %{buildroot}%{_libexecdir}/gcr-ssh-askpass
 +
- %post
 +%if %{with ssh_agent}
+ %post
  %systemd_user_post gcr-ssh-agent.service
 +%endif
  
- %preun
 +%if %{with ssh_agent}
+ %preun
  %systemd_user_preun gcr-ssh-agent.service
 +%endif
  
- %postun
 +%if %{with ssh_agent}
+ %postun
  %systemd_user_postun_with_restart gcr-ssh-agent.service
 +%endif
  
