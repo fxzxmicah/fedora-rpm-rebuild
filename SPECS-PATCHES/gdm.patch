@@ -1,6 +1,6 @@
---- gdm.spec	2024-10-10 00:48:03.702463413 +0800
-+++ gdm.spec.new	2024-10-10 00:54:07.103000751 +0800
-@@ -25,7 +25,6 @@
+--- gdm.spec	2024-11-01 21:36:57.220979684 +0800
++++ gdm.spec.new	2024-11-01 21:50:22.797262836 +0800
+@@ -26,7 +26,6 @@
  Patch:          0001-Honor-initial-setup-being-disabled-by-distro-install.patch
  Patch:          0001-data-add-system-dconf-databases-to-gdm-profile.patch
  Patch:          0001-xorg-detect.patch
@@ -8,11 +8,14 @@
  
  BuildRequires:  dconf
  BuildRequires:  desktop-file-utils
-@@ -68,12 +67,8 @@
- Requires: libXau >= 1.0.4-4
+@@ -65,15 +64,10 @@
+ Requires: gnome-settings-daemon >= 3.27.90
+ Requires: gnome-shell
+ Requires: iso-codes
+-# We need 1.0.4-5 since it lets us use "localhost" in auth cookies
+-Requires: libXau >= 1.0.4-4
  Requires: pam
  Requires: /sbin/nologin
--Requires: setxkbmap
  Requires: systemd >= 186
  Requires: system-logos
 -Requires: xhost xmodmap xrdb
@@ -21,7 +24,7 @@
  
  # Until the greeter gets dynamic user support, it can't
  # use a user bus
-@@ -244,7 +239,6 @@
+@@ -244,7 +238,6 @@
  %{_libexecdir}/gdm-simple-chooser
  %{_libexecdir}/gdm-wayland-session
  %{_libexecdir}/gdm-x-session
@@ -29,7 +32,7 @@
  %{_sbindir}/gdm
  %{_bindir}/gdmflexiserver
  %{_bindir}/gdm-config
-@@ -276,7 +270,6 @@
+@@ -276,7 +269,6 @@
  %{_sysconfdir}/pam.d/gdm-launch-environment
  %{_udevrulesdir}/61-gdm.rules
  %{_unitdir}/gdm.service
