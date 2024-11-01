@@ -1,10 +1,8 @@
 name: Rebuild and Upload
 
 on:
-  push:
-    branches:
-      - "f[0-9]+"
-  workflow_dispatch:
+  - push
+  - workflow_dispatch
 
 jobs:
   job:
