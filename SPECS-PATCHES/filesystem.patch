@@ -1,5 +1,5 @@
---- filesystem.spec	2024-11-01 21:19:09.930724633 +0800
-+++ filesystem.spec.new	2024-11-01 21:19:12.069725096 +0800
+--- filesystem.spec	2024-11-01 22:19:07.532188701 +0800
++++ filesystem.spec.new	2024-11-01 22:12:38.252286696 +0800
 @@ -13,9 +13,6 @@
  BuildRequires: iso-codes
  Requires(pre): setup
@@ -15,7 +15,7 @@
  
  Paths=(
 -        afs boot dev \
--        etc/{X11/{applnk,fontpath.d,xinit/{xinitrc,xinput}.d},xdg/autostart,opt,pm/{config.d,power.d,sleep.d},skel,sysconfig,keys/ima,pki,bash_completion.d,default,rwtab.d,statetab.d} \
+-        etc/{X11/{applnk,fontpath.d,xinit/{xinitrc,xinput}.d},xdg/autostart,opt,pm/{config.d,power.d,sleep.d},skel,sysconfig,keys/ima,pki,bash_completion.d,rwtab.d,statetab.d} \
 -        home media mnt opt root run srv tmp \
 -        usr/{bin,games,include,%{_lib}/{bpf,games,X11,pm-utils/{module.d,power.d,sleep.d}},lib/{debug/{.dwz,usr},games,locale,modules,sysimage,systemd/{system,user},sysusers.d,tmpfiles.d},libexec,local/{bin,etc,games,lib,%{_lib}/bpf,src,share/{applications,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x},info},libexec,include,},share/{aclocal,appdata,applications,augeas/lenses,backgrounds,bash-completion{,/completions,/helpers},desktop-directories,dict,doc,empty,fish/vendor_completions.d,games,gnome,help,icons,idl,info,licenses,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x,0p,1p,3p},metainfo,mime-info,misc,modulefiles,omf,pixmaps,sounds,themes,xsessions,X11/fonts,wayland-sessions,zsh/site-functions},src,src/kernels,src/debug} \
 -        var/{adm,empty,ftp,lib/{games,misc,rpm-state},local,log,nis,preserve,spool/{mail,lpd},tmp,db,cache/bpf,opt,games,yp}
@@ -85,15 +85,7 @@
  %endif
  
  %if %{with merged_sbin}
-@@ -203,7 +183,6 @@
- end
- print('}')
- }
--
- %filetriggerin -p <lua> -- /usr/bin
- --# This implements filesystem(unmerged-sbin-symlinks) feature.
- st = posix.stat("/usr/sbin")
-@@ -346,8 +325,7 @@
+@@ -346,8 +326,7 @@
  %posttrans -p <lua>
  --# we need to restorecon on some dirs created in %pretrans or by other packages
  if posix.access ("/usr/sbin/restorecon", "x") then
@@ -103,7 +95,7 @@
  end
  
  %if %{with merged_sbin}
-@@ -367,13 +345,11 @@
+@@ -367,20 +346,18 @@
  /bin
  /sbin
  %attr(555,root,root) /boot
@@ -117,15 +109,15 @@
  /etc/skel
  /etc/sysconfig
  /etc/keys
-@@ -381,7 +357,6 @@
+ /etc/pki
  /etc/bash_completion.d/
- %dir /etc/default
++%dir /etc/default
  %dir /etc/rwtab.d
 -%dir /etc/statetab.d
  /home
  /lib
  %ifarch x86_64 ppc64 sparc64 s390x aarch64 ppc64le mips64 mips64el riscv64
-@@ -389,11 +364,11 @@
+@@ -388,11 +365,11 @@
  %endif
  /media
  %dir /mnt
@@ -139,7 +131,7 @@
  %ghost %attr(555,root,root) /sys
  %attr(1777,root,root) /tmp
  %dir /usr
-@@ -403,8 +378,7 @@
+@@ -402,8 +379,7 @@
  %else
  %attr(555,root,root) /usr/sbin
  %endif
@@ -149,7 +141,7 @@
  %dir %attr(555,root,root) /usr/lib
  %dir /usr/lib/sysimage
  %dir /usr/lib/systemd
-@@ -414,25 +388,8 @@
+@@ -413,25 +389,8 @@
  %dir /usr/lib/tmpfiles.d
  %dir /usr/lib/locale
  %dir /usr/lib/modules
@@ -175,7 +167,7 @@
  %endif
  /usr/libexec
  %dir /usr/local
-@@ -443,16 +400,14 @@
+@@ -442,16 +401,14 @@
  %endif
  /usr/local/etc
  /usr/local/bin
@@ -194,7 +186,7 @@
  /usr/share/backgrounds
  %dir /usr/share/bash-completion
  /usr/share/bash-completion/completions
-@@ -461,12 +416,9 @@
+@@ -460,12 +417,9 @@
  /usr/share/dict
  /usr/share/doc
  %attr(555,root,root) %dir /usr/share/empty
@@ -207,7 +199,7 @@
  /usr/share/info
  %dir /usr/share/licenses
  %dir /usr/share/locale
-@@ -474,40 +426,30 @@
+@@ -473,40 +427,30 @@
  /usr/share/metainfo
  /usr/share/mime-info
  /usr/share/misc
