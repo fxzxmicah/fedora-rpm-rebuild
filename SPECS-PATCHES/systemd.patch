@@ -1,6 +1,6 @@
---- systemd.spec	2024-11-29 18:42:09.390543018 +0800
-+++ systemd.spec.new	2024-11-29 19:26:50.546406014 +0800
-@@ -536,28 +536,52 @@
+--- systemd.spec	2024-11-29 19:42:01.166625130 +0800
++++ systemd.spec.new	2024-11-29 21:34:27.974572510 +0800
+@@ -536,9 +536,8 @@
  the version that works with Secure Boot.
  %endif
  
@@ -12,14 +12,7 @@
  Requires:       %{name}%{_isa} = %{version}-%{release}
  Requires(post):   systemd%{_isa} = %{version}-%{release}
  Requires(preun):  systemd%{_isa} = %{version}-%{release}
- Requires(postun): systemd%{_isa} = %{version}-%{release}
--# For systemd-vmspawn which uses qemu:
--Recommends:     qemu-kvm
--Recommends:     qemu-device-display-virtio-gpu
--Recommends:     qemu-device-display-virtio-vga
- # Obsolete parent package so that dnf will install new subpackage on upgrade (#1260394)
- Obsoletes:      %{name} < 229-5
- # Bias the system towards libcurl-minimal if nothing pulls in full libcurl (#1997040)
+@@ -549,11 +548,40 @@
  Suggests:       libcurl-minimal
  License:        LGPL-2.1-or-later
  
@@ -63,23 +56,28 @@
  
  %package journal-remote
  # Name is the same as in Debian
-@@ -1293,9 +1317,19 @@
+@@ -1036,6 +1064,10 @@
+ # Split files in build root into rpms
+ python3 %{SOURCE2} %buildroot %{!?want_bootloader:--no-bootloader}
+ 
++# Split out the nspawn and vmspawn units
++sed -i -e '/nspawn/ w .file-list-nspawn' -e '/nspawn/ d' .file-list-container
++sed -i -e '/vmspawn/ w .file-list-vmspawn' -e '/vmspawn/ d' .file-list-container
++
+ %check
+ %if %{with tests}
+ meson test -C %{_vpath_builddir} -t 6 --print-errorlogs
+@@ -1289,9 +1321,13 @@
  %files boot-unsigned -f .file-list-boot
  %endif
  
 -%files container -f .file-list-container
 +%files machine-common -f .file-list-container
-+%exclude *nspawn*
-+%exclude *vmspawn*
  %ghost %dir %attr(0700,-,-) /var/lib/machines
  
-+%files nspawn -f .file-list-container
-+%exclude *
-+%include *nspawn*
++%files nspawn -f .file-list-nspawn
 +
-+%files vmspawn -f .file-list-container
-+%exclude *
-+%include *vmspawn*
++%files vmspawn -f .file-list-vmspawn
 +
  %files journal-remote -f .file-list-remote
  
