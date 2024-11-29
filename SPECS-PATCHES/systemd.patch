@@ -1,0 +1,86 @@
+--- systemd.spec	2024-11-29 18:42:09.390543018 +0800
++++ systemd.spec.new	2024-11-29 19:26:50.546406014 +0800
+@@ -536,28 +536,52 @@
+ the version that works with Secure Boot.
+ %endif
+ 
+-%package container
+-# Name is the same as in Debian
+-Summary: Tools for containers and VMs
++%package machine-common
++Summary: Tools for both nspawn and vmspawn
+ Requires:       %{name}%{_isa} = %{version}-%{release}
+ Requires(post):   systemd%{_isa} = %{version}-%{release}
+ Requires(preun):  systemd%{_isa} = %{version}-%{release}
+ Requires(postun): systemd%{_isa} = %{version}-%{release}
+-# For systemd-vmspawn which uses qemu:
+-Recommends:     qemu-kvm
+-Recommends:     qemu-device-display-virtio-gpu
+-Recommends:     qemu-device-display-virtio-vga
+ # Obsolete parent package so that dnf will install new subpackage on upgrade (#1260394)
+ Obsoletes:      %{name} < 229-5
+ # Bias the system towards libcurl-minimal if nothing pulls in full libcurl (#1997040)
+ Suggests:       libcurl-minimal
+ License:        LGPL-2.1-or-later
+ 
+-%description container
++%description machine-common
+ Systemd tools to spawn and manage containers and virtual machines.
+ 
+-This package contains systemd-nspawn, systemd-vmspawn, machinectl,
+-systemd-machined, and systemd-importd.
++This package contains machinectl, systemd-machined, and systemd-importd.
++
++%package nspawn
++Summary: Tools for containers
++Requires:       %{name}-machine-common%{_isa} = %{version}-%{release}
++Requires(post):   systemd%{_isa} = %{version}-%{release}
++Requires(preun):  systemd%{_isa} = %{version}-%{release}
++Requires(postun): systemd%{_isa} = %{version}-%{release}
++License:        LGPL-2.1-or-later
++
++%description nspawn
++Systemd tools to spawn and manage containers.
++
++This package contains systemd-nspawn.
++
++%package vmspawn
++Summary: Tools for VMs
++Requires:       %{name}-machine-common%{_isa} = %{version}-%{release}
++Requires(post):   systemd%{_isa} = %{version}-%{release}
++Requires(preun):  systemd%{_isa} = %{version}-%{release}
++Requires(postun): systemd%{_isa} = %{version}-%{release}
++# For systemd-vmspawn which uses qemu:
++Requires:       qemu-kvm
++Recommends:     qemu-device-display-virtio-gpu
++Recommends:     qemu-device-display-virtio-vga
++License:        LGPL-2.1-or-later
++
++%description vmspawn
++Systemd tools to spawn and manage virtual machines.
++
++This package contains systemd-vmspawn.
+ 
+ %package journal-remote
+ # Name is the same as in Debian
+@@ -1293,9 +1317,19 @@
+ %files boot-unsigned -f .file-list-boot
+ %endif
+ 
+-%files container -f .file-list-container
++%files machine-common -f .file-list-container
++%exclude *nspawn*
++%exclude *vmspawn*
+ %ghost %dir %attr(0700,-,-) /var/lib/machines
+ 
++%files nspawn -f .file-list-container
++%exclude *
++%include *nspawn*
++
++%files vmspawn -f .file-list-container
++%exclude *
++%include *vmspawn*
++
+ %files journal-remote -f .file-list-remote
+ 
+ %files networkd -f .file-list-networkd
