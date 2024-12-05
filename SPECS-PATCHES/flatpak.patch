@@ -1,5 +1,5 @@
---- flatpak.spec	2024-09-18 13:42:15.639023737 +0800
-+++ flatpak.spec.new	2024-09-18 13:43:13.043767782 +0800
+--- flatpak.spec	2024-12-05 22:47:35.789294422 +0800
++++ flatpak.spec.new	2024-12-05 22:49:39.801117173 +0800
 @@ -7,8 +7,8 @@
  %global wayland_protocols_version 1.32
  %global wayland_scanner_version 1.15
@@ -10,4 +10,48 @@
 +%bcond malcontent 0
  
  Name:           flatpak
- Version:        1.15.10
+ Version:        1.15.12
+@@ -86,8 +86,9 @@
+ Requires:       /usr/bin/fusermount3
+ Requires:       /usr/bin/xdg-dbus-proxy
+ # https://fedoraproject.org/wiki/SELinux/IndependentPolicy
+-Requires:       (flatpak-selinux = %{?epoch:%{epoch}:}%{version}-%{release} if selinux-policy-targeted)
++Requires:       (%{name}-selinux = %{?epoch:%{epoch}:}%{version}-%{release} if selinux-policy-targeted)
+ Requires:       %{name}-session-helper%{?_isa} = %{?epoch:%{epoch}:}%{version}-%{release}
++Requires:       (%{name}-fish-completion = %{?epoch:%{epoch}:}%{version}-%{release} if fish)
+ Recommends:     p11-kit-server
+ 
+ # Make sure the document portal is installed
+@@ -140,6 +141,14 @@
+ This package contains the org.freedesktop.Flatpak user D-Bus service
+ that's used by %{name} and other packages.
+ 
++%package fish-completion
++Summary:        Fish shell completion for %{name}
++Requires:       %{name}%{?_isa} = %{?epoch:%{epoch}:}%{version}-%{release}
++Requires:       fish
++
++%description fish-completion
++This package contains fish shell completion for %{name}.
++
+ %package tests
+ Summary:        Tests for %{name}
+ Requires:       %{name}%{?_isa} = %{?epoch:%{epoch}:}%{version}-%{release}
+@@ -231,7 +240,6 @@
+ %{_datadir}/dbus-1/services/org.flatpak.Authenticator.Oci.service
+ %{_datadir}/dbus-1/services/org.freedesktop.portal.Flatpak.service
+ %{_datadir}/dbus-1/system-services/org.freedesktop.Flatpak.SystemHelper.service
+-%{_datadir}/fish/
+ %{_datadir}/%{name}
+ %{_datadir}/polkit-1/actions/org.freedesktop.Flatpak.policy
+ %{_datadir}/polkit-1/rules.d/org.freedesktop.Flatpak.rules
+@@ -290,6 +298,9 @@
+ %{_libexecdir}/flatpak-session-helper
+ %{_userunitdir}/flatpak-session-helper.service
+ 
++%files fish-completion
++%{_datadir}/fish/
++
+ %files tests
+ %{_datadir}/installed-tests
+ %{_libexecdir}/installed-tests
