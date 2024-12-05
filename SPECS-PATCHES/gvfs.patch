@@ -1,0 +1,205 @@
+--- gvfs.spec	2024-12-05 20:56:41.738386146 +0800
++++ gvfs.spec.new	2024-12-05 21:05:05.051020655 +0800
+@@ -36,10 +36,6 @@
+ BuildRequires: pkgconfig(dbus-1)
+ BuildRequires: pkgconfig(gcr-4)
+ BuildRequires: pkgconfig(gsettings-desktop-schemas) >= %{gsettings_desktop_schemas_version}
+-BuildRequires: /usr/bin/ssh
+-%if ! (0%{?rhel} >= 10)
+-BuildRequires: pkgconfig(libcdio_paranoia) >= %{libcdio_paranoia_version}
+-%endif
+ BuildRequires: pkgconfig(gudev-1.0) >= %{gudev_version}
+ BuildRequires: pkgconfig(libsoup-3.0) >= %{libsoup_version}
+ BuildRequires: pkgconfig(avahi-client) >= %{avahi_version}
+@@ -61,7 +57,6 @@
+ Requires: gsettings-desktop-schemas >= %{gsettings_desktop_schemas_version}
+ Requires: polkit
+ Requires: udisks2 >= %{udisks2_version}
+-Requires: /usr/bin/wsdd
+ 
+ Obsoletes: gnome-mount <= 0.8
+ Obsoletes: gnome-mount-nautilus-properties <= 0.8
+@@ -75,7 +70,7 @@
+ 
+ %description
+ The gvfs package provides backend implementations for the gio
+-framework in GLib. It includes ftp, sftp, cifs.
++framework in GLib.
+ 
+ 
+ %package client
+@@ -87,6 +82,50 @@
+ framework in GLib.
+ 
+ 
++%package misc
++Summary: Miscellaneous modules of backends for the gio framework in GLib
++Requires: %{name}%{?_isa} = %{version}-%{release}
++Requires: %{name}-client%{?_isa} = %{version}-%{release}
++%if ! (0%{?rhel} >= 10)
++BuildRequires: pkgconfig(libcdio_paranoia) >= %{libcdio_paranoia_version}
++%endif
++
++%description misc
++The gvfs package provides misc modules of backend implementations for the gio
++framework in GLib.
++
++
++%package network
++Summary: Network support for gvfs
++BuildRequires: /usr/bin/ssh
++Requires: %{name}%{?_isa} = %{version}-%{release}
++Requires: %{name}-client%{?_isa} = %{version}-%{release}
++
++%description network
++This package provides support for accessing files on remote servers
++to applications using gvfs.
++
++
++%package webdav
++Summary: WebDAV support for gvfs
++Requires: %{name}%{?_isa} = %{version}-%{release}
++Requires: %{name}-client%{?_isa} = %{version}-%{release}
++
++%description webdav
++This package provides support for accessing files on WebDAV servers
++to applications using gvfs.
++
++
++%package wsdd
++Summary: WSDD support for gvfs
++Requires: %{name}%{?_isa} = %{version}-%{release}
++Requires: %{name}-client%{?_isa} = %{version}-%{release}
++Requires: /usr/bin/wsdd
++
++%description wsdd
++This package provides support for wsdd discovery to applications using gvfs.
++
++
+ %package fuse
+ Summary: FUSE support for gvfs
+ Requires: %{name}%{?_isa} = %{version}-%{release}
+@@ -103,6 +142,7 @@
+ Summary: Windows fileshare support for gvfs
+ Requires: %{name}%{?_isa} = %{version}-%{release}
+ Requires: %{name}-client%{?_isa} = %{version}-%{release}
++Requires: %{name}-wsdd%{?_isa} = %{version}-%{release}
+ BuildRequires: libsmbclient-devel >= %{libsmbclient_version}
+ BuildRequires: pkgconfig(talloc) >= %{talloc_version}
+ 
+@@ -256,6 +296,14 @@
+ killall -USR1 gvfsd >&/dev/null || :
+ 
+ # Reload .mount files when single subpackage is installed:
++%post misc
++killall -USR1 gvfsd >&/dev/null || :
++%post network
++killall -USR1 gvfsd >&/dev/null || :
++%post webdav
++killall -USR1 gvfsd >&/dev/null || :
++%post wsdd
++killall -USR1 gvfsd >&/dev/null || :
+ %post smb
+ killall -USR1 gvfsd >&/dev/null || :
+ %ifnarch s390 s390x
+@@ -291,51 +339,31 @@
+ %dir %{_datadir}/gvfs
+ %dir %{_datadir}/gvfs/mounts
+ %{_datadir}/gvfs/mounts/admin.mount
+-%{_datadir}/gvfs/mounts/sftp.mount
+ %{_datadir}/gvfs/mounts/trash.mount
+-%if ! (0%{?rhel} >= 10)
+-%{_datadir}/gvfs/mounts/cdda.mount
+-%endif
+ %{_datadir}/gvfs/mounts/computer.mount
+-%{_datadir}/gvfs/mounts/dav.mount
+-%{_datadir}/gvfs/mounts/dav+sd.mount
+-%{_datadir}/gvfs/mounts/http.mount
+-%{_datadir}/gvfs/mounts/localtest.mount
+ %{_datadir}/gvfs/mounts/dns-sd.mount
+ %{_datadir}/gvfs/mounts/network.mount
+-%{_datadir}/gvfs/mounts/ftp.mount
+-%{_datadir}/gvfs/mounts/ftpis.mount
+-%{_datadir}/gvfs/mounts/ftps.mount
+ %{_datadir}/gvfs/mounts/recent.mount
+-%{_datadir}/gvfs/mounts/wsdd.mount
+ %{_datadir}/dbus-1/services/org.gtk.vfs.Daemon.service
+ %{_datadir}/dbus-1/services/org.gtk.vfs.Metadata.service
+ %{_datadir}/dbus-1/services/org.gtk.vfs.UDisks2VolumeMonitor.service
+ %dir %{_datadir}/gvfs/remote-volume-monitors
+ %{_datadir}/gvfs/remote-volume-monitors/udisks2.monitor
+-%{_datadir}/GConf/gsettings/*.convert
+-%{_datadir}/glib-2.0/schemas/*.xml
++%{_datadir}/GConf/gsettings/gvfs-dns-sd.convert
++%{_datadir}/glib-2.0/schemas/org.gnome.system.dns_sd.gschema.xml
++%{_datadir}/glib-2.0/schemas/org.gnome.system.gvfs.enums.xml
+ %{_datadir}/polkit-1/actions/org.gtk.vfs.file-operations.policy
+ %{_datadir}/polkit-1/rules.d/org.gtk.vfs.file-operations.rules
+ %{_libdir}/gvfs/libgvfsdaemon.so
+ %{_libexecdir}/gvfsd
+ %{_libexecdir}/gvfsd-admin
+-%{_libexecdir}/gvfsd-ftp
+-%{_libexecdir}/gvfsd-sftp
+ %{_libexecdir}/gvfsd-trash
+-%if ! (0%{?rhel} >= 10)
+-%{_libexecdir}/gvfsd-cdda
+-%endif
+ %{_libexecdir}/gvfsd-computer
+-%{_libexecdir}/gvfsd-dav
+-%{_libexecdir}/gvfsd-http
+-%{_libexecdir}/gvfsd-localtest
+ %{_libexecdir}/gvfsd-dnssd
+ %{_libexecdir}/gvfsd-network
+ %{_libexecdir}/gvfsd-metadata
+ %{_libexecdir}/gvfs-udisks2-volume-monitor
+ %{_libexecdir}/gvfsd-recent
+-%{_libexecdir}/gvfsd-wsdd
+ %{_mandir}/man1/gvfsd.1*
+ %{_mandir}/man1/gvfsd-metadata.1*
+ %{_userunitdir}/gvfs-daemon.service
+@@ -351,6 +379,36 @@
+ %{_libdir}/gio/modules/libgvfsdbus.so
+ %{_mandir}/man7/gvfs.7*
+ 
++%files misc
++%if ! (0%{?rhel} >= 10)
++%{_libexecdir}/gvfsd-cdda
++%endif
++%{_libexecdir}/gvfsd-localtest
++%if ! (0%{?rhel} >= 10)
++%{_datadir}/gvfs/mounts/cdda.mount
++%endif
++%{_datadir}/gvfs/mounts/localtest.mount
++
++%files network
++%{_libexecdir}/gvfsd-ftp
++%{_libexecdir}/gvfsd-sftp
++%{_libexecdir}/gvfsd-http
++%{_datadir}/gvfs/mounts/sftp.mount
++%{_datadir}/gvfs/mounts/http.mount
++%{_datadir}/gvfs/mounts/ftp.mount
++%{_datadir}/gvfs/mounts/ftpis.mount
++%{_datadir}/gvfs/mounts/ftps.mount
++
++%files webdav
++%{_libexecdir}/gvfsd-dav
++%{_datadir}/gvfs/mounts/dav.mount
++%{_datadir}/gvfs/mounts/dav+sd.mount
++
++%files wsdd
++%{_libexecdir}/gvfsd-wsdd
++%{_datadir}/gvfs/mounts/wsdd.mount
++%{_datadir}/glib-2.0/schemas/org.gnome.system.wsdd.gschema.xml
++
+ %files fuse
+ %{_libexecdir}/gvfsd-fuse
+ %{_mandir}/man1/gvfsd-fuse.1*
+@@ -361,6 +419,8 @@
+ %{_libexecdir}/gvfsd-smb-browse
+ %{_datadir}/gvfs/mounts/smb-browse.mount
+ %{_datadir}/gvfs/mounts/smb.mount
++%{_datadir}/GConf/gsettings/gvfs-smb.convert
++%{_datadir}/glib-2.0/schemas/org.gnome.system.smb.gschema.xml
+ 
+ 
+ %if ! (0%{?rhel} >= 9)
