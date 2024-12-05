@@ -1,0 +1,44 @@
+--- wsdd.spec	2024-12-05 21:16:08.737201425 +0800
++++ wsdd.spec.new	2024-12-05 21:25:50.388611996 +0800
+@@ -10,6 +10,7 @@
+ 
+ BuildArch:      noarch
+ BuildRequires:  systemd
++Requires:       (%{name}-firewalld%{?_isa} = %{version}-%{release} if firewalld)
+ Requires(pre):  shadow-utils
+ 
+ 
+@@ -19,6 +20,15 @@
+ like Windows.
+ 
+ 
++%package firewalld
++Summary: Web Services Dynamic Discovery host daemon firewalld rules
++Requires: %{name}%{?_isa} = %{version}-%{release}
++Requires: firewalld%{?_isa}
++
++%description firewalld
++Web Services Dynamic Discovery host daemon firewalld rules
++
++
+ %prep
+ %autosetup -p1
+ 
+@@ -50,14 +60,15 @@
+ 
+ %files
+ %{_unitdir}/wsdd.service
+-%{_usr}/lib/firewalld/services/wsdd.xml
+-%{_usr}/lib/firewalld/services/wsdd-http.xml
+ %config(noreplace) %{_sysconfdir}/sysconfig/wsdd
+ %{_bindir}/wsdd
+ %{_mandir}/man8/wsdd.8*
+ %license LICENSE
+ %doc AUTHORS README.md
+ 
++%files firewalld
++%{_usr}/lib/firewalld/services/wsdd.xml
++%{_usr}/lib/firewalld/services/wsdd-http.xml
+ 
+ %changelog
+ * Sat Jul 20 2024 Fedora Release Engineering <releng@fedoraproject.org> - 0.8-2
