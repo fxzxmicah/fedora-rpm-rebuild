@@ -1,0 +1,77 @@
+--- NetworkManager.spec	2024-12-05 22:22:29.810047597 +0800
++++ NetworkManager.spec.new	2024-12-05 22:22:28.116056314 +0800
+@@ -195,6 +195,7 @@
+ Requires: dbus >= %{dbus_version}
+ Requires: glib2 >= %{glib2_version}
+ Requires: %{name}-libnm%{?_isa} = %{epoch}:%{version}-%{release}
++Requires: (%{name}-firewalld%{?_isa} = %{epoch}:%{version}-%{release} if firewalld)
+ 
+ %if 0%{?rhel} == 8
+ # Older libndp versions use select() (rh#1933041). On well known distros,
+@@ -327,6 +328,15 @@
+ services.
+ 
+ 
++%package firewalld
++Summary: NetworkManager firewalld rules
++Requires: %{name}%{?_isa} = %{epoch}:%{version}-%{release}
++Requires: firewalld
++
++%description firewalld
++This package contains NetworkManager firewalld rules.
++
++
+ %if %{with adsl}
+ %package adsl
+ Summary: ADSL device plugin for NetworkManager
+@@ -955,11 +965,14 @@
+     /usr/bin/udevadm control --reload-rules || :
+     /usr/bin/udevadm trigger --subsystem-match=net || :
+ fi
+-%firewalld_reload
+ 
+ %systemd_post %{systemd_units}
+ 
+ 
++%post firewalld
++%firewalld_reload
++
++
+ %if %{with ifcfg_rh}
+ %post initscripts-updown
+ if [ -f %{_sbindir}/ifup -a ! -L %{_sbindir}/ifup ]; then
+@@ -1006,11 +1019,14 @@
+ %postun
+ /usr/bin/udevadm control --reload-rules || :
+ /usr/bin/udevadm trigger --subsystem-match=net || :
+-%firewalld_reload
+ 
+ %systemd_postun %{systemd_units}
+ 
+ 
++%postun firewalld
++%firewalld_reload
++
++
+ %if %{with nm_cloud_setup}
+ %postun cloud-setup
+ %systemd_postun %{systemd_units_cloud_setup}
+@@ -1078,7 +1094,6 @@
+ %{_datadir}/dbus-1/system-services/org.freedesktop.nm_priv_helper.service
+ %{_datadir}/polkit-1/actions/*.policy
+ %{_prefix}/lib/udev/rules.d/*.rules
+-%{_prefix}/lib/firewalld/zones/nm-shared.xml
+ # systemd stuff
+ %{_unitdir}/NetworkManager.service
+ %{_unitdir}/NetworkManager-wait-online.service
+@@ -1095,6 +1110,10 @@
+ %license COPYING.GFDL
+ 
+ 
++%files firewalld
++%{_prefix}/lib/firewalld/zones/nm-shared.xml
++
++
+ %if %{with adsl}
+ %files adsl
+ %{nmplugindir}/libnm-device-plugin-adsl.so
