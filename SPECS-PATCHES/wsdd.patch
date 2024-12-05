@@ -1,5 +1,5 @@
 --- wsdd.spec	2024-12-05 21:16:08.737201425 +0800
-+++ wsdd.spec.new	2024-12-05 21:25:50.388611996 +0800
++++ wsdd.spec.new	2024-12-05 22:22:26.642063885 +0800
 @@ -10,6 +10,7 @@
  
  BuildArch:      noarch
@@ -15,7 +15,7 @@
 +%package firewalld
 +Summary: Web Services Dynamic Discovery host daemon firewalld rules
 +Requires: %{name}%{?_isa} = %{version}-%{release}
-+Requires: firewalld%{?_isa}
++Requires: firewalld
 +
 +%description firewalld
 +Web Services Dynamic Discovery host daemon firewalld rules
