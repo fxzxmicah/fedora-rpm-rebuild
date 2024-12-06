@@ -32,5 +32,5 @@ jobs:
           rpmbuild --define "_topdir /workspace" -bs SPECS/*.spec &&
           echo "${{ secrets.COPR_API }}" > copr-api &&
           . /etc/os-release &&
-          copr-cli --config copr-api build --nowait --chroot ${ID}-${VERSION_ID}-$(uname -m) rpm-rebuild SRPMS/*.src.rpm
+          copr-cli --config copr-api build --nowait --chroot ${ID}-${VERSION_ID}-$(uname -m) $(echo ${{ github.repository }} | cut -d "-" -f 2-) SRPMS/*.src.rpm
         '
