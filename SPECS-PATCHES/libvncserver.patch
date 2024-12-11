@@ -1,0 +1,38 @@
+--- libvncserver.spec	2024-12-11 19:17:46.381561858 +0800
++++ libvncserver.spec.new	2024-12-11 19:32:32.527688732 +0800
+@@ -69,9 +69,17 @@
+ It hides the programmer from the tedious task of managing clients and
+ compression schemata.
+ 
++%package -n libvncclient
++Summary:    Library to make writing a VNC client easy
++
++%description -n libvncclient
++LibVNCClient makes writing a VNC client (or more correctly, a program importing
++a frame-buffer via the Remote Frame Buffer protocol) easy.
++
+ %package devel
+ Summary:    Development files for %{name}
+ Requires:   %{name}%{?_isa} = %{version}-%{release}
++Requires:   libvncclient%{?_isa} = %{version}-%{release}
+ # libvncserver-config deps
+ Requires:   coreutils
+ # /usr/include/rfb/rfbproto.h:#include <zlib.h>
+@@ -131,11 +139,15 @@
+ %files
+ %license COPYING
+ %doc AUTHORS ChangeLog NEWS* README* CONTRIBUTING.md HISTORY.md SECURITY.md
+-%{_libdir}/libvncclient.so.1
+-%{_libdir}/libvncclient.so.%{version}
+ %{_libdir}/libvncserver.so.1
+ %{_libdir}/libvncserver.so.%{version}
+ 
++%files -n libvncclient
++%license COPYING
++%doc AUTHORS ChangeLog NEWS* README* CONTRIBUTING.md HISTORY.md SECURITY.md
++%{_libdir}/libvncclient.so.1
++%{_libdir}/libvncclient.so.%{version}
++
+ %files devel
+ #{_bindir}/libvncserver-config
+ %{_includedir}/rfb/

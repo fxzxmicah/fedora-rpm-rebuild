@@ -1,6 +1,6 @@
---- systemd.spec	2024-12-06 00:14:56.921400452 +0800
-+++ systemd.spec.new	2024-12-06 00:13:07.141409911 +0800
-@@ -536,28 +536,52 @@
+--- systemd.spec	2024-12-11 19:22:25.389268108 +0800
++++ systemd.spec.new	2024-12-11 19:24:24.352149747 +0800
+@@ -536,28 +536,54 @@
  the version that works with Secure Boot.
  %endif
  
@@ -14,7 +14,7 @@
  Requires(preun):  systemd%{_isa} = %{version}-%{release}
  Requires(postun): systemd%{_isa} = %{version}-%{release}
 -# For systemd-vmspawn which uses qemu:
--Recommends:     qemu-kvm-core
+-Recommends:     qemu-kvm
 -Recommends:     qemu-device-display-virtio-gpu
 -Recommends:     qemu-device-display-virtio-vga
  # Obsolete parent package so that dnf will install new subpackage on upgrade (#1260394)
@@ -52,8 +52,10 @@
 +Requires(postun): systemd%{_isa} = %{version}-%{release}
 +# For systemd-vmspawn which uses qemu:
 +Requires:       qemu-kvm-core
++%if 0%{?fedora}
 +Recommends:     qemu-device-display-virtio-gpu
 +Recommends:     qemu-device-display-virtio-vga
++%endif
 +License:        LGPL-2.1-or-later
 +
 +%description vmspawn
@@ -63,7 +65,7 @@
  
  %package journal-remote
  # Name is the same as in Debian
-@@ -1040,6 +1064,10 @@
+@@ -1040,6 +1066,10 @@
  # Split files in build root into rpms
  python3 %{SOURCE2} %buildroot %{!?want_bootloader:--no-bootloader}
  
@@ -74,7 +76,7 @@
  %check
  %if %{with tests}
  meson test -C %{_vpath_builddir} -t 6 --print-errorlogs
-@@ -1291,9 +1319,13 @@
+@@ -1291,9 +1321,13 @@
  %files boot-unsigned -f .file-list-boot
  %endif
  
