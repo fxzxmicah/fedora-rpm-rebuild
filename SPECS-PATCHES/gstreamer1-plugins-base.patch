@@ -1,0 +1,9 @@
+--- gstreamer1-plugins-base.spec	2024-12-12 20:31:57.488280661 +0800
++++ gstreamer1-plugins-base.spec.new	2024-12-12 20:37:36.898803315 +0800
+@@ -1,4 +1,5 @@
+-%bcond cdparanoia %{undefined rhel}
++# Disable cdparanoia for all builds
++%bcond cdparanoia 0
+ %bcond libvisual %{undefined rhel}
+ 
+ %global         majorminor      1.0
