@@ -1,4 +1,4 @@
---- systemd.spec	2024-12-11 19:22:25.389268108 +0800
+--- systemd.spec	2024-12-25 20:41:27.660096586 +0800
 +++ systemd.spec.new	2024-12-11 19:24:24.352149747 +0800
 @@ -536,28 +536,54 @@
  the version that works with Secure Boot.
@@ -14,7 +14,7 @@
  Requires(preun):  systemd%{_isa} = %{version}-%{release}
  Requires(postun): systemd%{_isa} = %{version}-%{release}
 -# For systemd-vmspawn which uses qemu:
--Recommends:     qemu-kvm
+-Recommends:     qemu-kvm-core
 -Recommends:     qemu-device-display-virtio-gpu
 -Recommends:     qemu-device-display-virtio-vga
  # Obsolete parent package so that dnf will install new subpackage on upgrade (#1260394)
