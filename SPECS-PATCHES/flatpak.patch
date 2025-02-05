@@ -1,5 +1,5 @@
 --- flatpak.spec	2024-12-05 22:47:35.789294422 +0800
-+++ flatpak.spec.new	2024-12-05 22:49:39.801117173 +0800
++++ flatpak.spec.new	2025-02-05 18:18:56.577875056 +0800
 @@ -7,8 +7,8 @@
  %global wayland_protocols_version 1.32
  %global wayland_scanner_version 1.15
@@ -37,15 +37,33 @@
  %package tests
  Summary:        Tests for %{name}
  Requires:       %{name}%{?_isa} = %{?epoch:%{epoch}:}%{version}-%{release}
-@@ -231,7 +240,6 @@
+@@ -161,6 +170,7 @@
+     -Dinstalled_tests=true \
+     -Dsystem_bubblewrap=/usr/bin/bwrap \
+     -Dsystem_dbus_proxy=/usr/bin/xdg-dbus-proxy \
++    -Ddbus_config_dir=%{_datadir}/dbus-1/system.d \
+     -Dtmpfilesdir=%{_tmpfilesdir} \
+ %if %{with malcontent}
+     -Dmalcontent=enabled \
+@@ -230,8 +240,8 @@
+ %{_datadir}/dbus-1/interfaces/org.freedesktop.Flatpak.Authenticator.xml
  %{_datadir}/dbus-1/services/org.flatpak.Authenticator.Oci.service
  %{_datadir}/dbus-1/services/org.freedesktop.portal.Flatpak.service
++%{_datadir}/dbus-1/system.d/org.freedesktop.Flatpak.SystemHelper.conf
  %{_datadir}/dbus-1/system-services/org.freedesktop.Flatpak.SystemHelper.service
 -%{_datadir}/fish/
  %{_datadir}/%{name}
  %{_datadir}/polkit-1/actions/org.freedesktop.Flatpak.policy
  %{_datadir}/polkit-1/rules.d/org.freedesktop.Flatpak.rules
-@@ -290,6 +298,9 @@
+@@ -250,7 +260,6 @@
+ %{_mandir}/man5/flatpak-remote.5*
+ %{_mandir}/man5/flatpakref.5*
+ %{_mandir}/man5/flatpakrepo.5*
+-%{_sysconfdir}/dbus-1/system.d/org.freedesktop.Flatpak.SystemHelper.conf
+ %dir %{_sysconfdir}/flatpak
+ %{_sysconfdir}/flatpak/remotes.d
+ %{_sysconfdir}/profile.d/flatpak.csh
+@@ -290,6 +299,9 @@
  %{_libexecdir}/flatpak-session-helper
  %{_userunitdir}/flatpak-session-helper.service
  
