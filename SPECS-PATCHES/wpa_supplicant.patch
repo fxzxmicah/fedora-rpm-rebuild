@@ -1,0 +1,28 @@
+--- wpa_supplicant.spec	2025-02-05 17:36:35.889067096 +0800
++++ wpa_supplicant.spec.new	2025-02-05 17:35:27.616273012 +0800
+@@ -128,7 +128,7 @@
+ install -m 0755 wpa_supplicant/wpa_supplicant %{buildroot}/%{_sbindir}
+ install -m 0755 wpa_supplicant/eapol_test %{buildroot}/%{_sbindir}
+ install -D -m 0644 wpa_supplicant/dbus/dbus-wpa_supplicant.conf \
+-  %{buildroot}/%{_sysconfdir}/dbus-1/system.d/wpa_supplicant.conf
++  %{buildroot}/%{_datadir}/dbus-1/system.d/wpa_supplicant.conf
+ install -D -m 0644 wpa_supplicant/dbus/fi.w1.wpa_supplicant1.service \
+   %{buildroot}/%{_datadir}/dbus-1/system-services/fi.w1.wpa_supplicant1.service
+ 
+@@ -173,7 +173,7 @@
+ %dir %{_sysconfdir}/logrotate.d
+ %config(noreplace) %{_sysconfdir}/logrotate.d/wpa_supplicant
+ %{_unitdir}/wpa_supplicant.service
+-%{_sysconfdir}/dbus-1/system.d/wpa_supplicant.conf
++%{_datadir}/dbus-1/system.d/wpa_supplicant.conf
+ %{_datadir}/dbus-1/system-services/fi.w1.wpa_supplicant1.service
+ %{_sbindir}/wpa_passphrase
+ %{_sbindir}/wpa_supplicant
+@@ -192,7 +192,6 @@
+ %doc wpa_supplicant/eap_testing.txt
+ %doc wpa_supplicant/todo.txt
+ %doc wpa_supplicant/wpa_supplicant.conf
+-%doc wpa_supplicant/examples
+ %license COPYING
+ 
+ 
