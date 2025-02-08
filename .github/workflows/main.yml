@@ -7,30 +7,28 @@ on:
 jobs:
   job:
     runs-on: ubuntu-latest
+    container: fedora:${{ github.ref_name }}
 
     steps:
-    - name: Get Version
-      run: echo "version=$(echo ${GITHUB_REF#refs/heads/} | grep -o '[0-9]*')" >> $GITHUB_ENV
-
     - name: Checkout Code
       uses: actions/checkout@v4
 
-    - name: Setup Docker
-      uses: docker/setup-buildx-action@v3
+    - name: Install Dependencies
+      run: dnf install -y dnf-plugins-core patch rpm-build copr-cli
 
-    - name: Rebuild SRPM and Upload Copr
+    - name: Rebuild SRPM
       run: |
-        docker run --rm -v $(pwd):/workspace -w /workspace fedora:${{ env.version }} bash -c '
-          dnf install -y dnf-plugins-core patch rpm-build copr-cli &&
-          dnf download --source $(find SPECS-PATCHES -name "*.patch" -exec basename {} .patch \; | xargs) &&
-          rpm -ivh --define "_topdir /workspace" *.src.rpm &&
-          for patch in SPECS-PATCHES/*.patch; do
-            pushd SPECS > /dev/null;
-            patch -p0 < "../$patch" || { echo "Patch $patch Failed!"; exit 1; }
-            popd  > /dev/null;
-          done &&
-          rpmbuild --define "_topdir /workspace" -bs SPECS/*.spec &&
-          echo "${{ secrets.COPR_API }}" > copr-api &&
-          . /etc/os-release &&
-          copr-cli --config copr-api build --nowait --chroot ${ID}-${VERSION_ID}-$(uname -m) $(echo ${{ github.repository }} | cut -d "-" -f 2-) SRPMS/*.src.rpm
-        '
+        dnf download --source $(find SPECS-PATCHES -name "*.patch" -exec basename {} .patch \; | xargs) &&
+        rpm -ivh --define "_topdir ${GITHUB_WORKSPACE}" *.src.rpm &&
+        for patch in SPECS-PATCHES/*.patch; do
+          pushd SPECS > /dev/null;
+          patch -p0 < "../$patch" || { echo "Patch $patch Failed!"; exit 1; }
+          popd  > /dev/null;
+        done &&
+        rpmbuild --define "_topdir ${GITHUB_WORKSPACE}" -bs SPECS/*.spec
+
+    - name: Upload Copr
+      run: |
+        echo "${{ secrets.COPR_API }}" > copr-api &&
+        . /etc/os-release &&
+        copr-cli --config copr-api build --nowait --chroot ${ID}-${VERSION_ID}-$(uname -m) $(echo ${{ github.repository }} | cut -d "-" -f 2-) SRPMS/*.src.rpm
