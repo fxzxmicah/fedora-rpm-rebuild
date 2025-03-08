@@ -1,55 +1,101 @@
---- systemd.spec	2024-12-25 20:41:27.660096586 +0800
-+++ systemd.spec.new	2024-12-11 19:24:24.352149747 +0800
-@@ -536,28 +536,54 @@
+--- systemd.spec	2025-02-08 20:48:14.028505220 +0800
++++ systemd.spec.new	2025-03-08 21:27:53.090239778 +0800
+@@ -477,9 +477,6 @@
+ 
+ This package also provides systemd-timesyncd, a network time protocol daemon.
+ 
+-It also contains tools to manage encrypted home areas and secrets bound to the
+-machine, and to create or grow partitions and make file systems automatically.
+-
+ %package ukify
+ Summary:        Tool to build Unified Kernel Images
+ Requires:       %{name} = %{version}-%{release}
+@@ -536,28 +533,86 @@
  the version that works with Secure Boot.
  %endif
  
 -%package container
 -# Name is the same as in Debian
 -Summary: Tools for containers and VMs
-+%package machine-common
-+Summary: Tools for both nspawn and vmspawn
++%package home
++Summary:        Home directory manager
++Requires:       %{name} = %{version}-%{release}
++Requires:       (%{name}-ssh = %{version}-%{release} if openssh-server)
++License:        LGPL-2.1-or-later
++
++%description home
++Systemd tools to manage home directories.
++
++This package contains systemd-homed, which manages home directories in a more
++secure and convenient way.
++
++%package portable
++Summary:        Systemd portable service manager
++Requires:       %{name} = %{version}-%{release}
++License:        LGPL-2.1-or-later
++
++%description portable
++This package provides systemd's portable service manager, enabling the management
++of services in a containerized environment.
++
++%package ssh
++Summary:        Systemd SSH and SSHD related tools and configuration
++Requires:       openssh-clients
++Requires:       openssh-server
++Requires:       %{name} = %{version}-%{release}
++License:        LGPL-2.1-or-later
++
++%description ssh
++This package provides tools and configurations for SSH clients and servers.
++
++%package machine
++Summary:        Tools for both nspawn and vmspawn
  Requires:       %{name}%{_isa} = %{version}-%{release}
- Requires(post):   systemd%{_isa} = %{version}-%{release}
- Requires(preun):  systemd%{_isa} = %{version}-%{release}
- Requires(postun): systemd%{_isa} = %{version}-%{release}
+-Requires(post):   systemd%{_isa} = %{version}-%{release}
+-Requires(preun):  systemd%{_isa} = %{version}-%{release}
+-Requires(postun): systemd%{_isa} = %{version}-%{release}
 -# For systemd-vmspawn which uses qemu:
 -Recommends:     qemu-kvm-core
 -Recommends:     qemu-device-display-virtio-gpu
 -Recommends:     qemu-device-display-virtio-vga
++Requires:       (%{name}-ssh = %{version}-%{release} if openssh-clients)
  # Obsolete parent package so that dnf will install new subpackage on upgrade (#1260394)
  Obsoletes:      %{name} < 229-5
++Recommends:     %{name}-importd%{_isa} = %{version}-%{release}
++License:        LGPL-2.1-or-later
++
++%description machine
++Systemd tools to spawn and manage containers and virtual machines.
++
++This package contains machinectl, systemd-machined.
++
++%package importd
++Summary:        Tools to download, import and export container and VM images
++Requires:       %{name}-machine%{_isa} = %{version}-%{release}
  # Bias the system towards libcurl-minimal if nothing pulls in full libcurl (#1997040)
  Suggests:       libcurl-minimal
  License:        LGPL-2.1-or-later
  
 -%description container
-+%description machine-common
- Systemd tools to spawn and manage containers and virtual machines.
+-Systemd tools to spawn and manage containers and virtual machines.
++%description importd
++Systemd tools to download, import, and export container and VM images.
++
++%package nspawn
++Summary:        Tools for containers
++Requires:       %{name}-machine%{_isa} = %{version}-%{release}
++License:        LGPL-2.1-or-later
  
 -This package contains systemd-nspawn, systemd-vmspawn, machinectl,
 -systemd-machined, and systemd-importd.
-+This package contains machinectl, systemd-machined, and systemd-importd.
-+
-+%package nspawn
-+Summary: Tools for containers
-+Requires:       %{name}-machine-common%{_isa} = %{version}-%{release}
-+Requires(post):   systemd%{_isa} = %{version}-%{release}
-+Requires(preun):  systemd%{_isa} = %{version}-%{release}
-+Requires(postun): systemd%{_isa} = %{version}-%{release}
-+License:        LGPL-2.1-or-later
-+
 +%description nspawn
 +Systemd tools to spawn and manage containers.
 +
 +This package contains systemd-nspawn.
 +
 +%package vmspawn
-+Summary: Tools for VMs
-+Requires:       %{name}-machine-common%{_isa} = %{version}-%{release}
-+Requires(post):   systemd%{_isa} = %{version}-%{release}
-+Requires(preun):  systemd%{_isa} = %{version}-%{release}
-+Requires(postun): systemd%{_isa} = %{version}-%{release}
++Summary:        Tools for VMs
++Requires:       %{name}-machine%{_isa} = %{version}-%{release}
 +# For systemd-vmspawn which uses qemu:
 +Requires:       qemu-kvm-core
 +%if 0%{?fedora}
@@ -65,25 +111,86 @@
  
  %package journal-remote
  # Name is the same as in Debian
-@@ -1040,6 +1066,10 @@
+@@ -1040,6 +1095,18 @@
  # Split files in build root into rpms
  python3 %{SOURCE2} %buildroot %{!?want_bootloader:--no-bootloader}
  
-+# Split out the nspawn and vmspawn units
-+sed -i -e '/nspawn/ w .file-list-nspawn' -e '/nspawn/ d' .file-list-container
-+sed -i -e '/vmspawn/ w .file-list-vmspawn' -e '/vmspawn/ d' .file-list-container
++# Split out the units
++sed -i -e '/nspawn/ { s/.*/echo "&" >> .file-list-nspawn/e; d; }' .file-list-container
++sed -i -e '/vmspawn/ { s/.*/echo "&" >> .file-list-vmspawn/e; d; }' .file-list-container
++sed -i -e '/import\|pull/ { s/.*/echo "&" >> .file-list-importd/e; d; }' .file-list-container
++sed -i -e '/import\|export\|container/ { s/.*/echo "&" >> .file-list-importd/e; d; }' .file-list-main
++sed -i -e '/ssh/ { s/.*/echo "&" >> .file-list-ssh/e; d; }' .file-list-main
++sed -i -e '/home/ { s/.*/echo "&" >> .file-list-home/e; d; }' .file-list-main
++sed -i -e '/home/ { s/.*/echo "&" >> .file-list-home/e; d; }' .file-list-udev
++sed -i -e '/portable/ { s/.*/echo "&" >> .file-list-portable/e; d; }' .file-list-main
++sed -i -e '/portable/ { s/.*/echo "&" >> .file-list-portable/e; d; }' .file-list-udev
++sed -i -e '/resolv/ { s/.*/echo "&" >> .file-list-resolve/e; d; }' .file-list-main
 +
  %check
  %if %{with tests}
  meson test -C %{_vpath_builddir} -t 6 --print-errorlogs
-@@ -1291,9 +1321,13 @@
+@@ -1103,7 +1170,7 @@
+ # a different package version.
+ systemctl --no-reload preset systemd-journald-audit.socket &>/dev/null || :
+ 
+-%global udev_services systemd-udev{d,-settle,-trigger}.service systemd-udevd-{control,kernel}.socket systemd-homed.service %{?want_bootloader:systemd-boot-update.service} systemd-oomd.service systemd-portabled.service systemd-pstore.service systemd-timesyncd.service remote-cryptsetup.target
++%global udev_services systemd-udev{d,-settle,-trigger}.service systemd-udevd-{control,kernel}.socket %{?want_bootloader:systemd-boot-update.service} systemd-oomd.service systemd-pstore.service systemd-timesyncd.service remote-cryptsetup.target
+ 
+ %post udev
+ # Move old stuff around in /var/lib
+@@ -1139,6 +1206,17 @@
+ # Others are either oneshot services, or sockets, and restarting them causes issues (#1378974)
+ %systemd_postun_with_restart systemd-udevd.service systemd-timesyncd.service
+ 
++%post home
++%systemd_post systemd-homed.service
++
++%preun home
++%systemd_preun systemd-homed.service
++
++%post portable
++%systemd_post systemd-portabled.service
++
++%preun portable
++%systemd_preun systemd-portabled.service
+ 
+ %global journal_remote_units_restart systemd-journal-gatewayd.service systemd-journal-remote.service systemd-journal-upload.service
+ %global journal_remote_units_norestart systemd-journal-gatewayd.socket systemd-journal-remote.socket
+@@ -1261,7 +1339,6 @@
+ %ghost %dir %attr(0755,-,-) /etc/systemd/system/getty.target.wants
+ %ghost %dir %attr(0755,-,-) /etc/systemd/system/graphical.target.wants
+ %ghost %dir %attr(0755,-,-) /etc/systemd/system/local-fs.target.wants
+-%ghost %dir %attr(0755,-,-) /etc/systemd/system/machines.target.wants
+ %ghost %dir %attr(0755,-,-) /etc/systemd/system/multi-user.target.wants
+ %ghost %dir %attr(0755,-,-) /etc/systemd/system/network-online.target.wants
+ %ghost %dir %attr(0755,-,-) /etc/systemd/system/printer.target.wants
+@@ -1270,7 +1347,6 @@
+ %ghost %dir %attr(0755,-,-) /etc/systemd/system/sysinit.target.wants
+ %ghost %dir %attr(0755,-,-) /etc/systemd/system/system-update.target.wants
+ %ghost %dir %attr(0755,-,-) /etc/systemd/system/timers.target.wants
+-%ghost %dir %attr(0700,-,-) /var/lib/portables
+ %ghost %dir %attr(0755,-,-) /var/lib/rpm-state/systemd
+ 
+ %files libs -f .file-list-libs
+@@ -1291,9 +1367,23 @@
  %files boot-unsigned -f .file-list-boot
  %endif
  
 -%files container -f .file-list-container
-+%files machine-common -f .file-list-container
++%files home -f .file-list-home
++
++%files portable -f .file-list-portable
++%ghost %dir %attr(0700,-,-) /var/lib/portables
++
++%files ssh -f .file-list-ssh
++
++%files machine -f .file-list-container
++%ghost %dir %attr(0755,-,-) /etc/systemd/system/machines.target.wants
  %ghost %dir %attr(0700,-,-) /var/lib/machines
  
++%files importd -f .file-list-importd
++
 +%files nspawn -f .file-list-nspawn
 +
 +%files vmspawn -f .file-list-vmspawn
