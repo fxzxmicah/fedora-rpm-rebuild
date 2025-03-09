@@ -1,6 +1,28 @@
 --- systemd.spec	2025-02-08 20:48:14.028505220 +0800
-+++ systemd.spec.new	2025-03-08 21:27:53.090239778 +0800
-@@ -477,9 +477,6 @@
++++ systemd.spec.new	2025-03-09 13:52:27.956269810 +0800
+@@ -291,6 +291,9 @@
+ Conflicts:      %{name}-standalone-shutdown
+ Provides:       %{name}-shutdown = %{version}-%{release}
+ 
++# If we are in a container
++Requires:       (%{name}-containerized = %{version}-%{release} if fedora-release-container)
++
+ %if "%{_sbindir}" == "%{_bindir}"
+ # Compat symlinks for Requires in other packages.
+ # We rely on filesystem to create the symlinks for us.
+@@ -309,11 +312,6 @@
+ Recommends:     libidn2.so.0%{?elf_suffix}
+ Recommends:     libidn2.so.0(IDN2_0.0.0)%{?elf_bits}
+ Recommends:     libpcre2-8.so.0%{?elf_suffix}
+-Recommends:     libpwquality.so.1%{?elf_suffix}
+-Recommends:     libpwquality.so.1(LIBPWQUALITY_1.0)%{?elf_bits}
+-%if 0%{?fedora}
+-Recommends:     libqrencode.so.4%{?elf_suffix}
+-%endif
+ Recommends:     libbpf.so.1%{?elf_suffix}
+ Recommends:     libbpf.so.1(LIBBPF_0.4.0)%{?elf_bits}
+ 
+@@ -477,9 +475,6 @@
  
  This package also provides systemd-timesyncd, a network time protocol daemon.
  
@@ -10,7 +32,7 @@
  %package ukify
  Summary:        Tool to build Unified Kernel Images
  Requires:       %{name} = %{version}-%{release}
-@@ -536,28 +533,86 @@
+@@ -536,28 +531,100 @@
  the version that works with Secure Boot.
  %endif
  
@@ -21,6 +43,11 @@
 +Summary:        Home directory manager
 +Requires:       %{name} = %{version}-%{release}
 +Requires:       (%{name}-ssh = %{version}-%{release} if openssh-server)
++Recommends:     libpwquality.so.1%{?elf_suffix}
++Recommends:     libpwquality.so.1(LIBPWQUALITY_1.0)%{?elf_bits}
++%if 0%{?fedora}
++Recommends:     libqrencode.so.4%{?elf_suffix}
++%endif
 +License:        LGPL-2.1-or-later
 +
 +%description home
@@ -40,13 +67,22 @@
 +
 +%package ssh
 +Summary:        Systemd SSH and SSHD related tools and configuration
-+Requires:       openssh-clients
-+Requires:       openssh-server
 +Requires:       %{name} = %{version}-%{release}
++Recommends:     openssh-clients
++Recommends:     openssh-server
 +License:        LGPL-2.1-or-later
 +
 +%description ssh
 +This package provides tools and configurations for SSH clients and servers.
++
++%package containerized
++Summary:        Systemd containerized components
++Requires:       %{name} = %{version}-%{release}
++License:        LGPL-2.1-or-later
++
++%description containerized
++This package provides systemd's containerized components, enabling the features
++of systemd in a containerized environment.
 +
 +%package machine
 +Summary:        Tools for both nspawn and vmspawn
@@ -85,9 +121,7 @@
 +Summary:        Tools for containers
 +Requires:       %{name}-machine%{_isa} = %{version}-%{release}
 +License:        LGPL-2.1-or-later
- 
--This package contains systemd-nspawn, systemd-vmspawn, machinectl,
--systemd-machined, and systemd-importd.
++
 +%description nspawn
 +Systemd tools to spawn and manage containers.
 +
@@ -106,12 +140,14 @@
 +
 +%description vmspawn
 +Systemd tools to spawn and manage virtual machines.
-+
+ 
+-This package contains systemd-nspawn, systemd-vmspawn, machinectl,
+-systemd-machined, and systemd-importd.
 +This package contains systemd-vmspawn.
  
  %package journal-remote
  # Name is the same as in Debian
-@@ -1040,6 +1095,18 @@
+@@ -1040,6 +1107,19 @@
  # Split files in build root into rpms
  python3 %{SOURCE2} %buildroot %{!?want_bootloader:--no-bootloader}
  
@@ -119,7 +155,8 @@
 +sed -i -e '/nspawn/ { s/.*/echo "&" >> .file-list-nspawn/e; d; }' .file-list-container
 +sed -i -e '/vmspawn/ { s/.*/echo "&" >> .file-list-vmspawn/e; d; }' .file-list-container
 +sed -i -e '/import\|pull/ { s/.*/echo "&" >> .file-list-importd/e; d; }' .file-list-container
-+sed -i -e '/import\|export\|container/ { s/.*/echo "&" >> .file-list-importd/e; d; }' .file-list-main
++sed -i -e '/import\|export/ { s/.*/echo "&" >> .file-list-importd/e; d; }' .file-list-main
++sed -i -e '/container/ { s/.*/echo "&" >> .file-list-containerized/e; d; }' .file-list-main
 +sed -i -e '/ssh/ { s/.*/echo "&" >> .file-list-ssh/e; d; }' .file-list-main
 +sed -i -e '/home/ { s/.*/echo "&" >> .file-list-home/e; d; }' .file-list-main
 +sed -i -e '/home/ { s/.*/echo "&" >> .file-list-home/e; d; }' .file-list-udev
@@ -130,7 +167,7 @@
  %check
  %if %{with tests}
  meson test -C %{_vpath_builddir} -t 6 --print-errorlogs
-@@ -1103,7 +1170,7 @@
+@@ -1103,7 +1183,7 @@
  # a different package version.
  systemctl --no-reload preset systemd-journald-audit.socket &>/dev/null || :
  
@@ -139,7 +176,7 @@
  
  %post udev
  # Move old stuff around in /var/lib
-@@ -1139,6 +1206,17 @@
+@@ -1139,6 +1219,17 @@
  # Others are either oneshot services, or sockets, and restarting them causes issues (#1378974)
  %systemd_postun_with_restart systemd-udevd.service systemd-timesyncd.service
  
@@ -157,7 +194,7 @@
  
  %global journal_remote_units_restart systemd-journal-gatewayd.service systemd-journal-remote.service systemd-journal-upload.service
  %global journal_remote_units_norestart systemd-journal-gatewayd.socket systemd-journal-remote.socket
-@@ -1261,7 +1339,6 @@
+@@ -1261,7 +1352,6 @@
  %ghost %dir %attr(0755,-,-) /etc/systemd/system/getty.target.wants
  %ghost %dir %attr(0755,-,-) /etc/systemd/system/graphical.target.wants
  %ghost %dir %attr(0755,-,-) /etc/systemd/system/local-fs.target.wants
@@ -165,7 +202,7 @@
  %ghost %dir %attr(0755,-,-) /etc/systemd/system/multi-user.target.wants
  %ghost %dir %attr(0755,-,-) /etc/systemd/system/network-online.target.wants
  %ghost %dir %attr(0755,-,-) /etc/systemd/system/printer.target.wants
-@@ -1270,7 +1347,6 @@
+@@ -1270,7 +1360,6 @@
  %ghost %dir %attr(0755,-,-) /etc/systemd/system/sysinit.target.wants
  %ghost %dir %attr(0755,-,-) /etc/systemd/system/system-update.target.wants
  %ghost %dir %attr(0755,-,-) /etc/systemd/system/timers.target.wants
@@ -173,7 +210,7 @@
  %ghost %dir %attr(0755,-,-) /var/lib/rpm-state/systemd
  
  %files libs -f .file-list-libs
-@@ -1291,9 +1367,23 @@
+@@ -1291,9 +1380,25 @@
  %files boot-unsigned -f .file-list-boot
  %endif
  
@@ -184,6 +221,8 @@
 +%ghost %dir %attr(0700,-,-) /var/lib/portables
 +
 +%files ssh -f .file-list-ssh
++
++%files containerized -f .file-list-containerized
 +
 +%files machine -f .file-list-container
 +%ghost %dir %attr(0755,-,-) /etc/systemd/system/machines.target.wants
