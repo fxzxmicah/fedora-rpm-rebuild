@@ -1,5 +1,5 @@
---- flatpak.spec	2024-12-05 22:47:35.789294422 +0800
-+++ flatpak.spec.new	2025-02-05 18:18:56.577875056 +0800
+--- flatpak.spec	2025-02-08 20:48:14.025505231 +0800
++++ flatpak.spec.new	2025-03-09 22:34:45.484971333 +0800
 @@ -7,8 +7,8 @@
  %global wayland_protocols_version 1.32
  %global wayland_scanner_version 1.15
@@ -63,6 +63,22 @@
  %dir %{_sysconfdir}/flatpak
  %{_sysconfdir}/flatpak/remotes.d
  %{_sysconfdir}/profile.d/flatpak.csh
+@@ -270,6 +279,7 @@
+ %files devel
+ %{_datadir}/gir-1.0/Flatpak-1.0.gir
+ %{_datadir}/gtk-doc/
++%{_datadir}/selinux/devel/include/contrib/flatpak.if
+ %{_includedir}/%{name}/
+ %{_libdir}/libflatpak.so
+ %{_libdir}/pkgconfig/%{name}.pc
+@@ -281,7 +291,6 @@
+ 
+ %files selinux
+ %{_datadir}/selinux/packages/flatpak.pp.bz2
+-%{_datadir}/selinux/devel/include/contrib/flatpak.if
+ 
+ %files session-helper
+ %license COPYING
 @@ -290,6 +299,9 @@
  %{_libexecdir}/flatpak-session-helper
  %{_userunitdir}/flatpak-session-helper.service
