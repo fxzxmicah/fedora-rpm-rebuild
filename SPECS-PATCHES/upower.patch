@@ -1,0 +1,44 @@
+--- upower.spec	2025-03-09 23:02:08.072534628 +0800
++++ upower.spec.new	2025-03-09 23:10:17.721499045 +0800
+@@ -39,6 +39,13 @@
+ %description libs
+ Client libraries for UPower.
+ 
++%package tests
++Summary: Tests for UPower
++Requires: %{name}%{?_isa} = %{version}-%{release}
++
++%description tests
++Tests for UPower.
++
+ %package devel
+ Summary: Headers and libraries for UPower
+ Requires: %{name}-libs%{?_isa} = %{version}-%{release}
+@@ -93,21 +100,24 @@
+ %dir %{_sysconfdir}/UPower
+ %config %{_sysconfdir}/UPower/UPower.conf
+ %{_bindir}/*
+-%{_libexecdir}/*
++%{_libexecdir}/upowerd
+ %{_mandir}/man1/*
+ %{_mandir}/man7/*
+ %{_mandir}/man8/*
+ %{_datadir}/dbus-1/system-services/*.service
+ %{_unitdir}/*.service
+-%{_datadir}/installed-tests/upower/upower-integration.test
+ %{_datadir}/polkit-1/actions/org.freedesktop.upower.policy
+-%{_datadir}/zsh
++%{_datadir}/zsh/*
+ 
+ %files libs
+ %license COPYING
+ %{_libdir}/libupower-glib.so.3{,.*}
+ %{_libdir}/girepository-1.0/*.typelib
+ 
++%files tests
++%{_libexecdir}/upower
++%{_datadir}/installed-tests/upower/upower-integration.test
++
+ %files devel
+ %{_datadir}/dbus-1/interfaces/*.xml
+ %{_libdir}/libupower-glib.so
