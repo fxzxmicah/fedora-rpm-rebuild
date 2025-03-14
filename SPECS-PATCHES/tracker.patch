@@ -1,0 +1,10 @@
+--- tracker.spec	2025-03-13 00:24:34.785078527 +0800
++++ tracker.spec.new	2025-03-13 00:21:12.652224701 +0800
+@@ -156,6 +156,7 @@
+ %{_libdir}/girepository-1.0/Tracker-3.0.typelib
+ %{_libdir}/libtracker-sparql-3.0.so.0*
+ %{_libdir}/tracker-3.0/
++%exclude %{_libdir}/tracker-3.0/trackertestutils/
+ 
+ %files devel
+ %{_includedir}/tracker-3.0/
