@@ -1,16 +1,18 @@
 --- systemd.spec	2025-02-08 20:48:14.028505220 +0800
-+++ systemd.spec.new	2025-03-09 13:52:27.956269810 +0800
-@@ -291,6 +291,9 @@
++++ systemd.spec.new	2025-03-14 18:04:55.769117815 +0800
+@@ -291,6 +291,11 @@
  Conflicts:      %{name}-standalone-shutdown
  Provides:       %{name}-shutdown = %{version}-%{release}
  
 +# If we are in a container
 +Requires:       (%{name}-containerized = %{version}-%{release} if fedora-release-container)
++# If we are in a atomic or ostree desktop
++Requires:       (%{name}-atomic = %{version}-%{release} if fedora-release-ostree-desktop)
 +
  %if "%{_sbindir}" == "%{_bindir}"
  # Compat symlinks for Requires in other packages.
  # We rely on filesystem to create the symlinks for us.
-@@ -309,11 +312,6 @@
+@@ -309,11 +314,6 @@
  Recommends:     libidn2.so.0%{?elf_suffix}
  Recommends:     libidn2.so.0(IDN2_0.0.0)%{?elf_bits}
  Recommends:     libpcre2-8.so.0%{?elf_suffix}
@@ -22,7 +24,7 @@
  Recommends:     libbpf.so.1%{?elf_suffix}
  Recommends:     libbpf.so.1(LIBBPF_0.4.0)%{?elf_bits}
  
-@@ -477,9 +475,6 @@
+@@ -477,9 +477,6 @@
  
  This package also provides systemd-timesyncd, a network time protocol daemon.
  
@@ -32,7 +34,7 @@
  %package ukify
  Summary:        Tool to build Unified Kernel Images
  Requires:       %{name} = %{version}-%{release}
-@@ -536,28 +531,100 @@
+@@ -536,28 +533,131 @@
  the version that works with Secure Boot.
  %endif
  
@@ -59,6 +61,7 @@
 +%package portable
 +Summary:        Systemd portable service manager
 +Requires:       %{name} = %{version}-%{release}
++Recommends:     %{name}-rootless%{_isa} = %{version}-%{release}
 +License:        LGPL-2.1-or-later
 +
 +%description portable
@@ -84,20 +87,45 @@
 +This package provides systemd's containerized components, enabling the features
 +of systemd in a containerized environment.
 +
++%package atomic
++Summary:        Systemd atomic desktop components
++Requires:       %{name} = %{version}-%{release}
++License:        LGPL-2.1-or-later
++
++%description atomic
++This package provides systemd's atomic desktop components, enabling the management
++of atomic operations within desktop environments.
++
++%package dissect
++Summary:        Systemd image dissect tool
++Requires:       %{name} = %{version}-%{release}
++Recommends:     %{name}-rootless%{_isa} = %{version}-%{release}
++License:        LGPL-2.1-or-later
++
++%description dissect
++This package provides systemd's dissect tool, enabling the analysis of disk
++images and partitions.
++
 +%package machine
 +Summary:        Tools for both nspawn and vmspawn
  Requires:       %{name}%{_isa} = %{version}-%{release}
 -Requires(post):   systemd%{_isa} = %{version}-%{release}
 -Requires(preun):  systemd%{_isa} = %{version}-%{release}
 -Requires(postun): systemd%{_isa} = %{version}-%{release}
--# For systemd-vmspawn which uses qemu:
++Requires:       (%{name}-ssh = %{version}-%{release} if openssh-clients)
+ # For systemd-vmspawn which uses qemu:
 -Recommends:     qemu-kvm-core
 -Recommends:     qemu-device-display-virtio-gpu
 -Recommends:     qemu-device-display-virtio-vga
-+Requires:       (%{name}-ssh = %{version}-%{release} if openssh-clients)
++Requires:       (qemu-kvm-core if %{name}-vmspawn)
++%if 0%{?fedora}
++Recommends:     (qemu-device-display-virtio-gpu if %{name}-vmspawn)
++Recommends:     (qemu-device-display-virtio-vga if %{name}-vmspawn)
++%endif
  # Obsolete parent package so that dnf will install new subpackage on upgrade (#1260394)
  Obsoletes:      %{name} < 229-5
 +Recommends:     %{name}-importd%{_isa} = %{version}-%{release}
++Recommends:     (%{name}-rootless%{_isa} = %{version}-%{release} if %{name}-nspawn)
 +License:        LGPL-2.1-or-later
 +
 +%description machine
@@ -117,6 +145,18 @@
 +%description importd
 +Systemd tools to download, import, and export container and VM images.
 +
++%package rootless
++Summary:        Daemon to run rootless containers
++Requires:       %{name}%{_isa} = %{version}-%{release}
++License:        LGPL-2.1-or-later
++
++%description rootless
++Systemd daemon to run rootless containers.
+ 
+-This package contains systemd-nspawn, systemd-vmspawn, machinectl,
+-systemd-machined, and systemd-importd.
++This package contains systemd-mountfsd and systemd-nsresourced.
++
 +%package nspawn
 +Summary:        Tools for containers
 +Requires:       %{name}-machine%{_isa} = %{version}-%{release}
@@ -130,44 +170,42 @@
 +%package vmspawn
 +Summary:        Tools for VMs
 +Requires:       %{name}-machine%{_isa} = %{version}-%{release}
-+# For systemd-vmspawn which uses qemu:
-+Requires:       qemu-kvm-core
-+%if 0%{?fedora}
-+Recommends:     qemu-device-display-virtio-gpu
-+Recommends:     qemu-device-display-virtio-vga
-+%endif
 +License:        LGPL-2.1-or-later
 +
 +%description vmspawn
 +Systemd tools to spawn and manage virtual machines.
- 
--This package contains systemd-nspawn, systemd-vmspawn, machinectl,
--systemd-machined, and systemd-importd.
++
 +This package contains systemd-vmspawn.
  
  %package journal-remote
  # Name is the same as in Debian
-@@ -1040,6 +1107,19 @@
+@@ -1040,6 +1140,25 @@
  # Split files in build root into rpms
  python3 %{SOURCE2} %buildroot %{!?want_bootloader:--no-bootloader}
  
 +# Split out the units
 +sed -i -e '/nspawn/ { s/.*/echo "&" >> .file-list-nspawn/e; d; }' .file-list-container
 +sed -i -e '/vmspawn/ { s/.*/echo "&" >> .file-list-vmspawn/e; d; }' .file-list-container
-+sed -i -e '/import\|pull/ { s/.*/echo "&" >> .file-list-importd/e; d; }' .file-list-container
-+sed -i -e '/import\|export/ { s/.*/echo "&" >> .file-list-importd/e; d; }' .file-list-main
++sed -i -e '/import\|pull\|export/ { s/.*/echo "&" >> .file-list-importd/e; d; }' .file-list-container
 +sed -i -e '/container/ { s/.*/echo "&" >> .file-list-containerized/e; d; }' .file-list-main
++sed -i -e '/confext\|sysext\|sysupdate\|extension/ { s/.*/echo "&" >> .file-list-atomic/e; d; }' .file-list-main
++sed -i -e '/confext\|sysext/ { s/.*/echo "&" >> .file-list-atomic/e; d; }' .file-list-udev
++sed -i -e '/dissect/ { s/.*/echo "&" >> .file-list-dissect/e; d; }' .file-list-container
++sed -i -e '/ddi/ { s/.*/echo "&" >> .file-list-dissect/e; d; }' .file-list-main
++sed -i -e '/mountfs\|mountwork\|nsresource/ { s/.*/echo "&" >> .file-list-rootless/e; d; }' .file-list-container
 +sed -i -e '/ssh/ { s/.*/echo "&" >> .file-list-ssh/e; d; }' .file-list-main
 +sed -i -e '/home/ { s/.*/echo "&" >> .file-list-home/e; d; }' .file-list-main
 +sed -i -e '/home/ { s/.*/echo "&" >> .file-list-home/e; d; }' .file-list-udev
 +sed -i -e '/portable/ { s/.*/echo "&" >> .file-list-portable/e; d; }' .file-list-main
++sed -i -e '/portable/ { s/.*/echo "&" >> .file-list-portable/e; d; }' .file-list-container
 +sed -i -e '/portable/ { s/.*/echo "&" >> .file-list-portable/e; d; }' .file-list-udev
 +sed -i -e '/resolv/ { s/.*/echo "&" >> .file-list-resolve/e; d; }' .file-list-main
++sed -i -e '/fstab\|tpm\|battery\|bluetooth\|printer\|smartcard\|modprobe\|wait\|ntp\|kernel/ { s/.*/echo "&" >> .file-list-udev/e; d; }' .file-list-main
 +
  %check
  %if %{with tests}
  meson test -C %{_vpath_builddir} -t 6 --print-errorlogs
-@@ -1103,7 +1183,7 @@
+@@ -1103,7 +1222,7 @@
  # a different package version.
  systemctl --no-reload preset systemd-journald-audit.socket &>/dev/null || :
  
@@ -176,7 +214,7 @@
  
  %post udev
  # Move old stuff around in /var/lib
-@@ -1139,6 +1219,17 @@
+@@ -1139,6 +1258,17 @@
  # Others are either oneshot services, or sockets, and restarting them causes issues (#1378974)
  %systemd_postun_with_restart systemd-udevd.service systemd-timesyncd.service
  
@@ -194,15 +232,21 @@
  
  %global journal_remote_units_restart systemd-journal-gatewayd.service systemd-journal-remote.service systemd-journal-upload.service
  %global journal_remote_units_norestart systemd-journal-gatewayd.socket systemd-journal-remote.socket
-@@ -1261,7 +1352,6 @@
+@@ -1256,21 +1386,17 @@
+ %license LICENSE.GPL2
+ %license LICENSES/MIT.txt
+ %ghost %dir %attr(0755,-,-) /etc/systemd/system/basic.target.wants
+-%ghost %dir %attr(0755,-,-) /etc/systemd/system/bluetooth.target.wants
+ %ghost %dir %attr(0755,-,-) /etc/systemd/system/default.target.wants
  %ghost %dir %attr(0755,-,-) /etc/systemd/system/getty.target.wants
  %ghost %dir %attr(0755,-,-) /etc/systemd/system/graphical.target.wants
  %ghost %dir %attr(0755,-,-) /etc/systemd/system/local-fs.target.wants
 -%ghost %dir %attr(0755,-,-) /etc/systemd/system/machines.target.wants
  %ghost %dir %attr(0755,-,-) /etc/systemd/system/multi-user.target.wants
  %ghost %dir %attr(0755,-,-) /etc/systemd/system/network-online.target.wants
- %ghost %dir %attr(0755,-,-) /etc/systemd/system/printer.target.wants
-@@ -1270,7 +1360,6 @@
+-%ghost %dir %attr(0755,-,-) /etc/systemd/system/printer.target.wants
+ %ghost %dir %attr(0755,-,-) /etc/systemd/system/remote-fs.target.wants
+ %ghost %dir %attr(0755,-,-) /etc/systemd/system/sockets.target.wants
  %ghost %dir %attr(0755,-,-) /etc/systemd/system/sysinit.target.wants
  %ghost %dir %attr(0755,-,-) /etc/systemd/system/system-update.target.wants
  %ghost %dir %attr(0755,-,-) /etc/systemd/system/timers.target.wants
@@ -210,7 +254,15 @@
  %ghost %dir %attr(0755,-,-) /var/lib/rpm-state/systemd
  
  %files libs -f .file-list-libs
-@@ -1291,9 +1380,25 @@
+@@ -1285,15 +1411,39 @@
+ %files devel -f .file-list-devel
+ 
+ %files udev -f .file-list-udev
++%ghost %dir %attr(0755,-,-) /etc/systemd/system/bluetooth.target.wants
++%ghost %dir %attr(0755,-,-) /etc/systemd/system/printer.target.wants
+ 
+ %files ukify -f .file-list-ukify
+ %if 0%{?want_bootloader}
  %files boot-unsigned -f .file-list-boot
  %endif
  
@@ -224,11 +276,17 @@
 +
 +%files containerized -f .file-list-containerized
 +
++%files atomic -f .file-list-atomic
++
++%files dissect -f .file-list-dissect
++
 +%files machine -f .file-list-container
 +%ghost %dir %attr(0755,-,-) /etc/systemd/system/machines.target.wants
  %ghost %dir %attr(0700,-,-) /var/lib/machines
  
 +%files importd -f .file-list-importd
++
++%files rootless -f .file-list-rootless
 +
 +%files nspawn -f .file-list-nspawn
 +
