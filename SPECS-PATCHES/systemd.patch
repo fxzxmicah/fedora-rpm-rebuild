@@ -1,5 +1,5 @@
 --- systemd.spec	2025-02-08 20:48:14.028505220 +0800
-+++ systemd.spec.new	2025-03-14 18:04:55.769117815 +0800
++++ systemd.spec.new	2025-04-03 17:38:28.205600129 +0800
 @@ -291,6 +291,11 @@
  Conflicts:      %{name}-standalone-shutdown
  Provides:       %{name}-shutdown = %{version}-%{release}
@@ -179,7 +179,7 @@
  
  %package journal-remote
  # Name is the same as in Debian
-@@ -1040,6 +1140,25 @@
+@@ -1040,6 +1140,26 @@
  # Split files in build root into rpms
  python3 %{SOURCE2} %buildroot %{!?want_bootloader:--no-bootloader}
  
@@ -200,12 +200,13 @@
 +sed -i -e '/portable/ { s/.*/echo "&" >> .file-list-portable/e; d; }' .file-list-container
 +sed -i -e '/portable/ { s/.*/echo "&" >> .file-list-portable/e; d; }' .file-list-udev
 +sed -i -e '/resolv/ { s/.*/echo "&" >> .file-list-resolve/e; d; }' .file-list-main
++sed -i -e '/network-generator/ { s/.*/echo "&" >> .file-list-networkd/e; d; }' .file-list-main
 +sed -i -e '/fstab\|tpm\|battery\|bluetooth\|printer\|smartcard\|modprobe\|wait\|ntp\|kernel/ { s/.*/echo "&" >> .file-list-udev/e; d; }' .file-list-main
 +
  %check
  %if %{with tests}
  meson test -C %{_vpath_builddir} -t 6 --print-errorlogs
-@@ -1103,7 +1222,7 @@
+@@ -1103,7 +1223,7 @@
  # a different package version.
  systemctl --no-reload preset systemd-journald-audit.socket &>/dev/null || :
  
@@ -214,7 +215,7 @@
  
  %post udev
  # Move old stuff around in /var/lib
-@@ -1139,6 +1258,17 @@
+@@ -1139,6 +1259,17 @@
  # Others are either oneshot services, or sockets, and restarting them causes issues (#1378974)
  %systemd_postun_with_restart systemd-udevd.service systemd-timesyncd.service
  
@@ -232,7 +233,7 @@
  
  %global journal_remote_units_restart systemd-journal-gatewayd.service systemd-journal-remote.service systemd-journal-upload.service
  %global journal_remote_units_norestart systemd-journal-gatewayd.socket systemd-journal-remote.socket
-@@ -1256,21 +1386,17 @@
+@@ -1256,21 +1387,17 @@
  %license LICENSE.GPL2
  %license LICENSES/MIT.txt
  %ghost %dir %attr(0755,-,-) /etc/systemd/system/basic.target.wants
@@ -254,7 +255,7 @@
  %ghost %dir %attr(0755,-,-) /var/lib/rpm-state/systemd
  
  %files libs -f .file-list-libs
-@@ -1285,15 +1411,39 @@
+@@ -1285,15 +1412,39 @@
  %files devel -f .file-list-devel
  
  %files udev -f .file-list-udev
