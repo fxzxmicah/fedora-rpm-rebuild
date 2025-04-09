@@ -1,5 +1,5 @@
 --- systemd.spec	2025-02-08 20:48:14.028505220 +0800
-+++ systemd.spec.new	2025-04-03 17:38:28.205600129 +0800
++++ systemd.spec.new	2025-04-10 00:46:25.946930229 +0800
 @@ -291,6 +291,11 @@
  Conflicts:      %{name}-standalone-shutdown
  Provides:       %{name}-shutdown = %{version}-%{release}
@@ -34,7 +34,7 @@
  %package ukify
  Summary:        Tool to build Unified Kernel Images
  Requires:       %{name} = %{version}-%{release}
-@@ -536,28 +533,131 @@
+@@ -536,28 +533,121 @@
  the version that works with Secure Boot.
  %endif
  
@@ -96,16 +96,6 @@
 +This package provides systemd's atomic desktop components, enabling the management
 +of atomic operations within desktop environments.
 +
-+%package dissect
-+Summary:        Systemd image dissect tool
-+Requires:       %{name} = %{version}-%{release}
-+Recommends:     %{name}-rootless%{_isa} = %{version}-%{release}
-+License:        LGPL-2.1-or-later
-+
-+%description dissect
-+This package provides systemd's dissect tool, enabling the analysis of disk
-+images and partitions.
-+
 +%package machine
 +Summary:        Tools for both nspawn and vmspawn
  Requires:       %{name}%{_isa} = %{version}-%{release}
@@ -124,7 +114,7 @@
 +%endif
  # Obsolete parent package so that dnf will install new subpackage on upgrade (#1260394)
  Obsoletes:      %{name} < 229-5
-+Recommends:     %{name}-importd%{_isa} = %{version}-%{release}
++Recommends:     %{name}-import%{_isa} = %{version}-%{release}
 +Recommends:     (%{name}-rootless%{_isa} = %{version}-%{release} if %{name}-nspawn)
 +License:        LGPL-2.1-or-later
 +
@@ -133,7 +123,7 @@
 +
 +This package contains machinectl, systemd-machined.
 +
-+%package importd
++%package import
 +Summary:        Tools to download, import and export container and VM images
 +Requires:       %{name}-machine%{_isa} = %{version}-%{release}
  # Bias the system towards libcurl-minimal if nothing pulls in full libcurl (#1997040)
@@ -142,7 +132,7 @@
  
 -%description container
 -Systemd tools to spawn and manage containers and virtual machines.
-+%description importd
++%description import
 +Systemd tools to download, import, and export container and VM images.
 +
 +%package rootless
@@ -179,19 +169,18 @@
  
  %package journal-remote
  # Name is the same as in Debian
-@@ -1040,6 +1140,26 @@
+@@ -1040,6 +1130,27 @@
  # Split files in build root into rpms
  python3 %{SOURCE2} %buildroot %{!?want_bootloader:--no-bootloader}
  
 +# Split out the units
 +sed -i -e '/nspawn/ { s/.*/echo "&" >> .file-list-nspawn/e; d; }' .file-list-container
 +sed -i -e '/vmspawn/ { s/.*/echo "&" >> .file-list-vmspawn/e; d; }' .file-list-container
-+sed -i -e '/import\|pull\|export/ { s/.*/echo "&" >> .file-list-importd/e; d; }' .file-list-container
++sed -i -e '/import\|pull\|export\|dissect/ { s/.*/echo "&" >> .file-list-import/e; d; }' .file-list-container
++sed -i -e '/ddi/ { s/.*/echo "&" >> .file-list-import/e; d; }' .file-list-main
 +sed -i -e '/container/ { s/.*/echo "&" >> .file-list-containerized/e; d; }' .file-list-main
 +sed -i -e '/confext\|sysext\|sysupdate\|extension/ { s/.*/echo "&" >> .file-list-atomic/e; d; }' .file-list-main
 +sed -i -e '/confext\|sysext/ { s/.*/echo "&" >> .file-list-atomic/e; d; }' .file-list-udev
-+sed -i -e '/dissect/ { s/.*/echo "&" >> .file-list-dissect/e; d; }' .file-list-container
-+sed -i -e '/ddi/ { s/.*/echo "&" >> .file-list-dissect/e; d; }' .file-list-main
 +sed -i -e '/mountfs\|mountwork\|nsresource/ { s/.*/echo "&" >> .file-list-rootless/e; d; }' .file-list-container
 +sed -i -e '/ssh/ { s/.*/echo "&" >> .file-list-ssh/e; d; }' .file-list-main
 +sed -i -e '/home/ { s/.*/echo "&" >> .file-list-home/e; d; }' .file-list-main
@@ -202,11 +191,13 @@
 +sed -i -e '/resolv/ { s/.*/echo "&" >> .file-list-resolve/e; d; }' .file-list-main
 +sed -i -e '/network-generator/ { s/.*/echo "&" >> .file-list-networkd/e; d; }' .file-list-main
 +sed -i -e '/fstab\|tpm\|battery\|bluetooth\|printer\|smartcard\|modprobe\|wait\|ntp\|kernel/ { s/.*/echo "&" >> .file-list-udev/e; d; }' .file-list-main
++sed -i -e '/stub/ { s/.*/echo "&" >> .file-list-boot/e; d; }' .file-list-main
++sed -i -e '/bootctl/ { s/.*/echo "&" >> .file-list-boot/e; d; }' .file-list-udev
 +
  %check
  %if %{with tests}
  meson test -C %{_vpath_builddir} -t 6 --print-errorlogs
-@@ -1103,7 +1223,7 @@
+@@ -1103,7 +1214,7 @@
  # a different package version.
  systemctl --no-reload preset systemd-journald-audit.socket &>/dev/null || :
  
@@ -215,7 +206,7 @@
  
  %post udev
  # Move old stuff around in /var/lib
-@@ -1139,6 +1259,17 @@
+@@ -1139,6 +1250,17 @@
  # Others are either oneshot services, or sockets, and restarting them causes issues (#1378974)
  %systemd_postun_with_restart systemd-udevd.service systemd-timesyncd.service
  
@@ -233,7 +224,7 @@
  
  %global journal_remote_units_restart systemd-journal-gatewayd.service systemd-journal-remote.service systemd-journal-upload.service
  %global journal_remote_units_norestart systemd-journal-gatewayd.socket systemd-journal-remote.socket
-@@ -1256,21 +1387,17 @@
+@@ -1256,21 +1378,17 @@
  %license LICENSE.GPL2
  %license LICENSES/MIT.txt
  %ghost %dir %attr(0755,-,-) /etc/systemd/system/basic.target.wants
@@ -255,7 +246,7 @@
  %ghost %dir %attr(0755,-,-) /var/lib/rpm-state/systemd
  
  %files libs -f .file-list-libs
-@@ -1285,15 +1412,39 @@
+@@ -1285,15 +1403,37 @@
  %files devel -f .file-list-devel
  
  %files udev -f .file-list-udev
@@ -279,13 +270,11 @@
 +
 +%files atomic -f .file-list-atomic
 +
-+%files dissect -f .file-list-dissect
-+
 +%files machine -f .file-list-container
 +%ghost %dir %attr(0755,-,-) /etc/systemd/system/machines.target.wants
  %ghost %dir %attr(0700,-,-) /var/lib/machines
  
-+%files importd -f .file-list-importd
++%files import -f .file-list-import
 +
 +%files rootless -f .file-list-rootless
 +
