@@ -1,5 +1,5 @@
---- gnome-keyring.spec	2025-02-05 19:15:46.337141166 +0800
-+++ gnome-keyring.spec.new	2025-02-05 19:17:32.945051525 +0800
+--- gnome-keyring.spec	2025-04-09 21:36:36.360069594 +0800
++++ gnome-keyring.spec.new	2025-04-09 21:57:15.033993937 +0800
 @@ -2,7 +2,8 @@
  %global gcr_version 3.27.90
  %global gcrypt_version 1.2.2
@@ -20,3 +20,42 @@
  
  %description
  The gnome-keyring session daemon manages passwords and other types of
+@@ -49,6 +49,16 @@
+ Applications can use the gnome-keyring library to integrate with the keyring.
+ 
+ 
++%package devel
++Summary: Development files for gnome-keyring
++License: LGPL-2.1-or-later
++Requires: %{name}%{?_isa} = %{version}-%{release}
++
++%description devel
++The gnome-keyring-devel package contains the development files
++needed to develop applications that use the gnome-keyring library.
++
++
+ %package pam
+ Summary: Pam module for unlocking keyrings
+ License: LGPL-2.1-or-later
+@@ -103,9 +113,6 @@
+ %doc AUTHORS NEWS README
+ %license COPYING COPYING.LIB
+ # LGPL
+-%dir %{_libdir}/gnome-keyring
+-%dir %{_libdir}/gnome-keyring/devel
+-%{_libdir}/gnome-keyring/devel/*.so
+ %dir %{_libdir}/pkcs11
+ %{_libdir}/pkcs11/*.so
+ # GPL
+@@ -126,6 +133,11 @@
+ %{_userunitdir}/gnome-keyring-daemon.service
+ %{_userunitdir}/gnome-keyring-daemon.socket
+ 
++%files devel
++%dir %{_libdir}/gnome-keyring
++%dir %{_libdir}/gnome-keyring/devel
++%{_libdir}/gnome-keyring/devel/*.so
++
+ %files pam
+ %{_libdir}/security/*.so
+ 
