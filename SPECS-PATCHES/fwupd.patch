@@ -1,0 +1,45 @@
+--- fwupd.spec	2025-04-14 00:32:37.172563128 +0800
++++ fwupd.spec.new	2025-04-14 00:31:25.609584497 +0800
+@@ -120,6 +120,8 @@
+ Requires: libgusb%{?_isa} >= %{libgusb_version}
+ Requires: shared-mime-info
+ 
++Requires: (%{name}-fish-completion = %{version}-%{release} if fish)
++
+ Obsoletes: dbxtool < 9
+ Provides: dbxtool
+ 
+@@ -145,6 +147,15 @@
+ %description
+ fwupd is a daemon to allow session software to update device firmware.
+ 
++%package fish-completion
++Summary: Fish completion for fwupdmgr
++Requires: %{name}%{?_isa} = %{version}-%{release}
++
++BuildArch: noarch
++
++%description fish-completion
++Fish completion for command fwupdmgr.
++
+ %package devel
+ Summary: Development package for %{name}
+ Requires: %{name}%{?_isa} = %{version}-%{release}
+@@ -312,7 +323,6 @@
+ %{_datadir}/dbus-1/system.d/org.freedesktop.fwupd.conf
+ %{_datadir}/bash-completion/completions/fwupdmgr
+ %{_datadir}/bash-completion/completions/fwupdtool
+-%{_datadir}/fish/vendor_completions.d/fwupdmgr.fish
+ %dir %{_datadir}/fwupd
+ %dir %{_datadir}/fwupd/metainfo
+ %{_datadir}/fwupd/metainfo/org.freedesktop.fwupd*.metainfo.xml
+@@ -356,6 +366,9 @@
+ %{_libdir}/fwupd-%{version}/libfwupd*.so
+ %ghost %{_localstatedir}/lib/fwupd/gnupg
+ 
++%files fish-completion
++%{_datadir}/fish/vendor_completions.d/fwupdmgr.fish
++
+ %if 0%{?have_modem_manager}
+ %files plugin-modem-manager
+ %{_libdir}/fwupd-%{version}/libfu_plugin_modem_manager.so

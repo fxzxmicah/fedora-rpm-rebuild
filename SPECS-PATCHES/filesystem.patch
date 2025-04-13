@@ -1,5 +1,5 @@
---- filesystem.spec	2024-11-01 22:19:07.532188701 +0800
-+++ filesystem.spec.new	2024-11-01 22:12:38.252286696 +0800
+--- filesystem.spec	2025-02-08 20:48:14.024505236 +0800
++++ filesystem.spec.new	2025-04-14 00:36:06.253101088 +0800
 @@ -13,9 +13,6 @@
  BuildRequires: iso-codes
  Requires(pre): setup
@@ -22,7 +22,7 @@
 +        boot dev \
 +        etc/{X11,xdg/autostart,opt,skel,sysconfig,keys/ima,pki,bash_completion.d,default,rwtab.d} \
 +        home mnt root run srv tmp \
-+        usr/{bin,include,%{_lib},lib/{locale,modules,sysimage,systemd/{system,user},sysusers.d,tmpfiles.d},libexec,local/{bin,etc,lib,%{_lib},share/{applications,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x},info},libexec},share/{aclocal,appdata,applications,backgrounds,bash-completion/{completions,helpers},desktop-directories,dict,doc,empty,gnome,help,icons,info,licenses,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x,0p,1p,3p},metainfo,mime-info,misc,pixmaps,sounds,themes,X11,wayland-sessions},src} \
++        usr/{bin,include,%{_lib},lib/{locale,modules,sysimage,systemd/{system,user},sysusers.d,tmpfiles.d},libexec,local/{bin,etc,lib,%{_lib},share/{applications,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x},info},libexec},share/{appdata,applications,backgrounds,bash-completion/{completions,helpers},desktop-directories,dict,doc,empty,gnome,help,icons,info,licenses,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x,0p,1p,3p},metainfo,mime-info,misc,pixmaps,sounds,themes,X11,wayland-sessions},src} \
 +        var/{adm,empty,lib/{misc,rpm-state},local,log,preserve,spool/{mail,lpd},tmp,db,cache,opt}
  )
  for i in "${Paths[@]}"; do
@@ -167,7 +167,7 @@
  %endif
  /usr/libexec
  %dir /usr/local
-@@ -442,16 +401,14 @@
+@@ -442,16 +401,13 @@
  %endif
  /usr/local/etc
  /usr/local/bin
@@ -179,14 +179,14 @@
 -/usr/local/src
 +%ghost /usr/local/src
  %dir /usr/share
- /usr/share/aclocal
+-/usr/share/aclocal
  /usr/share/appdata
  /usr/share/applications
 -/usr/share/augeas
  /usr/share/backgrounds
  %dir /usr/share/bash-completion
  /usr/share/bash-completion/completions
-@@ -460,12 +417,9 @@
+@@ -460,12 +416,9 @@
  /usr/share/dict
  /usr/share/doc
  %attr(555,root,root) %dir /usr/share/empty
@@ -199,7 +199,7 @@
  /usr/share/info
  %dir /usr/share/licenses
  %dir /usr/share/locale
-@@ -473,40 +427,30 @@
+@@ -473,40 +426,30 @@
  /usr/share/metainfo
  /usr/share/mime-info
  /usr/share/misc

@@ -1,0 +1,50 @@
+--- gcc.spec	2025-04-13 23:41:19.912268368 +0800
++++ gcc.spec.new	2025-04-13 23:40:59.522732414 +0800
+@@ -393,6 +393,7 @@
+ Summary: GNU Standard C++ Library
+ Autoreq: true
+ Requires: glibc >= 2.10.90-7
++Requires: (libstdc++-pp = %{version}-%{release} if gdb-headless)
+ BuildRequires: tzdata >= 2017c
+ %if 0%{?fedora} > 38 || 0%{?rhel} > 9
+ Recommends: tzdata >= 2017c
+@@ -404,6 +405,15 @@
+ The libstdc++ package contains a rewritten standard compliant GCC Standard
+ C++ Library.
+ 
++%package -n libstdc++-pp
++Summary: GDB pretty printers for the C++ standard library
++Requires: libstdc++%{?_isa} = %{version}-%{release}
++Autoreq: true
++
++%description -n libstdc++-pp
++This package contains pretty printers for the C++ standard library usable
++from GDB.
++
+ %package -n libstdc++-devel
+ Summary: Header files and libraries for C++ development
+ Requires: libstdc++%{?_isa} = %{version}-%{release}
+@@ -2877,7 +2887,9 @@
+ %doc rpm.doc/changelogs/gcc/cp/ChangeLog*
+ 
+ %files -n libstdc++
+-%{_prefix}/%{_lib}/libstdc++.so.6*
++%{_libdir}/libstdc++.so.6*
++
++%files -n libstdc++-pp
+ %dir %{_datadir}/gdb
+ %dir %{_datadir}/gdb/auto-load
+ %dir %{_datadir}/gdb/auto-load/%{_prefix}
+@@ -2888,9 +2900,9 @@
+ %endif
+ %{_datadir}/gdb/auto-load/%{_prefix}/%{_lib}/libstdc*gdb.py*
+ %{_datadir}/gdb/auto-load/%{_prefix}/%{_lib}/__pycache__
+-%dir %{_prefix}/share/gcc-%{gcc_major}
+-%dir %{_prefix}/share/gcc-%{gcc_major}/python
+-%{_prefix}/share/gcc-%{gcc_major}/python/libstdcxx
++%dir %{_datadir}/gcc-%{gcc_major}
++%dir %{_datadir}/gcc-%{gcc_major}/python
++%{_datadir}/gcc-%{gcc_major}/python/libstdcxx
+ 
+ %files -n libstdc++-devel
+ %dir %{_prefix}/include/c++
