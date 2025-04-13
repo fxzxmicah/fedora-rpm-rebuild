@@ -1,5 +1,5 @@
 --- flatpak.spec	2025-02-08 20:48:14.025505231 +0800
-+++ flatpak.spec.new	2025-03-09 22:34:45.484971333 +0800
++++ flatpak.spec.new	2025-04-14 00:29:11.084111835 +0800
 @@ -7,8 +7,8 @@
  %global wayland_protocols_version 1.32
  %global wayland_scanner_version 1.15
@@ -22,7 +22,7 @@
  Recommends:     p11-kit-server
  
  # Make sure the document portal is installed
-@@ -140,6 +141,14 @@
+@@ -140,6 +141,16 @@
  This package contains the org.freedesktop.Flatpak user D-Bus service
  that's used by %{name} and other packages.
  
@@ -31,13 +31,15 @@
 +Requires:       %{name}%{?_isa} = %{?epoch:%{epoch}:}%{version}-%{release}
 +Requires:       fish
 +
++BuildArch:      noarch
++
 +%description fish-completion
 +This package contains fish shell completion for %{name}.
 +
  %package tests
  Summary:        Tests for %{name}
  Requires:       %{name}%{?_isa} = %{?epoch:%{epoch}:}%{version}-%{release}
-@@ -161,6 +170,7 @@
+@@ -161,6 +172,7 @@
      -Dinstalled_tests=true \
      -Dsystem_bubblewrap=/usr/bin/bwrap \
      -Dsystem_dbus_proxy=/usr/bin/xdg-dbus-proxy \
@@ -45,7 +47,7 @@
      -Dtmpfilesdir=%{_tmpfilesdir} \
  %if %{with malcontent}
      -Dmalcontent=enabled \
-@@ -230,8 +240,8 @@
+@@ -230,8 +242,8 @@
  %{_datadir}/dbus-1/interfaces/org.freedesktop.Flatpak.Authenticator.xml
  %{_datadir}/dbus-1/services/org.flatpak.Authenticator.Oci.service
  %{_datadir}/dbus-1/services/org.freedesktop.portal.Flatpak.service
@@ -55,7 +57,7 @@
  %{_datadir}/%{name}
  %{_datadir}/polkit-1/actions/org.freedesktop.Flatpak.policy
  %{_datadir}/polkit-1/rules.d/org.freedesktop.Flatpak.rules
-@@ -250,7 +260,6 @@
+@@ -250,7 +262,6 @@
  %{_mandir}/man5/flatpak-remote.5*
  %{_mandir}/man5/flatpakref.5*
  %{_mandir}/man5/flatpakrepo.5*
@@ -63,7 +65,7 @@
  %dir %{_sysconfdir}/flatpak
  %{_sysconfdir}/flatpak/remotes.d
  %{_sysconfdir}/profile.d/flatpak.csh
-@@ -270,6 +279,7 @@
+@@ -270,6 +281,7 @@
  %files devel
  %{_datadir}/gir-1.0/Flatpak-1.0.gir
  %{_datadir}/gtk-doc/
@@ -71,7 +73,7 @@
  %{_includedir}/%{name}/
  %{_libdir}/libflatpak.so
  %{_libdir}/pkgconfig/%{name}.pc
-@@ -281,7 +291,6 @@
+@@ -281,7 +293,6 @@
  
  %files selinux
  %{_datadir}/selinux/packages/flatpak.pp.bz2
@@ -79,7 +81,7 @@
  
  %files session-helper
  %license COPYING
-@@ -290,6 +299,9 @@
+@@ -290,6 +301,9 @@
  %{_libexecdir}/flatpak-session-helper
  %{_userunitdir}/flatpak-session-helper.service
  

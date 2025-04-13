@@ -1,0 +1,11 @@
+--- pkgconf.spec	2025-04-14 00:21:52.265593949 +0800
++++ pkgconf.spec.new	2025-04-14 00:21:35.505264212 +0800
+@@ -105,7 +105,7 @@
+ Provides:       pkg-config = %{pkgconfig_verrel}
+ Provides:       pkg-config%{?_isa} = %{pkgconfig_verrel}
+ Requires:       %{name}%{?_isa} = %{version}-%{release}
+-Requires:       %{name}-m4 = %{version}-%{release}
++Requires:       (%{name}-m4 = %{version}-%{release} if m4)
+ 
+ %description pkg-config
+ This package provides the shim links for pkgconf to be automatically
