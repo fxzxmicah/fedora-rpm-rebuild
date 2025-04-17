@@ -1,12 +1,12 @@
---- cups.spec	2024-11-29 18:31:31.362798456 +0800
-+++ cups.spec.new	2024-11-29 18:34:03.744738531 +0800
-@@ -205,7 +205,8 @@
+diff --git OLD/cups.spec NEW/cups.spec
+index d450b0d..ad49776 100644
+--- OLD/cups.spec
++++ NEW/cups.spec
+@@ -199,7 +199,6 @@ Requires: zlib-devel
  
  %package libs
  Summary: CUPS printing system - libraries
 -Requires: %{name}-filesystem = %{epoch}:%{version}-%{release}
-+## Let me see what happens without this package for users who don't really use cups.
-+# Requires: %{name}-filesystem = %{epoch}:%{version}-%{release}
  
  %package filesystem
  Summary: CUPS printing system - directory layout

@@ -1,7 +1,9 @@
---- fwupd.spec	2025-04-14 00:32:37.172563128 +0800
-+++ fwupd.spec.new	2025-04-14 00:31:25.609584497 +0800
-@@ -120,6 +120,8 @@
- Requires: libgusb%{?_isa} >= %{libgusb_version}
+diff --git OLD/fwupd.spec NEW/fwupd.spec
+index b8f4307..3b03f6e 100644
+--- OLD/fwupd.spec
++++ NEW/fwupd.spec
+@@ -115,6 +115,8 @@ Requires: libxmlb%{?_isa} >= %{libxmlb_version}
+ Requires: libusb1%{?_isa} >= %{libusb_version}
  Requires: shared-mime-info
  
 +Requires: (%{name}-fish-completion = %{version}-%{release} if fish)
@@ -9,7 +11,7 @@
  Obsoletes: dbxtool < 9
  Provides: dbxtool
  
-@@ -145,6 +147,15 @@
+@@ -140,6 +142,15 @@ Recommends: %{name}-plugin-uefi-capsule-data
  %description
  fwupd is a daemon to allow session software to update device firmware.
  
@@ -25,7 +27,7 @@
  %package devel
  Summary: Development package for %{name}
  Requires: %{name}%{?_isa} = %{version}-%{release}
-@@ -312,7 +323,6 @@
+@@ -283,7 +294,6 @@ systemctl --no-reload preset fwupd-refresh.timer &>/dev/null || :
  %{_datadir}/dbus-1/system.d/org.freedesktop.fwupd.conf
  %{_datadir}/bash-completion/completions/fwupdmgr
  %{_datadir}/bash-completion/completions/fwupdtool
@@ -33,7 +35,7 @@
  %dir %{_datadir}/fwupd
  %dir %{_datadir}/fwupd/metainfo
  %{_datadir}/fwupd/metainfo/org.freedesktop.fwupd*.metainfo.xml
-@@ -356,6 +366,9 @@
+@@ -324,6 +334,9 @@ systemctl --no-reload preset fwupd-refresh.timer &>/dev/null || :
  %{_libdir}/fwupd-%{version}/libfwupd*.so
  %ghost %{_localstatedir}/lib/fwupd/gnupg
  

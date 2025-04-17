@@ -1,6 +1,8 @@
---- pkgconf.spec	2025-04-14 00:21:52.265593949 +0800
-+++ pkgconf.spec.new	2025-04-14 00:21:35.505264212 +0800
-@@ -105,7 +105,7 @@
+diff --git OLD/pkgconf.spec NEW/pkgconf.spec
+index 8d3dbd1..59e97a4 100644
+--- OLD/pkgconf.spec
++++ NEW/pkgconf.spec
+@@ -105,7 +105,7 @@ Provides:       pkgconfig(pkg-config) = %{version}
  Provides:       pkg-config = %{pkgconfig_verrel}
  Provides:       pkg-config%{?_isa} = %{pkgconfig_verrel}
  Requires:       %{name}%{?_isa} = %{version}-%{release}

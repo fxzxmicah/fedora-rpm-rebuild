@@ -1,6 +1,8 @@
---- filesystem.spec	2025-02-08 20:48:14.024505236 +0800
-+++ filesystem.spec.new	2025-04-14 00:36:06.253101088 +0800
-@@ -13,9 +13,6 @@
+diff --git OLD/filesystem.spec NEW/filesystem.spec
+index c7a6b23..b256309 100644
+--- OLD/filesystem.spec
++++ NEW/filesystem.spec
+@@ -16,9 +16,6 @@ Source7: macros.filesystem
  BuildRequires: iso-codes
  Requires(pre): setup
  
@@ -8,26 +10,26 @@
 -Obsoletes:  filesystem-afs <= 3.14-2
 -
  %if %{with merged_sbin}
- # A virtual provides that packages can use to make sure that the
- # symlinks from /usr/sbin/foo to /usr/bin/foo will be automatically
-@@ -55,11 +52,11 @@
+ # A virtual provides to indicate merged bin and sbin directories.
+ # This is intended in particular for rpm-ostree, so it can conditionalize
+@@ -70,11 +67,11 @@ install -p -c -m755 %SOURCE3 %{buildroot}/iso_3166.sed
  cd %{buildroot}
  
  Paths=(
 -        afs boot dev \
--        etc/{X11/{applnk,fontpath.d,xinit/{xinitrc,xinput}.d},xdg/autostart,opt,pm/{config.d,power.d,sleep.d},skel,sysconfig,keys/ima,pki,bash_completion.d,rwtab.d,statetab.d} \
+-        etc/{X11/{applnk,fontpath.d,xinit/{xinitrc,xinput}.d},xdg/autostart,opt,pm/{config.d,power.d,sleep.d},skel,sysconfig,keys/ima,pki,bash_completion.d,default,rwtab.d,statetab.d} \
 -        home media mnt opt root run srv tmp \
 -        usr/{bin,games,include,%{_lib}/{bpf,games,X11,pm-utils/{module.d,power.d,sleep.d}},lib/{debug/{.dwz,usr},games,locale,modules,sysimage,systemd/{system,user},sysusers.d,tmpfiles.d},libexec,local/{bin,etc,games,lib,%{_lib}/bpf,src,share/{applications,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x},info},libexec,include,},share/{aclocal,appdata,applications,augeas/lenses,backgrounds,bash-completion{,/completions,/helpers},desktop-directories,dict,doc,empty,fish/vendor_completions.d,games,gnome,help,icons,idl,info,licenses,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x,0p,1p,3p},metainfo,mime-info,misc,modulefiles,omf,pixmaps,sounds,themes,xsessions,X11/fonts,wayland-sessions,zsh/site-functions},src,src/kernels,src/debug} \
 -        var/{adm,empty,ftp,lib/{games,misc,rpm-state},local,log,nis,preserve,spool/{mail,lpd},tmp,db,cache/bpf,opt,games,yp}
 +        boot dev \
 +        etc/{X11,xdg/autostart,opt,skel,sysconfig,keys/ima,pki,bash_completion.d,default,rwtab.d} \
 +        home mnt root run srv tmp \
-+        usr/{bin,include,%{_lib},lib/{locale,modules,sysimage,systemd/{system,user},sysusers.d,tmpfiles.d},libexec,local/{bin,etc,lib,%{_lib},share/{applications,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x},info},libexec},share/{appdata,applications,backgrounds,bash-completion/{completions,helpers},desktop-directories,dict,doc,empty,gnome,help,icons,info,licenses,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x,0p,1p,3p},metainfo,mime-info,misc,pixmaps,sounds,themes,X11,wayland-sessions},src} \
++        usr/{bin,include,%{_lib},lib/{locale,modules,sysimage,systemd/{system,user},sysusers.d,tmpfiles.d},libexec,local/{bin,etc,lib,%{_lib},share/{applications,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x},info},libexec},share/{appdata,applications,backgrounds,bash-completion/{completions,helpers},desktop-directories,dict,doc,empty,gnome,help,icons,info,licenses,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x,0p,1p,3p},metainfo,misc,pixmaps,sounds,themes,X11,wayland-sessions},src} \
 +        var/{adm,empty,lib/{misc,rpm-state},local,log,preserve,spool/{mail,lpd},tmp,db,cache,opt}
  )
  for i in "${Paths[@]}"; do
      mkdir -p "$i"
-@@ -73,11 +70,8 @@
+@@ -88,11 +85,8 @@ ln -snf usr/lib lib
  ln -snf usr/%{_lib} %{_lib}
  ln -snf ../run var/run
  ln -snf ../run/lock var/lock
@@ -41,7 +43,7 @@
  
  %if %{with merged_sbin}
  ln -snf bin usr/sbin
-@@ -157,41 +151,27 @@
+@@ -179,41 +173,27 @@ cp -p %{SOURCE7} %{buildroot}%{rpmmacrodir}/macros.filesystem
  posix.mkdir("/usr")
  posix.mkdir("/usr/bin")
  posix.mkdir("/usr/lib")
@@ -85,7 +87,7 @@
  %endif
  
  %if %{with merged_sbin}
-@@ -346,8 +326,7 @@
+@@ -365,8 +345,7 @@ end
  %posttrans -p <lua>
  --# we need to restorecon on some dirs created in %pretrans or by other packages
  if posix.access ("/usr/sbin/restorecon", "x") then
@@ -95,7 +97,7 @@
  end
  
  %if %{with merged_sbin}
-@@ -367,20 +346,18 @@
+@@ -392,13 +371,11 @@ end
  /bin
  /sbin
  %attr(555,root,root) /boot
@@ -109,15 +111,15 @@
  /etc/skel
  /etc/sysconfig
  /etc/keys
- /etc/pki
+@@ -406,7 +383,6 @@ end
  /etc/bash_completion.d/
-+%dir /etc/default
+ %dir /etc/default
  %dir /etc/rwtab.d
 -%dir /etc/statetab.d
  /home
  /lib
  %ifarch x86_64 ppc64 sparc64 s390x aarch64 ppc64le mips64 mips64el riscv64
-@@ -388,11 +365,11 @@
+@@ -414,11 +390,11 @@ end
  %endif
  /media
  %dir /mnt
@@ -131,7 +133,7 @@
  %ghost %attr(555,root,root) /sys
  %attr(1777,root,root) /tmp
  %dir /usr
-@@ -402,8 +379,7 @@
+@@ -428,8 +404,7 @@ end
  %else
  %attr(555,root,root) /usr/sbin
  %endif
@@ -141,7 +143,7 @@
  %dir %attr(555,root,root) /usr/lib
  %dir /usr/lib/sysimage
  %dir /usr/lib/systemd
-@@ -413,25 +389,8 @@
+@@ -439,25 +414,8 @@ end
  %dir /usr/lib/tmpfiles.d
  %dir /usr/lib/locale
  %dir /usr/lib/modules
@@ -167,7 +169,7 @@
  %endif
  /usr/libexec
  %dir /usr/local
-@@ -442,16 +401,13 @@
+@@ -468,16 +426,13 @@ end
  %endif
  /usr/local/etc
  /usr/local/bin
@@ -186,7 +188,7 @@
  /usr/share/backgrounds
  %dir /usr/share/bash-completion
  /usr/share/bash-completion/completions
-@@ -460,12 +416,9 @@
+@@ -486,53 +441,39 @@ end
  /usr/share/dict
  /usr/share/doc
  %attr(555,root,root) %dir /usr/share/empty
@@ -199,9 +201,9 @@
  /usr/share/info
  %dir /usr/share/licenses
  %dir /usr/share/locale
-@@ -473,40 +426,30 @@
+ %dir /usr/share/man
  /usr/share/metainfo
- /usr/share/mime-info
+-/usr/share/mime-info
  /usr/share/misc
 -%dir /usr/share/modulefiles
 -/usr/share/omf

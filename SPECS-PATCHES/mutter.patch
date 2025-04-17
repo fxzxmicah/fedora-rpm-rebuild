@@ -1,0 +1,35 @@
+diff --git OLD/mutter.spec NEW/mutter.spec
+index b5874fb..4f1ff65 100644
+--- OLD/mutter.spec
++++ NEW/mutter.spec
+@@ -85,6 +85,7 @@ BuildRequires: pkgconfig(libeis-1.0) >= %{libei_version}
+ 
+ BuildRequires: pkgconfig(libinput) >= %{libinput_version}
+ BuildRequires: pkgconfig(xwayland)
++BuildRequires: pkgconfig(bash-completion)
+ 
+ BuildRequires: python3-dbusmock
+ 
+@@ -175,12 +176,13 @@ install -p %{SOURCE1} %{buildroot}%{_datadir}/glib-2.0/schemas
+ %{_bindir}/mutter
+ %{_libdir}/lib*.so.*
+ %{_libdir}/mutter-%{mutter_api_version}/
++%exclude %{_libdir}/mutter-%{mutter_api_version}/*.gir
+ %{_libexecdir}/mutter-restart-helper
+ %{_libexecdir}/mutter-x11-frames
+ %{_mandir}/man1/mutter.1*
+ %{_bindir}/gdctl
+ %{_mandir}/man1/gdctl.1*
+-%{_sysconfdir}/bash_completion.d/gdctl
++%{_datadir}/bash-completion/completions/gdctl
+ 
+ %files common
+ %{_datadir}/GConf/gsettings/mutter-schemas.convert
+@@ -193,6 +195,7 @@ install -p %{SOURCE1} %{buildroot}%{_datadir}/glib-2.0/schemas
+ %files devel
+ %{_includedir}/*
+ %{_libdir}/lib*.so
++%{_libdir}/mutter-%{mutter_api_version}/*.gir
+ %{_libdir}/pkgconfig/*
+ 
+ %files tests

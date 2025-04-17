@@ -1,5 +1,7 @@
---- gcr.spec	2024-11-01 22:29:42.039175476 +0800
-+++ gcr.spec.new	2024-11-01 22:40:23.872833527 +0800
+diff --git OLD/gcr.spec NEW/gcr.spec
+index ba6cb26..9e86057 100644
+--- OLD/gcr.spec
++++ NEW/gcr.spec
 @@ -2,6 +2,9 @@
  %global has_valgrind 1
  %endif
@@ -8,9 +10,9 @@
 +%bcond ssh_agent 0
 +
  Name:           gcr
- Version:        4.3.0
- Release:        3%{?dist}
-@@ -32,14 +35,17 @@
+ Version:        4.4.0.1
+ Release:        1%{?dist}
+@@ -32,14 +35,17 @@ BuildRequires:  vala
  BuildRequires:  valgrind-devel
  %endif
  BuildRequires:  /usr/bin/gpg2
@@ -30,7 +32,7 @@
  
  %description
  gcr is a library for displaying certificates, and crypto UI, accessing
-@@ -76,29 +82,45 @@
+@@ -76,29 +82,45 @@ developing applications that use %{name}.
  %autosetup -p1
  
  %build

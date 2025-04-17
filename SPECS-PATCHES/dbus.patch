@@ -1,6 +1,8 @@
---- dbus.spec	2024-10-08 00:44:00.141571742 +0800
-+++ dbus.spec.new	2024-10-08 01:03:27.883146114 +0800
-@@ -100,6 +100,7 @@
+diff --git OLD/dbus.spec NEW/dbus.spec
+index 5f0ac45..8aeb01f 100644
+--- OLD/dbus.spec
++++ NEW/dbus.spec
+@@ -97,6 +97,7 @@ implementations to provide a System and User Message Bus.
  Summary:        D-BUS message bus
  Conflicts:      fedora-release < %{fedora_release_version}
  Conflicts:      generic-release < %{generic_release_version}
@@ -8,7 +10,7 @@
  Requires:       libselinux%{?_isa} >= %{libselinux_version}
  Requires:       dbus-common = %{epoch}:%{version}-%{release}
  Requires:       dbus-libs%{?_isa} = %{epoch}:%{version}-%{release}
-@@ -111,6 +112,23 @@
+@@ -108,6 +109,23 @@ D-BUS is a system for sending messages between applications. It is
  used both for the system-wide message bus service, and as a
  per-user-login-session messaging facility.
  
@@ -32,12 +34,12 @@
  %package tools
  Summary:        D-BUS Tools and Utilities
  Requires:       dbus-libs%{?_isa} = %{epoch}:%{version}-%{release}
-@@ -397,6 +415,23 @@
+@@ -389,6 +407,23 @@ fi
  %{_unitdir}/dbus-daemon.service
  %{_userunitdir}/dbus-daemon.service
  
 +%files gdm
-+# Strictly speaking, we could remove the COPYING from this subpackage and 
++# Strictly speaking, we could remove the COPYING from this subpackage and
 +# just have it be in libs, because dbus Requires dbus-libs.
 +%{!?_licensedir:%global license %%doc}
 +%license COPYING

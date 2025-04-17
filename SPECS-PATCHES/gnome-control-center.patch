@@ -1,5 +1,7 @@
---- gnome-control-center.spec	2024-09-17 20:28:53.502775955 +0800
-+++ gnome-control-center.spec.new	2024-09-17 20:30:57.694361082 +0800
+diff --git OLD/gnome-control-center.spec NEW/gnome-control-center.spec
+index 8c6dee0..4d39225 100644
+--- OLD/gnome-control-center.spec
++++ NEW/gnome-control-center.spec
 @@ -12,8 +12,8 @@
  
  %global tarball_version %%(echo %{version} | tr '~' '.')
@@ -10,4 +12,4 @@
 +%bcond malcontent 0
  
  Name:           gnome-control-center
- Version:        46.4
+ Version:        48.1
