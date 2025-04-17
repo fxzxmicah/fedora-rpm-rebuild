@@ -1,17 +1,16 @@
---- gvfs.spec	2024-12-05 20:56:41.738386146 +0800
-+++ gvfs.spec.new	2024-12-05 21:05:05.051020655 +0800
-@@ -36,10 +36,6 @@
+diff --git OLD/gvfs.spec NEW/gvfs.spec
+index 1403712..61443e5 100644
+--- OLD/gvfs.spec
++++ NEW/gvfs.spec
+@@ -36,7 +36,6 @@ BuildRequires: pkgconfig(glib-2.0) >= %{glib2_version}
  BuildRequires: pkgconfig(dbus-1)
  BuildRequires: pkgconfig(gcr-4)
  BuildRequires: pkgconfig(gsettings-desktop-schemas) >= %{gsettings_desktop_schemas_version}
 -BuildRequires: /usr/bin/ssh
--%if ! (0%{?rhel} >= 10)
--BuildRequires: pkgconfig(libcdio_paranoia) >= %{libcdio_paranoia_version}
--%endif
- BuildRequires: pkgconfig(gudev-1.0) >= %{gudev_version}
- BuildRequires: pkgconfig(libsoup-3.0) >= %{libsoup_version}
- BuildRequires: pkgconfig(avahi-client) >= %{avahi_version}
-@@ -61,7 +57,6 @@
+ %if ! (0%{?rhel} >= 10)
+ BuildRequires: pkgconfig(libcdio_paranoia) >= %{libcdio_paranoia_version}
+ %endif
+@@ -62,7 +61,6 @@ Requires: glib2%{?_isa} >= %{glib2_version}
  Requires: gsettings-desktop-schemas >= %{gsettings_desktop_schemas_version}
  Requires: polkit
  Requires: udisks2 >= %{udisks2_version}
@@ -19,7 +18,7 @@
  
  Obsoletes: gnome-mount <= 0.8
  Obsoletes: gnome-mount-nautilus-properties <= 0.8
-@@ -75,7 +70,7 @@
+@@ -76,7 +74,7 @@ Obsoletes: gvfs-mtp < 1.55.1-4
  
  %description
  The gvfs package provides backend implementations for the gio
@@ -28,7 +27,7 @@
  
  
  %package client
-@@ -87,6 +82,50 @@
+@@ -88,6 +86,50 @@ The gvfs package provides client modules of backend implementations for the gio
  framework in GLib.
  
  
@@ -79,7 +78,7 @@
  %package fuse
  Summary: FUSE support for gvfs
  Requires: %{name}%{?_isa} = %{version}-%{release}
-@@ -103,6 +142,7 @@
+@@ -104,6 +146,7 @@ to access the gvfs filesystems.
  Summary: Windows fileshare support for gvfs
  Requires: %{name}%{?_isa} = %{version}-%{release}
  Requires: %{name}-client%{?_isa} = %{version}-%{release}
@@ -87,7 +86,7 @@
  BuildRequires: libsmbclient-devel >= %{libsmbclient_version}
  BuildRequires: pkgconfig(talloc) >= %{talloc_version}
  
-@@ -256,6 +296,14 @@
+@@ -257,6 +300,14 @@ cp -p daemon/trashlib/COPYING COPYING.GPL3
  killall -USR1 gvfsd >&/dev/null || :
  
  # Reload .mount files when single subpackage is installed:
@@ -102,7 +101,7 @@
  %post smb
  killall -USR1 gvfsd >&/dev/null || :
  %ifnarch s390 s390x
-@@ -291,51 +339,31 @@
+@@ -292,51 +343,31 @@ killall -USR1 gvfsd >&/dev/null || :
  %dir %{_datadir}/gvfs
  %dir %{_datadir}/gvfs/mounts
  %{_datadir}/gvfs/mounts/admin.mount
@@ -157,7 +156,7 @@
  %{_mandir}/man1/gvfsd.1*
  %{_mandir}/man1/gvfsd-metadata.1*
  %{_userunitdir}/gvfs-daemon.service
-@@ -351,6 +379,36 @@
+@@ -352,6 +383,36 @@ killall -USR1 gvfsd >&/dev/null || :
  %{_libdir}/gio/modules/libgvfsdbus.so
  %{_mandir}/man7/gvfs.7*
  
@@ -194,7 +193,7 @@
  %files fuse
  %{_libexecdir}/gvfsd-fuse
  %{_mandir}/man1/gvfsd-fuse.1*
-@@ -361,6 +419,8 @@
+@@ -362,6 +423,8 @@ killall -USR1 gvfsd >&/dev/null || :
  %{_libexecdir}/gvfsd-smb-browse
  %{_datadir}/gvfs/mounts/smb-browse.mount
  %{_datadir}/gvfs/mounts/smb.mount

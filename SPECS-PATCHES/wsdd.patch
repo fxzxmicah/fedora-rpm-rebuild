@@ -1,6 +1,8 @@
---- wsdd.spec	2024-12-05 21:16:08.737201425 +0800
-+++ wsdd.spec.new	2024-12-05 22:22:26.642063885 +0800
-@@ -10,6 +10,7 @@
+diff --git OLD/wsdd.spec NEW/wsdd.spec
+index 5013e49..4e9fd25 100644
+--- OLD/wsdd.spec
++++ NEW/wsdd.spec
+@@ -10,6 +10,7 @@ Patch:          Modify-systemd-service-for-Fedora.patch
  
  BuildArch:      noarch
  BuildRequires:  systemd
@@ -8,7 +10,7 @@
  Requires(pre):  shadow-utils
  
  
-@@ -19,6 +20,15 @@
+@@ -19,6 +20,15 @@ hosts, like your local NAS device, to be found by Web Service Discovery Clients
  like Windows.
  
  
@@ -24,7 +26,7 @@
  %prep
  %autosetup -p1
  
-@@ -50,14 +60,15 @@
+@@ -50,14 +60,15 @@ exit 0
  
  %files
  %{_unitdir}/wsdd.service
@@ -41,4 +43,4 @@
 +%{_usr}/lib/firewalld/services/wsdd-http.xml
  
  %changelog
- * Sat Jul 20 2024 Fedora Release Engineering <releng@fedoraproject.org> - 0.8-2
+ * Sun Jan 19 2025 Fedora Release Engineering <releng@fedoraproject.org> - 0.8-3

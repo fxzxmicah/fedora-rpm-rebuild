@@ -1,6 +1,8 @@
---- upower.spec	2025-03-09 23:02:08.072534628 +0800
-+++ upower.spec.new	2025-03-09 23:10:17.721499045 +0800
-@@ -39,6 +39,13 @@
+diff --git OLD/upower.spec NEW/upower.spec
+index e4d6e7c..8bf8338 100644
+--- OLD/upower.spec
++++ NEW/upower.spec
+@@ -39,6 +39,13 @@ Conflicts: %{name} < 0.99.20-4
  %description libs
  Client libraries for UPower.
  
@@ -14,7 +16,7 @@
  %package devel
  Summary: Headers and libraries for UPower
  Requires: %{name}-libs%{?_isa} = %{version}-%{release}
-@@ -93,21 +100,24 @@
+@@ -93,21 +100,24 @@ Developer documentation for for libupower-glib.
  %dir %{_sysconfdir}/UPower
  %config %{_sysconfdir}/UPower/UPower.conf
  %{_bindir}/*

@@ -1,6 +1,21 @@
---- wpa_supplicant.spec	2025-02-05 17:36:35.889067096 +0800
-+++ wpa_supplicant.spec.new	2025-02-05 17:35:27.616273012 +0800
-@@ -128,7 +128,7 @@
+diff --git OLD/wpa_supplicant.spec NEW/wpa_supplicant.spec
+index 6814e77..f2b5098 100644
+--- OLD/wpa_supplicant.spec
++++ NEW/wpa_supplicant.spec
+@@ -86,6 +86,12 @@ Graphical User Interface for wpa_supplicant written using QT
+ %endif
+ 
+ 
++%package examples
++Summary: Example configurations for %{name}
++
++%description examples
++Example configurations for %{name}
++
+ %prep
+ %autosetup -p1 -n %{name}-%{version}
+ 
+@@ -128,7 +134,7 @@ install -m 0755 wpa_supplicant/wpa_cli %{buildroot}/%{_sbindir}
  install -m 0755 wpa_supplicant/wpa_supplicant %{buildroot}/%{_sbindir}
  install -m 0755 wpa_supplicant/eapol_test %{buildroot}/%{_sbindir}
  install -D -m 0644 wpa_supplicant/dbus/dbus-wpa_supplicant.conf \
@@ -9,7 +24,23 @@
  install -D -m 0644 wpa_supplicant/dbus/fi.w1.wpa_supplicant1.service \
    %{buildroot}/%{_datadir}/dbus-1/system-services/fi.w1.wpa_supplicant1.service
  
-@@ -173,7 +173,7 @@
+@@ -143,10 +149,13 @@ install -d %{buildroot}%{_mandir}/man{5,8}
+ install -m 0644 wpa_supplicant/doc/docbook/*.8 %{buildroot}%{_mandir}/man8
+ install -m 0644 wpa_supplicant/doc/docbook/*.5 %{buildroot}%{_mandir}/man5
+ 
+-# some cleanup in docs and examples
++# examples
++chmod -R 0644 wpa_supplicant/examples/*.py
++cp -a wpa_supplicant/examples %{buildroot}/%{_datadir}/%{name}/
++
++# some cleanup in docs
+ rm -f  wpa_supplicant/doc/.cvsignore
+ rm -rf wpa_supplicant/doc/docbook
+-chmod -R 0644 wpa_supplicant/examples/*.py
+ 
+ 
+ %post
+@@ -173,7 +182,7 @@ chmod -R 0644 wpa_supplicant/examples/*.py
  %dir %{_sysconfdir}/logrotate.d
  %config(noreplace) %{_sysconfdir}/logrotate.d/wpa_supplicant
  %{_unitdir}/wpa_supplicant.service
@@ -18,11 +49,24 @@
  %{_datadir}/dbus-1/system-services/fi.w1.wpa_supplicant1.service
  %{_sbindir}/wpa_passphrase
  %{_sbindir}/wpa_supplicant
-@@ -192,7 +192,6 @@
+@@ -191,8 +200,6 @@ chmod -R 0644 wpa_supplicant/examples/*.py
+ %doc wpa_supplicant/ChangeLog
  %doc wpa_supplicant/eap_testing.txt
  %doc wpa_supplicant/todo.txt
- %doc wpa_supplicant/wpa_supplicant.conf
+-%doc wpa_supplicant/wpa_supplicant.conf
 -%doc wpa_supplicant/examples
  %license COPYING
  
  
+@@ -203,6 +210,11 @@ chmod -R 0644 wpa_supplicant/examples/*.py
+ %endif
+ 
+ 
++%files examples
++%doc wpa_supplicant/wpa_supplicant.conf
++%{_datadir}/wpa_supplicant
++
++
+ %changelog
+ * Sun Jan 19 2025 Fedora Release Engineering <releng@fedoraproject.org> - 1:2.11-4
+ - Rebuilt for https://fedoraproject.org/wiki/Fedora_42_Mass_Rebuild

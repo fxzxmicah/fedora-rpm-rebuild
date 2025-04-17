@@ -1,0 +1,29 @@
+diff --git OLD/gnome-desktop3.spec NEW/gnome-desktop3.spec
+index a49aace..fb38aae 100644
+--- OLD/gnome-desktop3.spec
++++ NEW/gnome-desktop3.spec
+@@ -73,6 +73,15 @@ reasons. There is no API or ABI guarantee, although we are doing our
+ best to provide stability. Documentation for the API is available with
+ gtk-doc.
+ 
++%package debug
++Summary: Debugging tools for %{name}
++License: GPL-2.0-or-later AND LGPL-2.0-or-later
++Requires: %{name}%{?_isa} = %{version}-%{release}
++
++%description debug
++The %{name}-debug package contains debugging tools for the
++%{name} package.
++
+ %package devel
+ Summary: Libraries and headers for %{name}
+ License: LGPL-2.0-or-later
+@@ -139,6 +148,8 @@ cat %SOURCE5 >> $RPM_BUILD_ROOT/%{_datadir}/applications/gnome-mimeapps.list
+ # LGPL
+ %{_libdir}/libgnome-desktop-3.so.20{,.*}
+ %{_libdir}/girepository-1.0/GnomeDesktop-3.0.typelib
++
++%files debug
+ %{_libexecdir}/gnome-desktop-debug/
+ 
+ %files devel

@@ -1,6 +1,8 @@
---- NetworkManager.spec	2024-12-05 22:22:29.810047597 +0800
-+++ NetworkManager.spec.new	2024-12-05 22:22:28.116056314 +0800
-@@ -195,6 +195,7 @@
+diff --git OLD/NetworkManager.spec NEW/NetworkManager.spec
+index 15b50b9..c0150fa 100644
+--- OLD/NetworkManager.spec
++++ NEW/NetworkManager.spec
+@@ -193,6 +193,7 @@ Requires(postun): systemd
  Requires: dbus >= %{dbus_version}
  Requires: glib2 >= %{glib2_version}
  Requires: %{name}-libnm%{?_isa} = %{epoch}:%{version}-%{release}
@@ -8,7 +10,7 @@
  
  %if 0%{?rhel} == 8
  # Older libndp versions use select() (rh#1933041). On well known distros,
-@@ -327,6 +328,15 @@
+@@ -319,6 +320,15 @@ Ethernet, Bridge, Bond, VLAN, Team, InfiniBand, Wi-Fi, mobile broadband
  services.
  
  
@@ -24,7 +26,7 @@
  %if %{with adsl}
  %package adsl
  Summary: ADSL device plugin for NetworkManager
-@@ -955,11 +965,14 @@
+@@ -786,11 +796,14 @@ if [ -S /run/udev/control ]; then
      /usr/bin/udevadm control --reload-rules || :
      /usr/bin/udevadm trigger --subsystem-match=net || :
  fi
@@ -40,7 +42,7 @@
  %if %{with ifcfg_rh}
  %post initscripts-updown
  if [ -f %{_sbindir}/ifup -a ! -L %{_sbindir}/ifup ]; then
-@@ -1006,11 +1019,14 @@
+@@ -837,11 +850,14 @@ fi
  %postun
  /usr/bin/udevadm control --reload-rules || :
  /usr/bin/udevadm trigger --subsystem-match=net || :
@@ -56,7 +58,7 @@
  %if %{with nm_cloud_setup}
  %postun cloud-setup
  %systemd_postun %{systemd_units_cloud_setup}
-@@ -1078,7 +1094,6 @@
+@@ -909,7 +925,6 @@ fi
  %{_datadir}/dbus-1/system-services/org.freedesktop.nm_priv_helper.service
  %{_datadir}/polkit-1/actions/*.policy
  %{_prefix}/lib/udev/rules.d/*.rules
@@ -64,7 +66,7 @@
  # systemd stuff
  %{_unitdir}/NetworkManager.service
  %{_unitdir}/NetworkManager-wait-online.service
-@@ -1095,6 +1110,10 @@
+@@ -926,6 +941,10 @@ fi
  %license COPYING.GFDL
  
  

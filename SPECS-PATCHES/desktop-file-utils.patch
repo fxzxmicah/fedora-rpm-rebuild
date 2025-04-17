@@ -1,6 +1,8 @@
---- desktop-file-utils.spec	2025-04-13 23:07:18.806800587 +0800
-+++ desktop-file-utils.spec.new	2025-04-13 23:06:48.959497293 +0800
-@@ -13,7 +13,8 @@
+diff --git OLD/desktop-file-utils.spec NEW/desktop-file-utils.spec
+index 25ae8c5..b0733b3 100644
+--- OLD/desktop-file-utils.spec
++++ NEW/desktop-file-utils.spec
+@@ -13,7 +13,8 @@ BuildRequires: gcc
  BuildRequires: glib2-devel
  BuildRequires: emacs
  BuildRequires: meson
@@ -10,7 +12,7 @@
  
  %description
  .desktop files are used to describe an application for inclusion in
-@@ -24,6 +25,17 @@
+@@ -24,6 +25,17 @@ which installs a desktop file to the standard directory, optionally
  fixing it up in the process.
  
  
@@ -28,7 +30,7 @@
  %prep
  %autosetup -p1
  
-@@ -53,6 +65,8 @@
+@@ -53,6 +65,8 @@ update-desktop-database &> /dev/null || :
  %{_mandir}/man1/desktop-file-validate.1*
  %{_mandir}/man1/update-desktop-database.1*
  %{_mandir}/man1/desktop-file-edit.1*

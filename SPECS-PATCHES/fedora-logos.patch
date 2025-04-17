@@ -1,6 +1,8 @@
---- fedora-logos.spec	2024-09-18 11:46:50.926269803 +0800
-+++ fedora-logos.spec.new	2024-09-18 12:23:59.740880228 +0800
-@@ -70,6 +70,45 @@
+diff --git OLD/fedora-logos.spec NEW/fedora-logos.spec
+index 8a24b95..65f29e1 100644
+--- OLD/fedora-logos.spec
++++ NEW/fedora-logos.spec
+@@ -70,6 +70,45 @@ redistribution of this package and its contents.
  PLEASE NOTE: This package does not provide system-logos and cannot be
  used as a drop-in replacement for fedora-logos.
  
@@ -46,7 +48,7 @@
  %prep
  %autosetup -p1
  
-@@ -251,15 +290,6 @@
+@@ -251,15 +290,6 @@ hardlink -vv %{buildroot}/usr
  %license COPYING
  %config(noreplace) %{_sysconfdir}/favicon.png
  %{_datadir}/plymouth/themes/spinner/
@@ -62,7 +64,7 @@
  # in -classic
  %exclude %{_datadir}/pixmaps/bootloader/fedora_classic.icns
  %exclude %{_datadir}/pixmaps/fedora-gdm-logo_classic.png
-@@ -273,16 +303,6 @@
+@@ -273,16 +303,6 @@ hardlink -vv %{buildroot}/usr
  %{_datadir}/pixmaps/*
  # This lives in the http subpackage
  %exclude %{_datadir}/pixmaps/poweredby.png
@@ -79,7 +81,7 @@
  %exclude %{_datadir}/icons/hicolor/*/apps/*_classic*
  %exclude %{_datadir}/icons/hicolor/*/places/*_classic*
  %exclude %{_datadir}/icons/Bluecurve/*/apps/*_classic*
-@@ -342,18 +362,7 @@
+@@ -342,18 +362,7 @@ hardlink -vv %{buildroot}/usr
  %dir %{_datadir}/icons/hicolor/scalable/
  %dir %{_datadir}/icons/hicolor/scalable/apps/
  %dir %{_datadir}/icons/hicolor/scalable/places/
@@ -98,7 +100,7 @@
  
  %files httpd
  %license COPYING
-@@ -391,6 +400,38 @@
+@@ -391,6 +400,38 @@ hardlink -vv %{buildroot}/usr
  %{_datadir}/pixmaps/system-logo-white_classic.png
  %{_datadir}/plymouth/themes/charge/*_classic*
  

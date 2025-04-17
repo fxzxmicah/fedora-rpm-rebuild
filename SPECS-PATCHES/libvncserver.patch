@@ -1,6 +1,8 @@
---- libvncserver.spec	2024-12-11 19:17:46.381561858 +0800
-+++ libvncserver.spec.new	2024-12-11 19:32:32.527688732 +0800
-@@ -69,9 +69,17 @@
+diff --git OLD/libvncserver.spec NEW/libvncserver.spec
+index 76cfe52..d2a53bd 100644
+--- OLD/libvncserver.spec
++++ NEW/libvncserver.spec
+@@ -70,9 +70,17 @@ a frame-buffer via the Remote Frame Buffer protocol) easy.
  It hides the programmer from the tedious task of managing clients and
  compression schemata.
  
@@ -18,7 +20,7 @@
  # libvncserver-config deps
  Requires:   coreutils
  # /usr/include/rfb/rfbproto.h:#include <zlib.h>
-@@ -131,11 +139,15 @@
+@@ -122,11 +130,15 @@ done
  %files
  %license COPYING
  %doc AUTHORS ChangeLog NEWS* README* CONTRIBUTING.md HISTORY.md SECURITY.md
@@ -34,5 +36,5 @@
 +%{_libdir}/libvncclient.so.%{version}
 +
  %files devel
- #{_bindir}/libvncserver-config
  %{_includedir}/rfb/
+ %{_libdir}/libvncclient.so

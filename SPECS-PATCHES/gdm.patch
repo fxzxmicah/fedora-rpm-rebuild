@@ -1,84 +1,81 @@
---- gdm.spec	2024-11-01 22:58:24.814622618 +0800
-+++ gdm.spec.new	2024-11-01 23:15:05.625097364 +0800
-@@ -23,12 +23,10 @@
+diff --git OLD/gdm.spec NEW/gdm.spec
+index a12a4bf..187ffb9 100644
+--- OLD/gdm.spec
++++ NEW/gdm.spec
+@@ -21,11 +21,8 @@ Source5:        default.pa-for-gdm
+ Source6:        gdm.sysusers
+ 
  # Downstream patches
+-Patch:          0001-data-Drop-X11-fallback-rules.patch
  Patch:          0001-Honor-initial-setup-being-disabled-by-distro-install.patch
  Patch:          0001-data-add-system-dconf-databases-to-gdm-profile.patch
+-Patch:          0001-xorg-detect.patch
 -Patch:          0001-Add-headless-session-files.patch
  
- BuildRequires:  dconf
- BuildRequires:  desktop-file-utils
- BuildRequires:  gettext-devel
--BuildRequires:  libXdmcp-devel
- BuildRequires:  git-core
- BuildRequires:  meson
- BuildRequires:  pam-devel
-@@ -63,13 +61,10 @@
- Requires: gnome-settings-daemon >= 3.27.90
- Requires: gnome-shell
- Requires: iso-codes
--# We need 1.0.4-5 since it lets us use "localhost" in auth cookies
--Requires: libXau >= 1.0.4-4
- Requires: pam
+ Patch:          0001-gdm-settings-utils-rename-variable-to-fix-build-with.patch
+ 
+@@ -73,8 +70,6 @@ Requires: pam
  Requires: /sbin/nologin
  Requires: systemd >= 186
  Requires: system-logos
+-Requires: xorg-x11-xinit
 -Requires: python3-pam
  
  # Until the greeter gets dynamic user support, it can't
  # use a user bus
-@@ -118,8 +113,8 @@
+@@ -88,9 +83,7 @@ Provides: gdm-libs%{?_isa} = %{epoch}:%{version}-%{release}
+ GDM, the GNOME Display Manager, handles authentication-related backend
+ functionality for logging in a user and unlocking the user's session after
+ it's been locked. GDM also provides functionality for initiating user-switching,
+-so more than one user can be logged in at the same time. It handles
+-graphical session registration with the system for both local and remote
+-sessions (in the latter case, via GNOME Remote Desktop and the RDP protocol).
++so more than one user can be logged in at the same time.
+ 
+ %package devel
+ Summary: Development files for gdm
+@@ -124,7 +117,7 @@ GDM specific authentication features.
         -Dplymouth=enabled \
         -Dselinux=enabled\
         -Dwayland-support=true \
 -       -Dx11-support=true \
--       -Dxdmcp=enabled
 +       -Dx11-support=false \
-+       -Dxdmcp=disabled
+        -Dxdmcp=disabled
  
  %meson_build
- 
-@@ -140,13 +135,9 @@
- # docs go elsewhere
- rm -rf %{buildroot}/%{_prefix}/doc
- 
--rm -f %{buildroot}/%{_udevrulesdir}/61-gdm.rules
--
+@@ -149,8 +142,6 @@ rm -rf %{buildroot}/%{_prefix}/doc
  # create log dir
  mkdir -p %{buildroot}/var/log/gdm
  
--(cd %{buildroot}%{_sysconfdir}/gdm; ln -sf ../X11/xinit/Xsession .)
+-ln -sf ../X11/xinit/Xsession %{buildroot}%{_sysconfdir}/gdm/
 -
  mkdir -p %{buildroot}%{_datadir}/gdm/autostart/LoginWindow
  
  mkdir -p %{buildroot}/run/gdm
-@@ -226,7 +217,6 @@
+@@ -230,7 +221,6 @@ fi
  %config %{_sysconfdir}/pam.d/gdm-autologin
  %config %{_sysconfdir}/pam.d/gdm-password
  # not config files
 -%{_sysconfdir}/gdm/Xsession
  %{_datadir}/gdm/gdm.schemas
- %{_sysconfdir}/dbus-1/system.d/gdm.conf
+ %{_datadir}/dbus-1/system.d/gdm.conf
  %dir %{_sysconfdir}/gdm/Init
-@@ -240,7 +230,6 @@
+@@ -244,8 +234,6 @@ fi
  %{_libexecdir}/gdm-runtime-config
  %{_libexecdir}/gdm-session-worker
  %{_libexecdir}/gdm-wayland-session
+-%{_libexecdir}/gdm-x-session
 -%{_libexecdir}/gdm-headless-login-session
  %{_sbindir}/gdm
  %{_bindir}/gdmflexiserver
  %{_bindir}/gdm-config
-@@ -270,13 +259,9 @@
+@@ -275,9 +263,7 @@ fi
+ %config %{_sysconfdir}/pam.d/gdm-smartcard
  %config %{_sysconfdir}/pam.d/gdm-fingerprint
  %{_sysconfdir}/pam.d/gdm-launch-environment
+-%{_udevrulesdir}/61-gdm.rules
  %{_unitdir}/gdm.service
 -%{_unitdir}/gnome-headless-session@.service
  %dir %{_userunitdir}/gnome-session@gnome-login.target.d/
  %{_userunitdir}/gnome-session@gnome-login.target.d/session.conf
  %{_sysusersdir}/%{name}.conf
--%{_libexecdir}/gdm-host-chooser
--%{_libexecdir}/gdm-simple-chooser
--%{_libexecdir}/gdm-x-session
- 
- %files devel
- %dir %{_includedir}/gdm
