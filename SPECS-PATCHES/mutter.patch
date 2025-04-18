@@ -1,5 +1,5 @@
 diff --git OLD/mutter.spec NEW/mutter.spec
-index b5874fb..4f1ff65 100644
+index b5874fb..0e89b30 100644
 --- OLD/mutter.spec
 +++ NEW/mutter.spec
 @@ -85,6 +85,7 @@ BuildRequires: pkgconfig(libeis-1.0) >= %{libei_version}
@@ -10,7 +10,15 @@ index b5874fb..4f1ff65 100644
  
  BuildRequires: python3-dbusmock
  
-@@ -175,12 +176,13 @@ install -p %{SOURCE1} %{buildroot}%{_datadir}/glib-2.0/schemas
+@@ -96,7 +97,6 @@ Requires: libinput%{?_isa} >= %{libinput_version}
+ Requires: pipewire%{_isa} >= %{pipewire_version}
+ Requires: startup-notification
+ Requires: dbus
+-Requires: python3-argcomplete
+ 
+ # Need common
+ Requires: %{name}-common = %{version}-%{release}
+@@ -175,12 +175,13 @@ install -p %{SOURCE1} %{buildroot}%{_datadir}/glib-2.0/schemas
  %{_bindir}/mutter
  %{_libdir}/lib*.so.*
  %{_libdir}/mutter-%{mutter_api_version}/
@@ -25,7 +33,7 @@ index b5874fb..4f1ff65 100644
  
  %files common
  %{_datadir}/GConf/gsettings/mutter-schemas.convert
-@@ -193,6 +195,7 @@ install -p %{SOURCE1} %{buildroot}%{_datadir}/glib-2.0/schemas
+@@ -193,6 +194,7 @@ install -p %{SOURCE1} %{buildroot}%{_datadir}/glib-2.0/schemas
  %files devel
  %{_includedir}/*
  %{_libdir}/lib*.so
