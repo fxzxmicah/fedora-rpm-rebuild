@@ -1,0 +1,29 @@
+diff --git OLD/kmod.spec NEW/kmod.spec
+index d1417b0..7c5a6e5 100644
+--- OLD/kmod.spec
++++ NEW/kmod.spec
+@@ -115,7 +115,7 @@ wishes to load or unload Linux kernel modules from the running system.
+ 
+ %package devel
+ Summary:	Header files for kmod development
+-Requires:	%{name}-libs%{?_isa} = %{version}-%{release}
++Requires:	%{name}%{?_isa} = %{version}-%{release}
+ 
+ %description devel
+ The kmod-devel package provides header files used for development of
+@@ -186,7 +186,6 @@ install -m 0644 %{SOURCE2} $RPM_BUILD_ROOT%{_sysconfdir}/depmod.d/dist.conf
+ %if %{with dist_conf}
+ %{_sysconfdir}/depmod.d/dist.conf
+ %endif
+-%{_datadir}/pkgconfig/kmod.pc
+ %attr(0644,root,root) %{_mandir}/man5/mod*.d*.5*
+ %attr(0644,root,root) %{_mandir}/man5/depmod.d.5*
+ %{_mandir}/man5/modprobe.conf.5*
+@@ -199,6 +198,7 @@ install -m 0644 %{SOURCE2} $RPM_BUILD_ROOT%{_sysconfdir}/depmod.d/dist.conf
+ 
+ %files devel
+ %{_includedir}/libkmod.h
++%{_datadir}/pkgconfig/kmod.pc
+ %{_libdir}/pkgconfig/libkmod.pc
+ %{_libdir}/libkmod.so
+ 

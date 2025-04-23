@@ -1,0 +1,44 @@
+diff --git OLD/shared-mime-info.spec NEW/shared-mime-info.spec
+index 6ee9212..43af937 100644
+--- OLD/shared-mime-info.spec
++++ NEW/shared-mime-info.spec
+@@ -42,6 +42,14 @@ files. Frequently, it is necessary to work out the correct MIME type for
+ a file. This is generally done by examining the file's name or contents,
+ and looking up the correct MIME type in a database.
+ 
++%package devel
++Summary: Development files for shared MIME information database
++Requires: %{name} = %{version}-%{release}
++
++%description devel
++This package contains the development files for the shared MIME
++information database.
++
+ %prep
+ %autosetup -S git_am
+ rmdir xdgmime
+@@ -89,13 +97,10 @@ update-mime-database -n %{_datadir}/mime &> /dev/null ||:
+ 
+ %files -f %{name}.files
+ %license COPYING
+-%doc README.md NEWS HACKING.md data/shared-mime-info-spec.xml
++%doc README.md NEWS HACKING.md
+ %{_bindir}/update-mime-database
+ %{_datadir}/mime/packages/*
+ %{_datadir}/applications/mimeapps.list
+-# better to co-own this dir than to pull in pkgconfig
+-%dir %{_datadir}/pkgconfig
+-%{_datadir}/pkgconfig/shared-mime-info.pc
+ %{_mandir}/man*/update-mime-database.*
+ # also co-own the gettext dirs, we don't require it
+ %dir %{_datadir}/gettext
+@@ -103,5 +108,9 @@ update-mime-database -n %{_datadir}/mime &> /dev/null ||:
+ %{_datadir}/gettext/its/shared-mime-info.its
+ %{_datadir}/gettext/its/shared-mime-info.loc
+ 
++%files devel
++%doc data/shared-mime-info-spec.xml
++%{_datadir}/pkgconfig/shared-mime-info.pc
++
+ %changelog
+ %autochangelog

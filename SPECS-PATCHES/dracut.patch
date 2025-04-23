@@ -1,0 +1,49 @@
+diff --git OLD/dracut.spec NEW/dracut.spec
+index 53fd86a..0befabe 100644
+--- OLD/dracut.spec
++++ NEW/dracut.spec
+@@ -193,6 +193,13 @@ This package provides a dracut module to build an initramfs, but store most file
+ in a squashfs image, result in a smaller initramfs size and reduce runtime memory
+ usage.
+ 
++%package devel
++Summary: Development files for dracut
++Requires: %{name} = %{version}-%{release}
++
++%description devel
++This package provides the development files for dracut.
++
+ %prep
+ %autosetup -n %{name}-ng-%{version} -S git_am
+ cp %{SOURCE1} .
+@@ -260,7 +267,7 @@ echo 'dracut_rescue_image="yes"' > $RPM_BUILD_ROOT%{dracutlibdir}/dracut.conf.d/
+ 
+ %files
+ %if %{with doc}
+-%doc README.md docs/HACKING.md AUTHORS NEWS.md dracut.html docs/dracut.png docs/dracut.svg
++%doc README.md docs/HACKING.md AUTHORS NEWS.md
+ %endif
+ %license COPYING lgpl-2.1.txt
+ %{_bindir}/dracut
+@@ -285,8 +292,6 @@ echo 'dracut_rescue_image="yes"' > $RPM_BUILD_ROOT%{dracutlibdir}/dracut.conf.d/
+ %{dracutlibdir}/dracut.conf.d/01-dist.conf
+ %dir %{_sysconfdir}/dracut.conf.d
+ %dir %{dracutlibdir}/dracut.conf.d
+-%dir %{_datadir}/pkgconfig
+-%{_datadir}/pkgconfig/dracut.pc
+ 
+ %if %{with doc}
+ %{_mandir}/man8/dracut.8*
+@@ -483,6 +488,12 @@ echo 'dracut_rescue_image="yes"' > $RPM_BUILD_ROOT%{dracutlibdir}/dracut.conf.d/
+ %{dracutlibdir}/dracut.conf.d/02-rescue.conf
+ %{_prefix}/lib/kernel/install.d/51-dracut-rescue.install
+ 
++%files devel
++%if %{with doc}
++%doc dracut.html docs/dracut.png docs/dracut.svg
++%endif
++%{_datadir}/pkgconfig/dracut.pc
++
+ %changelog
+ * Wed Apr 02 2025 Pavel Valena <pvalena@redhat.com> - 105-3
+ - fix(multipath): skip default multipath.conf with mpathconf
