@@ -1,5 +1,5 @@
 diff --git OLD/filesystem.spec NEW/filesystem.spec
-index c7a6b23..b256309 100644
+index c7a6b23..eb8028a 100644
 --- OLD/filesystem.spec
 +++ NEW/filesystem.spec
 @@ -16,9 +16,6 @@ Source7: macros.filesystem
@@ -22,9 +22,9 @@ index c7a6b23..b256309 100644
 -        usr/{bin,games,include,%{_lib}/{bpf,games,X11,pm-utils/{module.d,power.d,sleep.d}},lib/{debug/{.dwz,usr},games,locale,modules,sysimage,systemd/{system,user},sysusers.d,tmpfiles.d},libexec,local/{bin,etc,games,lib,%{_lib}/bpf,src,share/{applications,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x},info},libexec,include,},share/{aclocal,appdata,applications,augeas/lenses,backgrounds,bash-completion{,/completions,/helpers},desktop-directories,dict,doc,empty,fish/vendor_completions.d,games,gnome,help,icons,idl,info,licenses,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x,0p,1p,3p},metainfo,mime-info,misc,modulefiles,omf,pixmaps,sounds,themes,xsessions,X11/fonts,wayland-sessions,zsh/site-functions},src,src/kernels,src/debug} \
 -        var/{adm,empty,ftp,lib/{games,misc,rpm-state},local,log,nis,preserve,spool/{mail,lpd},tmp,db,cache/bpf,opt,games,yp}
 +        boot dev \
-+        etc/{X11,xdg/autostart,opt,skel,sysconfig,keys/ima,pki,bash_completion.d,default,rwtab.d} \
++        etc/{X11,xdg/autostart,skel,sysconfig,keys/ima,pki,bash_completion.d,default,rwtab.d} \
 +        home mnt root run srv tmp \
-+        usr/{bin,include,%{_lib},lib/{locale,modules,sysimage,systemd/{system,user},sysusers.d,tmpfiles.d},libexec,local/{bin,etc,lib,%{_lib},share/{applications,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x},info},libexec},share/{appdata,applications,backgrounds,bash-completion/{completions,helpers},desktop-directories,dict,doc,empty,gnome,help,icons,info,licenses,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x,0p,1p,3p},metainfo,misc,pixmaps,sounds,themes,X11,wayland-sessions},src} \
++        usr/{bin,include,%{_lib},lib/{locale,modules,sysimage,systemd/{system,user},sysusers.d,tmpfiles.d},libexec,local/{bin,etc,lib,%{_lib},share/{applications,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x},info},libexec},share/{appdata,applications,backgrounds,bash-completion/{completions,helpers},desktop-directories,dict,doc,empty,gnome,help,icons,ima,info,licenses,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x,0p,1p,3p},metainfo,misc,pixmaps,sounds,themes,X11,wayland-sessions},src} \
 +        var/{adm,empty,lib/{misc,rpm-state},local,log,preserve,spool/{mail,lpd},tmp,db,cache,opt}
  )
  for i in "${Paths[@]}"; do
@@ -97,7 +97,7 @@ index c7a6b23..b256309 100644
  end
  
  %if %{with merged_sbin}
-@@ -392,13 +371,11 @@ end
+@@ -392,13 +371,10 @@ end
  /bin
  /sbin
  %attr(555,root,root) /boot
@@ -106,12 +106,12 @@ index c7a6b23..b256309 100644
  %dir /etc
  /etc/X11
  /etc/xdg
- /etc/opt
+-/etc/opt
 -/etc/pm
  /etc/skel
  /etc/sysconfig
  /etc/keys
-@@ -406,7 +383,6 @@ end
+@@ -406,7 +382,6 @@ end
  /etc/bash_completion.d/
  %dir /etc/default
  %dir /etc/rwtab.d
@@ -119,7 +119,7 @@ index c7a6b23..b256309 100644
  /home
  /lib
  %ifarch x86_64 ppc64 sparc64 s390x aarch64 ppc64le mips64 mips64el riscv64
-@@ -414,11 +390,11 @@ end
+@@ -414,11 +389,11 @@ end
  %endif
  /media
  %dir /mnt
@@ -133,7 +133,7 @@ index c7a6b23..b256309 100644
  %ghost %attr(555,root,root) /sys
  %attr(1777,root,root) /tmp
  %dir /usr
-@@ -428,8 +404,7 @@ end
+@@ -428,8 +403,7 @@ end
  %else
  %attr(555,root,root) /usr/sbin
  %endif
@@ -143,7 +143,7 @@ index c7a6b23..b256309 100644
  %dir %attr(555,root,root) /usr/lib
  %dir /usr/lib/sysimage
  %dir /usr/lib/systemd
-@@ -439,25 +414,8 @@ end
+@@ -439,25 +413,8 @@ end
  %dir /usr/lib/tmpfiles.d
  %dir /usr/lib/locale
  %dir /usr/lib/modules
@@ -169,7 +169,7 @@ index c7a6b23..b256309 100644
  %endif
  /usr/libexec
  %dir /usr/local
-@@ -468,16 +426,13 @@ end
+@@ -468,16 +425,13 @@ end
  %endif
  /usr/local/etc
  /usr/local/bin
@@ -188,7 +188,7 @@ index c7a6b23..b256309 100644
  /usr/share/backgrounds
  %dir /usr/share/bash-completion
  /usr/share/bash-completion/completions
-@@ -486,53 +441,39 @@ end
+@@ -486,53 +440,40 @@ end
  /usr/share/dict
  /usr/share/doc
  %attr(555,root,root) %dir /usr/share/empty
@@ -198,6 +198,7 @@ index c7a6b23..b256309 100644
  /usr/share/help
  /usr/share/icons
 -/usr/share/idl
++/usr/share/ima
  /usr/share/info
  %dir /usr/share/licenses
  %dir /usr/share/locale

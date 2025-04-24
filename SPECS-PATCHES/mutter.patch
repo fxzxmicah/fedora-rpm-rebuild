@@ -1,16 +1,16 @@
 diff --git OLD/mutter.spec NEW/mutter.spec
-index b5874fb..0e89b30 100644
+index b5874fb..c56f58b 100644
 --- OLD/mutter.spec
 +++ NEW/mutter.spec
-@@ -85,6 +85,7 @@ BuildRequires: pkgconfig(libeis-1.0) >= %{libei_version}
- 
- BuildRequires: pkgconfig(libinput) >= %{libinput_version}
- BuildRequires: pkgconfig(xwayland)
-+BuildRequires: pkgconfig(bash-completion)
- 
- BuildRequires: python3-dbusmock
- 
-@@ -96,7 +97,6 @@ Requires: libinput%{?_isa} >= %{libinput_version}
+@@ -63,7 +63,6 @@ BuildRequires: pkgconfig(libsystemd)
+ BuildRequires: pkgconfig(xkeyboard-config)
+ BuildRequires: desktop-file-utils
+ BuildRequires: cvt
+-BuildRequires: python3-argcomplete
+ BuildRequires: python3-docutils
+ # Bootstrap requirements
+ BuildRequires: gettext-devel git-core
+@@ -96,7 +95,6 @@ Requires: libinput%{?_isa} >= %{libinput_version}
  Requires: pipewire%{_isa} >= %{pipewire_version}
  Requires: startup-notification
  Requires: dbus
@@ -18,22 +18,34 @@ index b5874fb..0e89b30 100644
  
  # Need common
  Requires: %{name}-common = %{version}-%{release}
-@@ -175,12 +175,13 @@ install -p %{SOURCE1} %{buildroot}%{_datadir}/glib-2.0/schemas
+@@ -160,7 +158,10 @@ the functionality of the installed %{name} package.
+ %autosetup -S git -n %{name}-%{tarball_version}
+ 
+ %build
+-%meson -Degl_device=true
++%meson -Degl_device=true \
++        -Dbash_completion=false \
++        -Dx11=false \
++        %{nil}
+ %meson_build
+ 
+ %install
+@@ -175,12 +176,11 @@ install -p %{SOURCE1} %{buildroot}%{_datadir}/glib-2.0/schemas
  %{_bindir}/mutter
  %{_libdir}/lib*.so.*
  %{_libdir}/mutter-%{mutter_api_version}/
+-%{_libexecdir}/mutter-restart-helper
+-%{_libexecdir}/mutter-x11-frames
 +%exclude %{_libdir}/mutter-%{mutter_api_version}/*.gir
- %{_libexecdir}/mutter-restart-helper
- %{_libexecdir}/mutter-x11-frames
++%{_libexecdir}/mutter-*
  %{_mandir}/man1/mutter.1*
  %{_bindir}/gdctl
  %{_mandir}/man1/gdctl.1*
 -%{_sysconfdir}/bash_completion.d/gdctl
-+%{_datadir}/bash-completion/completions/gdctl
  
  %files common
  %{_datadir}/GConf/gsettings/mutter-schemas.convert
-@@ -193,6 +194,7 @@ install -p %{SOURCE1} %{buildroot}%{_datadir}/glib-2.0/schemas
+@@ -193,6 +193,7 @@ install -p %{SOURCE1} %{buildroot}%{_datadir}/glib-2.0/schemas
  %files devel
  %{_includedir}/*
  %{_libdir}/lib*.so
