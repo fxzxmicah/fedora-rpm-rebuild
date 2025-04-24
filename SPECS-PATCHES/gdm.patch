@@ -1,5 +1,5 @@
 diff --git OLD/gdm.spec NEW/gdm.spec
-index a12a4bf..187ffb9 100644
+index a12a4bf..5779798 100644
 --- OLD/gdm.spec
 +++ NEW/gdm.spec
 @@ -21,11 +21,8 @@ Source5:        default.pa-for-gdm
@@ -14,16 +14,24 @@ index a12a4bf..187ffb9 100644
  
  Patch:          0001-gdm-settings-utils-rename-variable-to-fix-build-with.patch
  
-@@ -73,8 +70,6 @@ Requires: pam
+@@ -67,14 +64,12 @@ Requires: gnome-session-wayland-session
+ Requires: gnome-settings-daemon >= 3.27.90
+ Requires: gnome-shell
+ Requires: iso-codes
+-# We need 1.0.4-5 since it lets us use "localhost" in auth cookies
+-Requires: libXau >= 1.0.4-4
+ Requires: pam
  Requires: /sbin/nologin
  Requires: systemd >= 186
  Requires: system-logos
 -Requires: xorg-x11-xinit
 -Requires: python3-pam
++
++Requires: (%{name}-orca = %{epoch}:%{version}-%{release} if orca)
  
  # Until the greeter gets dynamic user support, it can't
  # use a user bus
-@@ -88,9 +83,7 @@ Provides: gdm-libs%{?_isa} = %{epoch}:%{version}-%{release}
+@@ -88,9 +83,15 @@ Provides: gdm-libs%{?_isa} = %{epoch}:%{version}-%{release}
  GDM, the GNOME Display Manager, handles authentication-related backend
  functionality for logging in a user and unlocking the user's session after
  it's been locked. GDM also provides functionality for initiating user-switching,
@@ -31,10 +39,18 @@ index a12a4bf..187ffb9 100644
 -graphical session registration with the system for both local and remote
 -sessions (in the latter case, via GNOME Remote Desktop and the RDP protocol).
 +so more than one user can be logged in at the same time.
++
++%package orca
++Summary: GDM Orca support
++Requires: %{name}%{?_isa} = %{epoch}:%{version}-%{release}
++BuildArch: noarch
++
++%description orca
++This package contains the Orca support files for GDM.
  
  %package devel
  Summary: Development files for gdm
-@@ -124,7 +117,7 @@ GDM specific authentication features.
+@@ -124,7 +125,7 @@ GDM specific authentication features.
         -Dplymouth=enabled \
         -Dselinux=enabled\
         -Dwayland-support=true \
@@ -43,7 +59,7 @@ index a12a4bf..187ffb9 100644
         -Dxdmcp=disabled
  
  %meson_build
-@@ -149,8 +142,6 @@ rm -rf %{buildroot}/%{_prefix}/doc
+@@ -149,8 +150,6 @@ rm -rf %{buildroot}/%{_prefix}/doc
  # create log dir
  mkdir -p %{buildroot}/var/log/gdm
  
@@ -52,7 +68,7 @@ index a12a4bf..187ffb9 100644
  mkdir -p %{buildroot}%{_datadir}/gdm/autostart/LoginWindow
  
  mkdir -p %{buildroot}/run/gdm
-@@ -230,7 +221,6 @@ fi
+@@ -230,7 +229,6 @@ fi
  %config %{_sysconfdir}/pam.d/gdm-autologin
  %config %{_sysconfdir}/pam.d/gdm-password
  # not config files
@@ -60,7 +76,7 @@ index a12a4bf..187ffb9 100644
  %{_datadir}/gdm/gdm.schemas
  %{_datadir}/dbus-1/system.d/gdm.conf
  %dir %{_sysconfdir}/gdm/Init
-@@ -244,8 +234,6 @@ fi
+@@ -244,19 +242,17 @@ fi
  %{_libexecdir}/gdm-runtime-config
  %{_libexecdir}/gdm-session-worker
  %{_libexecdir}/gdm-wayland-session
@@ -69,7 +85,22 @@ index a12a4bf..187ffb9 100644
  %{_sbindir}/gdm
  %{_bindir}/gdmflexiserver
  %{_bindir}/gdm-config
-@@ -275,9 +263,7 @@ fi
+ %dir %{_datadir}/dconf
+ %dir %{_datadir}/dconf/profile
+ %{_datadir}/dconf/profile/gdm
++%dir %{_datadir}/gdm
+ %dir %{_datadir}/gdm/greeter
+-%dir %{_datadir}/gdm/greeter/applications
+-%{_datadir}/gdm/greeter/applications/*
+-%dir %{_datadir}/gdm/greeter/autostart
+-%{_datadir}/gdm/greeter/autostart/*
++%{_datadir}/gdm/greeter/applications
++%{_datadir}/gdm/greeter/autostart
++%exclude %{_datadir}/gdm/greeter/autostart/orca-autostart.desktop
+ %{_datadir}/gdm/greeter-dconf-defaults
+ %{_datadir}/gdm/locale.alias
+ %{_datadir}/gdm/gdb-cmd
+@@ -275,13 +271,14 @@ fi
  %config %{_sysconfdir}/pam.d/gdm-smartcard
  %config %{_sysconfdir}/pam.d/gdm-fingerprint
  %{_sysconfdir}/pam.d/gdm-launch-environment
@@ -79,3 +110,10 @@ index a12a4bf..187ffb9 100644
  %dir %{_userunitdir}/gnome-session@gnome-login.target.d/
  %{_userunitdir}/gnome-session@gnome-login.target.d/session.conf
  %{_sysusersdir}/%{name}.conf
+ 
++%files orca
++%{_datadir}/gdm/greeter/autostart/orca-autostart.desktop
++
+ %files devel
+ %dir %{_includedir}/gdm
+ %{_includedir}/gdm/*.h

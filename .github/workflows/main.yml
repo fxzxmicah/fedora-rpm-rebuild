@@ -1,8 +1,13 @@
 name: Rebuild and Upload
 
 on:
-  - push
-  - workflow_dispatch
+  push:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: 'Actions: [ |_all|pkgname]'
+        required: false
+        type: string
 
 jobs:
   job:
@@ -10,25 +15,57 @@ jobs:
     container: fedora:${{ github.ref_name }}
 
     steps:
+    - name: Install Dependencies
+      run: dnf install -y git-core dnf5-plugins rpm-build copr-cli
+
     - name: Checkout Code
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 2
 
-    - name: Install Dependencies
-      run: dnf install -y dnf5-plugins patch rpm-build copr-cli
+    # Workaround
+    - name: Set safe directory
+      run: git config --global --add safe.directory ${GITHUB_WORKSPACE}
+
+    - name: Get Packages
+      run: |
+        case "${{ inputs.package }}" in
+          "" )
+            packages=$(git diff-tree --diff-filter=AM --no-commit-id --name-only -r ${GITHUB_SHA:-$(git rev-parse HEAD)} | sed -n 's|.*/\([^/]*\)\.patch$|\1|p')
+            ;;
+          "_all" )
+            packages=$(find SPECS-PATCHES -name '*.patch' -exec basename {} .patch \;)
+            ;;
+          * )
+            packages=""
+            for pkg in ${{ inputs.package }}; do
+              if [[ -f "SPECS-PATCHES/${pkg}.patch" ]]; then
+                packages+=" ${pkg}"
+              else
+                echo "::warning::Patch not found for: ${pkg}" >&2
+              fi
+            done
+            ;;
+        esac
+
+        if [[ -z "${packages}" ]]; then
+          echo "::warning::No packages to build." >&2
+          exit 1
+        else
+          echo "packages=$(echo "$packages" | xargs)" >> $GITHUB_ENV
+        fi
 
     - name: Rebuild SRPM
       run: |
-        dnf download --source $(find SPECS-PATCHES -name "*.patch" -exec basename {} .patch \; | xargs) &&
-        rpm -ivh --define "_topdir ${GITHUB_WORKSPACE}" *.src.rpm &&
-        for patch in SPECS-PATCHES/*.patch; do
-          pushd SPECS > /dev/null;
-          patch -p1 < "../$patch" || { echo "Patch $patch Failed!"; exit 1; }
-          popd  > /dev/null;
-        done &&
+        dnf download --source ${packages}
+        rpm -ivh --define "_topdir ${GITHUB_WORKSPACE}" *.src.rpm
+        for pkg in ${packages}; do
+          git apply --directory SPECS -C 1 -p 1 SPECS-PATCHES/${pkg}.patch || { echo "::error::Git apply failed for ${pkg}" >&2; exit 1; }
+        done
         rpmbuild --define "_topdir ${GITHUB_WORKSPACE}" -bs SPECS/*.spec
 
     - name: Upload Copr
       run: |
-        echo "${{ secrets.COPR_API }}" > copr-api &&
-        . /etc/os-release &&
-        copr-cli --config copr-api build --nowait --chroot ${ID}-${VERSION_ID}-$(uname -m) $(echo ${{ github.repository }} | cut -d "-" -f 2-) SRPMS/*.src.rpm
+        echo "${{ secrets.COPR_API }}" > copr-api
+        . /etc/os-release
+        copr-cli --config copr-api build --nowait --timeout 86400 --chroot ${ID}-${VERSION_ID}-$(uname -m) $(echo ${GITHUB_REPOSITORY} | cut -d "-" -f 2-) SRPMS/*.src.rpm

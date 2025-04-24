@@ -1,5 +1,5 @@
 diff --git OLD/gvfs.spec NEW/gvfs.spec
-index 1403712..61443e5 100644
+index 41cd27e..59dce66 100644
 --- OLD/gvfs.spec
 +++ NEW/gvfs.spec
 @@ -36,7 +36,6 @@ BuildRequires: pkgconfig(glib-2.0) >= %{glib2_version}
@@ -86,7 +86,7 @@ index 1403712..61443e5 100644
  BuildRequires: libsmbclient-devel >= %{libsmbclient_version}
  BuildRequires: pkgconfig(talloc) >= %{talloc_version}
  
-@@ -257,6 +300,14 @@ cp -p daemon/trashlib/COPYING COPYING.GPL3
+@@ -256,6 +299,14 @@ cp -p daemon/trashlib/COPYING COPYING.GPL3
  killall -USR1 gvfsd >&/dev/null || :
  
  # Reload .mount files when single subpackage is installed:
@@ -101,7 +101,7 @@ index 1403712..61443e5 100644
  %post smb
  killall -USR1 gvfsd >&/dev/null || :
  %ifnarch s390 s390x
-@@ -292,51 +343,31 @@ killall -USR1 gvfsd >&/dev/null || :
+@@ -291,51 +342,31 @@ killall -USR1 gvfsd >&/dev/null || :
  %dir %{_datadir}/gvfs
  %dir %{_datadir}/gvfs/mounts
  %{_datadir}/gvfs/mounts/admin.mount
@@ -156,7 +156,7 @@ index 1403712..61443e5 100644
  %{_mandir}/man1/gvfsd.1*
  %{_mandir}/man1/gvfsd-metadata.1*
  %{_userunitdir}/gvfs-daemon.service
-@@ -352,6 +383,36 @@ killall -USR1 gvfsd >&/dev/null || :
+@@ -351,6 +382,36 @@ killall -USR1 gvfsd >&/dev/null || :
  %{_libdir}/gio/modules/libgvfsdbus.so
  %{_mandir}/man7/gvfs.7*
  
@@ -193,7 +193,7 @@ index 1403712..61443e5 100644
  %files fuse
  %{_libexecdir}/gvfsd-fuse
  %{_mandir}/man1/gvfsd-fuse.1*
-@@ -362,6 +423,8 @@ killall -USR1 gvfsd >&/dev/null || :
+@@ -361,6 +422,8 @@ killall -USR1 gvfsd >&/dev/null || :
  %{_libexecdir}/gvfsd-smb-browse
  %{_datadir}/gvfs/mounts/smb-browse.mount
  %{_datadir}/gvfs/mounts/smb.mount

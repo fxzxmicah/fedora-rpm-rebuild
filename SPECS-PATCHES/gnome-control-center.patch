@@ -1,5 +1,5 @@
 diff --git OLD/gnome-control-center.spec NEW/gnome-control-center.spec
-index 8c6dee0..4d39225 100644
+index 8c6dee0..c4a937d 100644
 --- OLD/gnome-control-center.spec
 +++ NEW/gnome-control-center.spec
 @@ -12,8 +12,8 @@
@@ -13,3 +13,34 @@ index 8c6dee0..4d39225 100644
  
  Name:           gnome-control-center
  Version:        48.1
+@@ -153,6 +153,13 @@ for applications. This package contains directories where applications
+ can install configuration files that are picked up by the control-center
+ utilities.
+ 
++%package devel
++Summary: Development files for GNOME Control Center
++Requires: %{name} = %{version}-%{release}
++
++%description devel
++This package contains development files for the GNOME Control Center.
++
+ %prep
+ %autosetup -p1 -n %{name}-%{tarball_version}
+ 
+@@ -208,7 +215,6 @@ rm -rf $RPM_BUILD_ROOT%{_datadir}/gnome/cursor-fonts
+ %{_mandir}/man1/gnome-control-center.1*
+ %{_metainfodir}/org.gnome.Settings.appdata.xml
+ %{_datadir}/pixmaps/faces
+-%{_datadir}/pkgconfig/gnome-keybindings.pc
+ %{_datadir}/polkit-1/actions/org.gnome.controlcenter.*.policy
+ %{_datadir}/polkit-1/rules.d/gnome-control-center.rules
+ %{_datadir}/sounds/gnome/default/*/*.ogg
+@@ -221,5 +227,8 @@ rm -rf $RPM_BUILD_ROOT%{_datadir}/gnome/cursor-fonts
+ %dir %{_datadir}/gnome-control-center/keybindings
+ %dir %{_datadir}/gnome/wm-properties
+ 
++%files devel
++%{_datadir}/pkgconfig/gnome-keybindings.pc
++
+ %changelog
+ %autochangelog

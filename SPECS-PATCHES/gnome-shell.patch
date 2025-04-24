@@ -1,5 +1,5 @@
 diff --git OLD/gnome-shell.spec NEW/gnome-shell.spec
-index 46e7bd6..d1dd9cb 100644
+index 46e7bd6..ff4846a 100644
 --- OLD/gnome-shell.spec
 +++ NEW/gnome-shell.spec
 @@ -183,6 +183,14 @@ BuildArch: noarch
@@ -26,7 +26,15 @@ index 46e7bd6..d1dd9cb 100644
  %{_datadir}/dbus-1/services/org.gnome.ScreenSaver.service
  %{_datadir}/dbus-1/services/org.gnome.Shell.CalendarServer.service
  %{_datadir}/dbus-1/services/org.gnome.Shell.Extensions.service
-@@ -269,5 +279,9 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/org.gnome.Shell.Porta
+@@ -250,7 +260,6 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/org.gnome.Shell.Porta
+ %{_userunitdir}/org.gnome.Shell-disable-extensions.service
+ %{_userunitdir}/org.gnome.Shell.target
+ %{_userunitdir}/org.gnome.Shell@wayland.service
+-%{_userunitdir}/org.gnome.Shell@x11.service
+ %{_libdir}/gnome-shell/
+ %{_libexecdir}/gnome-shell-calendar-server
+ %{_libexecdir}/gnome-shell-perf-helper
+@@ -269,5 +278,9 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/org.gnome.Shell.Porta
  %files common
  %{_datadir}/glib-2.0/schemas/*.xml
  
