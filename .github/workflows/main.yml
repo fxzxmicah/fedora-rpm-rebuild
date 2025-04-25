@@ -2,10 +2,12 @@ name: Rebuild and Upload
 
 on:
   push:
+    paths:
+      - SPECS-PATCHES/**
   workflow_dispatch:
     inputs:
       package:
-        description: 'Actions: [ |_all|pkgname]'
+        description: 'Action to do'
         required: false
         type: string
 
