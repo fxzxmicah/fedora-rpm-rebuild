@@ -1,0 +1,29 @@
+name: Clean Up
+
+on:
+  workflow_dispatch:
+    inputs:
+      dryrun:
+        description: 'Dry-Run'
+        required: true
+        default: false
+        type: boolean
+
+jobs:
+  job:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Install Dependencies
+      run: pip install copr
+
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Export Api
+      run: echo "${{ secrets.COPR_API }}" > copr-api
+
+    - name: Clean Up
+      run: python3 .github/workflows/tools/clean.py
+      env:
+        DRYRUN: ${{ inputs.dryrun }}
