@@ -25,7 +25,7 @@ def is_dry_run():
 def all_builds_finished(client, owner, project):
     """是否所有构建任务都已经结束"""
     builds = client.build_proxy.get_list(owner, project)
-    return all(b.state in ("succeeded", "forked", "skipped") for b in builds)
+    return all(b.state in ("succeeded", "forked", "skipped", "failed") for b in builds)
 
 
 def group_and_select_builds(builds, prefix):
