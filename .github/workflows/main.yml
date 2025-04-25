@@ -50,21 +50,29 @@ jobs:
 
         if [[ -z "${packages}" ]]; then
           echo "::warning::No packages to build." >&2
-          exit 1
         else
-          echo "packages=$(echo "$packages" | xargs)" >> $GITHUB_ENV
+          echo "packages=$(echo "${packages}" | xargs)" >> $GITHUB_ENV
         fi
 
     - name: Rebuild SRPM
+      if: env.packages
       run: |
         dnf download --source ${packages}
         rpm -ivh --define "_topdir ${GITHUB_WORKSPACE}" *.src.rpm
         for pkg in ${packages}; do
-          git apply --directory SPECS -C 1 -p 1 SPECS-PATCHES/${pkg}.patch || { echo "::error::Git apply failed for ${pkg}" >&2; exit 1; }
+          echo "Apply patch for ${pkg}"
+          git apply --directory SPECS -C 1 -p 1 SPECS-PATCHES/${pkg}.patch
+          if [[ $? -ne 0 ]]; then
+            echo "::error::Patch applied failed for ${pkg}" >&2
+            exit 1
+          else
+            echo "Patch applied successfully for ${pkg}"
+          fi
         done
         rpmbuild --define "_topdir ${GITHUB_WORKSPACE}" -bs SPECS/*.spec
 
     - name: Upload Copr
+      if: env.packages
       run: |
         echo "${{ secrets.COPR_API }}" > copr-api
         . /etc/os-release
