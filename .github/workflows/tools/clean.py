@@ -22,10 +22,10 @@ def is_dry_run():
     return os.environ.get("DRYRUN", "false").lower() == "true"
 
 
-def has_running_or_pending_builds(client, owner, project):
-    """是否有正在构建的任务"""
+def all_builds_finished(client, owner, project):
+    """是否所有构建任务都已经结束"""
     builds = client.build_proxy.get_list(owner, project)
-    return any(b.state in ("importing", "pending", "starting", "running", "waiting") for b in builds)
+    return all(b.state in ("succeeded", "forked", "skipped") for b in builds)
 
 
 def group_and_select_builds(builds, prefix):
@@ -75,8 +75,8 @@ def main():
     owner = client.config["username"]
     distro, version, project = get_repo_info()
 
-    if has_running_or_pending_builds(client, owner, project):
-        print("❗ Skipping cleanup: project has running or pending builds.")
+    if not all_builds_finished(client, owner, project):
+        print("::warning::❗ Skip cleanup: project has unfinished builds.")
         return
 
     packages = get_packages_list()
@@ -90,17 +90,17 @@ def main():
                 print(f"🔸 Delete: {pkg} -> {deletions}")
                 total_deletions.extend(deletions)
         except Exception as e:
-            print(f"⚠️ Failed to get builds for {pkg}: {e}")
+            print(f"::warning::⚠️ Failed to get builds for {pkg}: {e}")
 
     if total_deletions:
         if is_dry_run():
-            print(f"🔍 Dry run: would delete {total_deletions}")
+            print(f"::notice::🔍 Dry run: would delete {total_deletions}")
             return
 
         client.build_proxy.delete_list(total_deletions)
-        print(f"✅ Deleted builds: {total_deletions}")
+        print(f"::notice::✅ Deleted builds: {total_deletions}")
     else:
-        print("✅ No builds to delete.")
+        print("::notice::✅ No builds to delete.")
 
 
 if __name__ == "__main__":
