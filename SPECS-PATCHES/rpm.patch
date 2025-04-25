@@ -1,0 +1,71 @@
+diff --git OLD/rpm.spec NEW/rpm.spec
+index c6c2fa0..e2d1681 100644
+--- OLD/rpm.spec
++++ NEW/rpm.spec
+@@ -435,9 +435,8 @@ fi
+ 
+ %files -f _build/rpm.lang
+ %license COPYING
+-%doc CREDITS docs/manual/[a-z]*
++%doc CREDITS
+ %doc %{_defaultdocdir}/rpm/CONTRIBUTING.md
+-%doc %{_defaultdocdir}/rpm/COPYING
+ %doc %{_defaultdocdir}/rpm/INSTALL
+ %doc %{_defaultdocdir}/rpm/README
+ 
+@@ -468,23 +467,15 @@ fi
+ %{_mandir}/man8/rpm-plugins.8*
+ 
+ %attr(0755, root, root) %dir %{rpmhome}
+-%{rpmhome}/macros
+-%exclude %{rpmhome}/macros.d/macros.transaction*
+-%{rpmhome}/macros.d
+-%{rpmhome}/lua
+ %{rpmhome}/rpmpopt*
+-%{rpmhome}/rpmrc
+-
+ %{rpmhome}/rpmdb_*
+-%{rpmhome}/rpm.daily
+-%{rpmhome}/rpm.log
+-%{rpmhome}/rpm.supp
+ %{rpmhome}/rpm2cpio.sh
+ %{rpmhome}/tgpg
+ 
+-%{rpmhome}/platform
+ %{rpmhome}/sysusers.sh
+ 
++%dir %{rpmhome}/macros.d
++%dir %{rpmhome}/lua
+ %dir %{rpmhome}/fileattrs
+ 
+ %files libs
+@@ -560,6 +551,7 @@ fi
+ %{_libdir}/librpmsign.so.%{sover}.*
+ 
+ %files build
++%doc docs/manual/[a-z]*
+ %{_bindir}/rpmbuild
+ %{_bindir}/gendiff
+ %{_bindir}/rpmspec
+@@ -583,6 +575,11 @@ fi
+ %{rpmhome}/find-debuginfo.sh
+ %{rpmhome}/rpmuncompress
+ %{rpmhome}/rpmdump
++%{rpmhome}/rpmrc
++%{rpmhome}/rpm.supp
++%{rpmhome}/macros
++
++%{rpmhome}/platform
+ 
+ %files sign
+ %{_bindir}/rpmsign
+@@ -608,6 +605,9 @@ fi
+ %{_includedir}/rpm/
+ 
+ %files cron
++%{rpmhome}/rpm.daily
++%{rpmhome}/rpm.log
++
+ %{_sysconfdir}/cron.daily/rpm
+ %config(noreplace) %{_sysconfdir}/logrotate.d/rpm
+ 
