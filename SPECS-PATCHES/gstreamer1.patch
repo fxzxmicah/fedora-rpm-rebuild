@@ -1,0 +1,47 @@
+diff --git OLD/gstreamer1.spec NEW/gstreamer1.spec
+index 052b24e..302cf20 100644
+--- OLD/gstreamer1.spec
++++ NEW/gstreamer1.spec
+@@ -65,12 +65,21 @@ types or processing capabilities can be added simply by installing new
+ plugins.
+ 
+ 
++%package rpm-macros
++Summary:        RPM macros for GStreamer streaming media framework
++BuildArch:      noarch
++
++%description rpm-macros
++This package contains the RPM macros for GStreamer.
++
++
+ %package devel
+ Summary:        Libraries/include files for GStreamer streaming media framework
+ Requires:       %{name}%{?isa} = %{version}-%{release}
+ Requires:       glib2-devel%{?_isa} >= %{_glib2}
+ Requires:       libxml2-devel%{?_isa} >= %{_libxml2}
+ Requires:       check-devel
++Requires:       %{name}-rpm-macros = %{version}-%{release}
+ # file /usr/include/gstreamer-1.0/gst/base/gstaggregator.h conflicts between attempted installs of gstreamer1-plugins-bad-free-devel-1.12.4-3.fc28.x86_64 and gstreamer1-devel-1.13.1-1.fc29.x86_64
+ Conflicts:      gstreamer1-plugins-bad-free-devel < 1.13
+ 
+@@ -148,9 +157,6 @@ install -m0644 -D %{SOURCE2} $RPM_BUILD_ROOT%{_rpmconfigdir}/fileattrs/gstreamer
+ %{_bindir}/gst-stats-%{majorminor}
+ %{_bindir}/gst-typefind-%{majorminor}
+ 
+-%{_rpmconfigdir}/gstreamer1.prov
+-%{_rpmconfigdir}/fileattrs/gstreamer1.attr
+-
+ %doc %{_mandir}/man1/gst-inspect-%{majorminor}.*
+ %doc %{_mandir}/man1/gst-launch-%{majorminor}.*
+ %doc %{_mandir}/man1/gst-stats-%{majorminor}.*
+@@ -160,6 +166,10 @@ install -m0644 -D %{SOURCE2} $RPM_BUILD_ROOT%{_rpmconfigdir}/fileattrs/gstreamer
+ %{_datadir}/bash-completion/completions/gst-launch-1.0
+ %{_datadir}/bash-completion/helpers/gst
+ 
++%files rpm-macros
++%{_rpmconfigdir}/gstreamer1.prov
++%{_rpmconfigdir}/fileattrs/gstreamer1.attr
++
+ %files devel
+ %dir %{_includedir}/gstreamer-%{majorminor}
+ %dir %{_includedir}/gstreamer-%{majorminor}/gst
