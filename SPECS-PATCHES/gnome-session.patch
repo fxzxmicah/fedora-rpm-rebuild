@@ -1,0 +1,22 @@
+diff --git OLD/gnome-session.spec NEW/gnome-session.spec
+index ed5d13e..ee5759a 100644
+--- OLD/gnome-session.spec
++++ NEW/gnome-session.spec
+@@ -101,6 +101,7 @@ Desktop file to add GNOME on wayland to display manager session menu.
+ %if 0%{?with_session_selector}
+     -Dsession_selector=true \
+ %endif
++    -Dx11=false \
+   %{nil}
+ %meson_build
+ 
+@@ -122,9 +123,6 @@ Desktop file to add GNOME on wayland to display manager session menu.
+ %license COPYING
+ %{_bindir}/gnome-session*
+ %{_libexecdir}/gnome-session-binary
+-%{_libexecdir}/gnome-session-check-accelerated
+-%{_libexecdir}/gnome-session-check-accelerated-gl-helper
+-%{_libexecdir}/gnome-session-check-accelerated-gles-helper
+ %{_libexecdir}/gnome-session-ctl
+ %{_libexecdir}/gnome-session-failed
+ %{_mandir}/man1/gnome-session*1.*
