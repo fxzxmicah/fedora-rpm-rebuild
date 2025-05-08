@@ -1,0 +1,31 @@
+diff --git OLD/libva.spec NEW/libva.spec
+index 6c6fac6..a717d60 100644
+--- OLD/libva.spec
++++ NEW/libva.spec
+@@ -49,7 +49,7 @@ developing applications that use %{name}.
+ %build
+ %meson \
+  -Dwith_legacy=nvctrl \
+- -Ddriverdir="%{_libdir}/dri-nonfree:%{_libdir}/dri-freeworld:%{_libdir}/dri" \
++ -Ddriverdir="%{_libdir}/dri" \
+ %{?_without_xorg: -Dwith_glx=no -Dwith_x11=no} \
+ %{?_without_wayland: -Dwith_wayland=no}
+ 
+@@ -61,17 +61,12 @@ developing applications that use %{name}.
+ # Don't break assumption, set driverdir as one single dir
+ sed -i -e 's|driverdir=.*|driverdir=%{_libdir}/dri|' %{buildroot}%{_libdir}/pkgconfig/libva.pc
+ 
+-# Owns the alternates directories
+-mkdir -p %{buildroot}%{_libdir}/dri-{freeworld,nonfree}
+-
+-
+ %ldconfig_scriptlets
+ 
+ %files
+ %doc NEWS
+ %license COPYING
+ %ghost %{_sysconfdir}/libva.conf
+-%dir %{_libdir}/dri-*
+ %{_libdir}/libva.so.2*
+ %{_libdir}/libva-drm.so.2*
+ %{!?_without_wayland:
