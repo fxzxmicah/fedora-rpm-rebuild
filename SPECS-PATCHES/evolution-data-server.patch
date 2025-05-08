@@ -1,8 +1,13 @@
 diff --git OLD/evolution-data-server.spec NEW/evolution-data-server.spec
-index e4678f8..1d64e1f 100644
+index e4678f8..8dcc996 100644
 --- OLD/evolution-data-server.spec
 +++ NEW/evolution-data-server.spec
-@@ -5,13 +5,11 @@
+@@ -1,17 +1,15 @@
+ %undefine __cmake_in_source_build
+ 
+-%define ldap_support 1
++%define ldap_support 0
+ %define static_ldap 0
  %define krb5_support 1
  %define largefile_support 1
  

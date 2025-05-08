@@ -1,0 +1,28 @@
+diff --git OLD/gnupg2.spec NEW/gnupg2.spec
+index 8ff3c99..5ed623c 100644
+--- OLD/gnupg2.spec
++++ NEW/gnupg2.spec
+@@ -54,7 +54,6 @@ BuildRequires: libassuan-devel >= 2.5.0
+ BuildRequires: libgcrypt-devel >= 1.9.1
+ BuildRequires: libgpg-error-devel >= 1.46
+ BuildRequires: libksba-devel >= 1.6.3
+-BuildRequires: openldap-devel
+ BuildRequires: pcsc-lite-libs
+ BuildRequires: ncurses-devel
+ BuildRequires: npth-devel
+@@ -154,7 +153,9 @@ sed -i -e 's/"libpcsclite\.so"/"%{pcsclib}"/' scd/scdaemon.c
+   --enable-g13 \
+   --disable-ccid-driver \
+   --with-tss=intel \
+-  --enable-large-secmem
++  --enable-large-secmem \
++  --disable-ldap \
++  %{nil}
+ 
+ # need scratch gpg database for tests
+ mkdir -p $HOME/.gnupg
+@@ -1011,4 +1012,3 @@ make -k check
+ * Tue Oct 19 2004 Rex Dieter <rexdieter[AT]users.sf.net> 1.9.11-0.fdr.1
+ - first try
+ - leave out opensc support (for now), enable --with-opensc
+-

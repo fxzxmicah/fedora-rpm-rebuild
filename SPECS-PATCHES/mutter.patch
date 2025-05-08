@@ -1,5 +1,5 @@
 diff --git OLD/mutter.spec NEW/mutter.spec
-index b5874fb..c56f58b 100644
+index b5874fb..571229a 100644
 --- OLD/mutter.spec
 +++ NEW/mutter.spec
 @@ -63,7 +63,6 @@ BuildRequires: pkgconfig(libsystemd)
@@ -10,15 +10,16 @@ index b5874fb..c56f58b 100644
  BuildRequires: python3-docutils
  # Bootstrap requirements
  BuildRequires: gettext-devel git-core
-@@ -96,7 +95,6 @@ Requires: libinput%{?_isa} >= %{libinput_version}
+@@ -96,7 +95,7 @@ Requires: libinput%{?_isa} >= %{libinput_version}
  Requires: pipewire%{_isa} >= %{pipewire_version}
  Requires: startup-notification
  Requires: dbus
 -Requires: python3-argcomplete
++Requires: xorg-x11-server-Xwayland%{?_isa} >= 1.20.99.1
  
  # Need common
  Requires: %{name}-common = %{version}-%{release}
-@@ -160,7 +158,10 @@ the functionality of the installed %{name} package.
+@@ -160,7 +159,10 @@ the functionality of the installed %{name} package.
  %autosetup -S git -n %{name}-%{tarball_version}
  
  %build
@@ -30,7 +31,7 @@ index b5874fb..c56f58b 100644
  %meson_build
  
  %install
-@@ -175,12 +176,11 @@ install -p %{SOURCE1} %{buildroot}%{_datadir}/glib-2.0/schemas
+@@ -175,12 +177,11 @@ install -p %{SOURCE1} %{buildroot}%{_datadir}/glib-2.0/schemas
  %{_bindir}/mutter
  %{_libdir}/lib*.so.*
  %{_libdir}/mutter-%{mutter_api_version}/
@@ -45,7 +46,7 @@ index b5874fb..c56f58b 100644
  
  %files common
  %{_datadir}/GConf/gsettings/mutter-schemas.convert
-@@ -193,6 +193,7 @@ install -p %{SOURCE1} %{buildroot}%{_datadir}/glib-2.0/schemas
+@@ -193,6 +194,7 @@ install -p %{SOURCE1} %{buildroot}%{_datadir}/glib-2.0/schemas
  %files devel
  %{_includedir}/*
  %{_libdir}/lib*.so
