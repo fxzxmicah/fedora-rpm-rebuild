@@ -1,5 +1,5 @@
 diff --git OLD/evolution-data-server.spec NEW/evolution-data-server.spec
-index e4678f8..8dcc996 100644
+index e4678f8..fabad5b 100644
 --- OLD/evolution-data-server.spec
 +++ NEW/evolution-data-server.spec
 @@ -1,17 +1,15 @@
@@ -111,7 +111,15 @@ index e4678f8..8dcc996 100644
  
  %cmake_build
  
-@@ -427,7 +433,9 @@ find $RPM_BUILD_ROOT -name '*.so.*' -exec chmod +x {} \;
+@@ -421,13 +427,17 @@ find $RPM_BUILD_ROOT -name '*.so.*' -exec chmod +x {} \;
+ %{credential_modules_dir}/module-credentials-goa.so
+ %{ebook_backends_dir}/libebookbackendcarddav.so
+ %{ebook_backends_dir}/libebookbackendfile.so
++%if %{ldap_support}
+ %{ebook_backends_dir}/libebookbackendldap.so
++%endif
+ %{ecal_backends_dir}/libecalbackendcaldav.so
+ %{ecal_backends_dir}/libecalbackendcontacts.so
  %{ecal_backends_dir}/libecalbackendfile.so
  %{ecal_backends_dir}/libecalbackendgtasks.so
  %{ecal_backends_dir}/libecalbackendhttp.so
