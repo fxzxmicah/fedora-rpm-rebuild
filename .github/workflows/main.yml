@@ -18,7 +18,7 @@ jobs:
 
     steps:
     - name: Install Dependencies
-      run: dnf install -y git-core dnf5-plugins rpm-build copr-cli
+      run: dnf install -y git-core dnf5-plugins rpmdevtools copr-cli
 
     - name: Checkout Code
       uses: actions/checkout@v4
@@ -71,6 +71,7 @@ jobs:
             echo "Patch applied successfully for ${pkg}"
           fi
         done
+        spectool --define "_topdir ${GITHUB_WORKSPACE}" --get-files --sourcedir --patches SPECS/*.spec
         rpmbuild --define "_topdir ${GITHUB_WORKSPACE}" -bs SPECS/*.spec
 
     - name: Upload Copr

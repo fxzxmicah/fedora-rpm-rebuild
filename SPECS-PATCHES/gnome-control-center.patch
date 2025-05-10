@@ -1,8 +1,8 @@
 diff --git OLD/gnome-control-center.spec NEW/gnome-control-center.spec
-index 8c6dee0..c4a937d 100644
+index 8c6dee0..2828681 100644
 --- OLD/gnome-control-center.spec
 +++ NEW/gnome-control-center.spec
-@@ -12,8 +12,8 @@
+@@ -12,8 +12,10 @@
  
  %global tarball_version %%(echo %{version} | tr '~' '.')
  
@@ -10,16 +10,51 @@ index 8c6dee0..c4a937d 100644
 -%bcond malcontent %[!0%{?rhel}]
 +# Disable malcontent for all builds
 +%bcond malcontent 0
++# Disable samba for all builds
++%bcond samba 0
  
  Name:           gnome-control-center
  Version:        48.1
-@@ -153,6 +153,13 @@ for applications. This package contains directories where applications
+@@ -24,6 +26,10 @@ License:        GPL-2.0-or-later AND CC0-1.0
+ URL:            https://gitlab.gnome.org/GNOME/gnome-control-center/
+ Source0:        https://download.gnome.org/sources/%{name}/47/%{name}-%{tarball_version}.tar.xz
+ 
++# Samba dep patches
++Patch0:         https://gitlab.gnome.org/GNOME/gnome-control-center/-/merge_requests/3118.patch
++Patch1:         https://gitlab.gnome.org/fxzxmicah/gnome-control-center/-/commit/c13f9be934de4fac1c82a7442f771c48a1a0f502.patch
++
+ BuildRequires:  desktop-file-utils
+ BuildRequires:  docbook-style-xsl libxslt
+ BuildRequires:  gcc
+@@ -61,7 +67,9 @@ BuildRequires:  pkgconfig(malcontent-0)
+ BuildRequires:  pkgconfig(mm-glib)
+ BuildRequires:  pkgconfig(polkit-gobject-1)
+ BuildRequires:  pkgconfig(pwquality)
++%if %{with samba}
+ BuildRequires:  pkgconfig(smbclient)
++%endif
+ BuildRequires:  pkgconfig(tecla)
+ BuildRequires:  pkgconfig(udisks2)
+ BuildRequires:  pkgconfig(upower-glib) >= %{upower_version}
+@@ -120,10 +128,8 @@ Requires: /usr/bin/tecla
+ %if 0%{?fedora} >= 35 || 0%{?rhel} >= 9
+ # For the power panel
+ Recommends: ppd-service
+-%if 0%{?fedora} && 0%{?fedora} < 41
++%if 0%{?fedora}
+ Suggests: power-profiles-daemon
+-%else
+-Suggests: tuned-ppd
+ %endif
+ %endif
+ 
+@@ -153,6 +159,13 @@ for applications. This package contains directories where applications
  can install configuration files that are picked up by the control-center
  utilities.
  
 +%package devel
 +Summary: Development files for GNOME Control Center
-+Requires: %{name} = %{version}-%{release}
++Requires: %{name}-filesystem = %{version}-%{release}
 +
 +%description devel
 +This package contains development files for the GNOME Control Center.
@@ -27,7 +62,19 @@ index 8c6dee0..c4a937d 100644
  %prep
  %autosetup -p1 -n %{name}-%{tarball_version}
  
-@@ -208,7 +215,6 @@ rm -rf $RPM_BUILD_ROOT%{_datadir}/gnome/cursor-fonts
+@@ -172,6 +185,11 @@ utilities.
+   -Dmalcontent=true \
+ %else
+   -Dmalcontent=false \
++%endif
++%if %{with samba}
++  -Dsamba=enabled \
++%else
++  -Dsamba=disabled \
+ %endif
+   %{nil}
+ %meson_build
+@@ -208,7 +226,6 @@ rm -rf $RPM_BUILD_ROOT%{_datadir}/gnome/cursor-fonts
  %{_mandir}/man1/gnome-control-center.1*
  %{_metainfodir}/org.gnome.Settings.appdata.xml
  %{_datadir}/pixmaps/faces
@@ -35,7 +82,7 @@ index 8c6dee0..c4a937d 100644
  %{_datadir}/polkit-1/actions/org.gnome.controlcenter.*.policy
  %{_datadir}/polkit-1/rules.d/gnome-control-center.rules
  %{_datadir}/sounds/gnome/default/*/*.ogg
-@@ -221,5 +227,8 @@ rm -rf $RPM_BUILD_ROOT%{_datadir}/gnome/cursor-fonts
+@@ -221,5 +238,8 @@ rm -rf $RPM_BUILD_ROOT%{_datadir}/gnome/cursor-fonts
  %dir %{_datadir}/gnome-control-center/keybindings
  %dir %{_datadir}/gnome/wm-properties
  
