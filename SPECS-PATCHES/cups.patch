@@ -1,5 +1,5 @@
 diff --git OLD/cups.spec NEW/cups.spec
-index d450b0d..525e4e9 100644
+index d450b0d..c96d2b5 100644
 --- OLD/cups.spec
 +++ NEW/cups.spec
 @@ -107,7 +107,6 @@ BuildRequires: make
@@ -27,3 +27,23 @@ index d450b0d..525e4e9 100644
    --with-log-file-perm=0600 \
    --with-ondemand=systemd \
    --with-pkgconfpath=%{_libdir}/pkgconfig \
+@@ -590,7 +588,6 @@ rm -f %{cups_serverbin}/backend/smb
+ %{cups_serverbin}/daemon/cups-deviced
+ %{cups_serverbin}/daemon/cups-driverd
+ %{cups_serverbin}/daemon/cups-exec
+-%{cups_serverbin}/backend/dnssd
+ %{cups_serverbin}/backend/failover
+ %{cups_serverbin}/backend/http
+ %{cups_serverbin}/backend/https
+@@ -804,11 +801,9 @@ rm -f %{cups_serverbin}/backend/smb
+ %attr(0644, root, root)%{_unitdir}/cups-lpd@.service
+ 
+ %files ipptool
+-%{_bindir}/ippfind
+ %{_bindir}/ipptool
+ %dir %{_datadir}/cups/ipptool
+ %{_datadir}/cups/ipptool/*
+-%{_mandir}/man1/ippfind.1.gz
+ %{_mandir}/man1/ipptool.1.gz
+ %{_mandir}/man5/ipptoolfile.5.gz
+ 
