@@ -1,8 +1,16 @@
 diff --git OLD/cups.spec NEW/cups.spec
-index d450b0d..ad49776 100644
+index d450b0d..525e4e9 100644
 --- OLD/cups.spec
 +++ NEW/cups.spec
-@@ -199,7 +199,6 @@ Requires: zlib-devel
+@@ -107,7 +107,6 @@ BuildRequires: make
+ BuildRequires: openldap-devel
+ BuildRequires: pam-devel
+ BuildRequires: pkgconf-pkg-config
+-BuildRequires: pkgconfig(avahi-client)
+ BuildRequires: pkgconfig(dbus-1)
+ BuildRequires: pkgconfig(gnutls)
+ BuildRequires: pkgconfig(libsystemd)
+@@ -199,7 +198,6 @@ Requires: zlib-devel
  
  %package libs
  Summary: CUPS printing system - libraries
@@ -10,3 +18,12 @@ index d450b0d..ad49776 100644
  
  %package filesystem
  Summary: CUPS printing system - directory layout
+@@ -358,7 +356,7 @@ export CXXFLAGS="$CXXFLAGS $RPM_OPT_FLAGS -DLDAP_DEPRECATED=1"
+   --with-access-log-level=actions \
+   --with-cupsd-file-perm=0755 \
+   --with-dbusdir=%{_sysconfdir}/dbus-1 \
+-  --with-dnssd=avahi \
++  --with-dnssd=no \
+   --with-log-file-perm=0600 \
+   --with-ondemand=systemd \
+   --with-pkgconfpath=%{_libdir}/pkgconfig \

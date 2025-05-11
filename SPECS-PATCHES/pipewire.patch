@@ -1,0 +1,20 @@
+diff --git OLD/pipewire.spec NEW/pipewire.spec
+index 8b8c150..1891744 100644
+--- OLD/pipewire.spec
++++ NEW/pipewire.spec
+@@ -114,7 +114,6 @@ BuildRequires:  liblc3-devel
+ BuildRequires:  libsndfile-devel
+ BuildRequires:  ncurses-devel
+ BuildRequires:  pulseaudio-libs-devel
+-BuildRequires:  avahi-devel
+ %if 0%{?fedora} >= 40 || 0%{?rhel} >= 10
+ BuildRequires:  pkgconfig(webrtc-audio-processing-1)
+ %else
+@@ -452,6 +451,7 @@ cp %{SOURCE1} subprojects/packagefiles/
+     -D session-managers=[] 							\
+     -D rtprio-server=60 -D rtprio-client=55 -D rlimits-rtprio=70		\
+     -D snap=disabled								\
++    -D avahi=disabled              \
+     %{!?with_jack:-D pipewire-jack=disabled} 					\
+     %{!?with_jackserver_plugin:-D jack=disabled} 				\
+     %{!?with_libcamera_plugin:-D libcamera=disabled} 				\
