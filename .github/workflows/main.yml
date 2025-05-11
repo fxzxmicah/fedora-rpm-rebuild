@@ -69,9 +69,9 @@ jobs:
             exit 1
           else
             echo "Patch applied successfully for ${pkg}"
+            spectool --define "_topdir ${GITHUB_WORKSPACE}" --get-files --sourcedir --patches SPECS/${pkg}.spec
           fi
         done
-        spectool --define "_topdir ${GITHUB_WORKSPACE}" --get-files --sourcedir --patches SPECS/*.spec
         rpmbuild --define "_topdir ${GITHUB_WORKSPACE}" -bs SPECS/*.spec
 
     - name: Upload Copr
