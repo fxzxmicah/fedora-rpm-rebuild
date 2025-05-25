@@ -1,5 +1,5 @@
 diff --git OLD/gnome-control-center.spec NEW/gnome-control-center.spec
-index 8c6dee0..2828681 100644
+index 8c6dee0..cec10d7 100644
 --- OLD/gnome-control-center.spec
 +++ NEW/gnome-control-center.spec
 @@ -12,8 +12,10 @@
@@ -21,7 +21,7 @@ index 8c6dee0..2828681 100644
  
 +# Samba dep patches
 +Patch0:         https://gitlab.gnome.org/GNOME/gnome-control-center/-/merge_requests/3118.patch
-+Patch1:         https://gitlab.gnome.org/fxzxmicah/gnome-control-center/-/commit/c13f9be934de4fac1c82a7442f771c48a1a0f502.patch
++Patch1:         https://gitlab.gnome.org/fxzxmicah/gnome-control-center/-/commit/b0269e362f03aab911885ed5bd4679e8cd1213eb.patch
 +
  BuildRequires:  desktop-file-utils
  BuildRequires:  docbook-style-xsl libxslt
