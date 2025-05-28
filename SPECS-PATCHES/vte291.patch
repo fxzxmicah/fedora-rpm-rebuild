@@ -1,0 +1,108 @@
+diff --git OLD/vte291.spec NEW/vte291.spec
+index 4fff9c6..6f7d229 100644
+--- OLD/vte291.spec
++++ NEW/vte291.spec
+@@ -16,7 +16,7 @@ Release:        1%{?dist}
+ Summary:        GTK terminal emulator library
+ 
+ # libvte-2.91.so is generated from LGPLv2+ and MIT sources
+-License:        GPL-3.0-or-later AND LGPL-3.0-or-later AND MIT AND X11 AND CC-BY-4.0
++License:        GPL-3.0-or-later AND LGPL-3.0-or-later AND MIT AND X11
+ 
+ URL:            https://wiki.gnome.org/Apps/Terminal/VTE
+ Source0:        https://download.gnome.org/sources/vte/0.80/vte-%{version}.tar.xz
+@@ -51,7 +51,7 @@ Requires:       libicu%{?_isa} >= %{icu_uc_version}
+ Requires:       pango >= %{pango_version}
+ Requires:       pcre2%{?_isa} >= %{pcre2_version}
+ Requires:       systemd-libs%{?_isa} >= %{libsystemd_version}
+-Requires:       vte-profile
++Requires:       %{name}-common = %{version}-%{release}
+ 
+ Conflicts:      gnome-terminal < 3.20.1-2
+ 
+@@ -60,13 +60,26 @@ VTE is a library implementing a terminal emulator widget for GTK+. VTE
+ is mainly used in gnome-terminal, but can also be used to embed a
+ console/terminal in games, editors, IDEs, etc.
+ 
++%package        common
++Summary:        Common files for GTK terminal emulator library
++
++License:        LGPL-3.0-or-later AND X11 AND CC-BY-4.0
++
++Requires:       vte-profile
++
++BuildArch:      noarch
++
++%description common
++The %{name}-common package contains files shared between the GTK 3 and
++GTK 4 versions of the %{name} library.
++
+ %package        gtk4
+ Summary:        GTK4 terminal emulator library
+ 
+ # libvte-2.91.so is generated from LGPLv2+ and MIT sources
+ License:        LGPL-3.0-or-later AND MIT AND X11
+ 
+-Requires:       %{name}%{?_isa} = %{version}-%{release}
++Requires:       %{name}-common = %{version}-%{release}
+ 
+ %description gtk4
+ VTE is a library implementing a terminal emulator widget for GTK 4. VTE
+@@ -94,7 +107,6 @@ Summary:        Development files for GTK 4 %{name}
+ License:        GPL-3.0-or-later AND LGPL-3.0-or-later
+ 
+ Requires:       %{name}-gtk4%{?_isa} = %{version}-%{release}
+-Requires:       %{name}-devel%{?_isa} = %{version}-%{release}
+ 
+ %description gtk4-devel
+ The %{name}-gtk4-devel package contains libraries and header files for
+@@ -130,22 +142,23 @@ sed -i -e "/^vte_systemduserunitdir =/s|vte_prefix|'/usr'|" meson.build
+ 
+ %find_lang vte-%{apiver}
+ 
+-%files -f vte-%{apiver}.lang
+-%license COPYING.LGPL3
+-%license COPYING.XTERM
+-%doc README.md
++%files
+ %{_libdir}/libvte-%{apiver}.so.0*
+-%dir %{_libdir}/girepository-1.0
+ %{_libdir}/girepository-1.0/Vte-2.91.typelib
+-%{_userunitdir}/vte-spawn-.scope.d
+ %{_datadir}/applications/org.gnome.Vte.App.Gtk3.desktop
+-%{_datadir}/applications/org.gnome.Vte.App.Gtk4.desktop
+ %{_datadir}/xdg-terminals/org.gnome.Vte.App.Gtk3.desktop
+-%{_datadir}/xdg-terminals/org.gnome.Vte.App.Gtk4.desktop
++
++%files common -f vte-%{apiver}.lang
++%license COPYING.LGPL3
++%license COPYING.XTERM
++%doc README.md
++%{_userunitdir}/vte-spawn-.scope.d
+ 
+ %files gtk4
+ %{_libdir}/libvte-%{apiver}-gtk4.so.0*
+ %{_libdir}/girepository-1.0/Vte-3.91.typelib
++%{_datadir}/applications/org.gnome.Vte.App.Gtk4.desktop
++%{_datadir}/xdg-terminals/org.gnome.Vte.App.Gtk4.desktop
+ 
+ %files devel
+ %license COPYING.GPL3
+@@ -153,16 +166,14 @@ sed -i -e "/^vte_systemduserunitdir =/s|vte_prefix|'/usr'|" meson.build
+ %{_includedir}/vte-%{apiver}/
+ %{_libdir}/libvte-%{apiver}.so
+ %{_libdir}/pkgconfig/vte-%{apiver}.pc
+-%dir %{_datadir}/gir-1.0
+ %{_datadir}/gir-1.0/Vte-2.91.gir
+ %{_datadir}/glade/
+ %doc %{_docdir}/vte-2.91/
+-%dir %{_datadir}/vala
+-%dir %{_datadir}/vala/vapi
+ %{_datadir}/vala/vapi/vte-2.91.deps
+ %{_datadir}/vala/vapi/vte-2.91.vapi
+ 
+ %files gtk4-devel
++%license COPYING.GPL3
+ %{_bindir}/vte-%{apiver}-gtk4
+ %{_includedir}/vte-%{apiver}-gtk4/
+ %{_libdir}/libvte-%{apiver}-gtk4.so
