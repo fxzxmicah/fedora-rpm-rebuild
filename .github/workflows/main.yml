@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       package:
-        description: 'Action to do'
+        description: Perform operation of
         required: false
         type: string
 
