@@ -1,5 +1,5 @@
 diff --git OLD/filesystem.spec NEW/filesystem.spec
-index 0daf6bb..4a42c6e 100644
+index 0daf6bb..5ad557a 100644
 --- OLD/filesystem.spec
 +++ NEW/filesystem.spec
 @@ -16,9 +16,6 @@ Source7: macros.filesystem
@@ -23,13 +23,13 @@ index 0daf6bb..4a42c6e 100644
 -        var/{adm,empty,ftp,lib/{games,misc,rpm-state},local,log,nis,preserve,spool/{mail,lpd},tmp,db,cache/bpf,opt,games,yp}
 +        boot dev \
 +        etc/{X11,xdg/autostart,skel,sysconfig,keys/ima,pki,bash_completion.d,default,rwtab.d} \
-+        home mnt root run srv tmp \
++        home mnt root run tmp \
 +        usr/{bin,include,%{_lib},lib/{locale,modules,sysimage,systemd/{system,user},swidtag,sysusers.d,tmpfiles.d},libexec,local/{bin,etc,lib,%{_lib},share/{applications,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x},info},libexec},share/{appdata,applications,backgrounds,bash-completion/{completions,helpers},desktop-directories,dict,doc,empty,gnome,help,icons,ima,info,licenses,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x,0p,1p,3p},metainfo,misc,pixmaps,sounds,themes,X11,wayland-sessions},src} \
 +        var/{adm,empty,lib/{misc,rpm-state},local,log,preserve,spool/{mail,lpd},tmp,db,cache,opt}
  )
  for i in "${Paths[@]}"; do
      mkdir -p "$i"
-@@ -88,11 +85,8 @@ ln -snf usr/lib lib
+@@ -88,11 +85,7 @@ ln -snf usr/lib lib
  ln -snf usr/%{_lib} %{_lib}
  ln -snf ../run var/run
  ln -snf ../run/lock var/lock
@@ -39,11 +39,10 @@ index 0daf6bb..4a42c6e 100644
 -ln -snf ../.dwz usr/lib/debug/usr/.dwz
 -ln -snf usr/sbin usr/lib/debug/sbin
 +ln -snf run/media media
-+ln -snf var/opt opt
  
  %if %{with merged_sbin}
  ln -snf bin usr/sbin
-@@ -179,41 +173,27 @@ cp -p %{SOURCE7} %{buildroot}%{rpmmacrodir}/macros.filesystem
+@@ -179,41 +172,26 @@ cp -p %{SOURCE7} %{buildroot}%{rpmmacrodir}/macros.filesystem
  posix.mkdir("/usr")
  posix.mkdir("/usr/bin")
  posix.mkdir("/usr/lib")
@@ -63,7 +62,6 @@ index 0daf6bb..4a42c6e 100644
 -posix.symlink("usr/sbin", "/usr/lib/debug/sbin")
  posix.symlink("usr/%{_lib}", "/%{_lib}")
 +posix.symlink("run/media", "/media")
-+posix.symlink("var/opt", "/opt")
  posix.mkdir("/run")
  posix.mkdir("/proc")
  posix.mkdir("/sys")
@@ -87,31 +85,40 @@ index 0daf6bb..4a42c6e 100644
  %endif
  
  %if %{with merged_sbin}
-@@ -381,8 +361,7 @@ end
+@@ -381,8 +359,13 @@ end
  %posttrans -p <lua>
  --# we need to restorecon on some dirs created in %pretrans or by other packages
  if posix.access ("/usr/sbin/restorecon", "x") then
 -  rpm.execute("/usr/sbin/restorecon", "/var", "/var/run", "/var/lock", "/sys", "/boot", "/dev", "/media", "/afs")
 -  rpm.execute("/usr/sbin/restorecon", "-r", "/usr/lib/debug")
-+  rpm.execute("/usr/sbin/restorecon", "/var", "/var/run", "/var/lock", "/sys", "/boot", "/dev", "/media")
++  rpm.execute("/usr/sbin/restorecon", "/var", "/var/run", "/var/lock", "/sys", "/dev")
++  if posix.access ("/boot", "x") then
++    rpm.execute("/usr/sbin/restorecon", "/boot")
++  end
++  if posix.access ("/media", "x") then
++    rpm.execute("/usr/sbin/restorecon", "/media")
++  end
  end
  
  %if %{with merged_sbin}
-@@ -408,13 +387,10 @@ end
+@@ -407,14 +390,11 @@ end
+ %dir %attr(555,root,root) /
  /bin
  /sbin
- %attr(555,root,root) /boot
+-%attr(555,root,root) /boot
 -%attr(555,root,root) /afs
++%attr(555,root,root) %ghost /boot
  /dev
  %dir /etc
- /etc/X11
+-/etc/X11
++%ghost /etc/X11
  /etc/xdg
 -/etc/opt
 -/etc/pm
  /etc/skel
  /etc/sysconfig
  /etc/keys
-@@ -422,7 +398,6 @@ end
+@@ -422,19 +402,16 @@ end
  /etc/bash_completion.d/
  %dir /etc/default
  %dir /etc/rwtab.d
@@ -119,21 +126,20 @@ index 0daf6bb..4a42c6e 100644
  /home
  /lib
  %ifarch x86_64 ppc64 sparc64 s390x aarch64 ppc64le mips64 mips64el riscv64
-@@ -430,11 +405,11 @@ end
+ /%{_lib}
  %endif
- /media
+-/media
++%ghost /media
  %dir /mnt
 -%dir /opt
-+/opt
  %ghost %attr(555,root,root) /proc
  %attr(550,root,root) /root
  /run
 -/srv
-+%ghost /srv
  %ghost %attr(555,root,root) /sys
  %attr(1777,root,root) /tmp
  %dir /usr
-@@ -444,8 +419,7 @@ end
+@@ -444,8 +421,7 @@ end
  %else
  %attr(555,root,root) /usr/sbin
  %endif
@@ -143,7 +149,7 @@ index 0daf6bb..4a42c6e 100644
  %dir %attr(555,root,root) /usr/lib
  %dir /usr/lib/swidtag
  %dir /usr/lib/sysimage
-@@ -456,25 +430,8 @@ end
+@@ -456,25 +432,8 @@ end
  %dir /usr/lib/tmpfiles.d
  %dir /usr/lib/locale
  %dir /usr/lib/modules
@@ -169,7 +175,7 @@ index 0daf6bb..4a42c6e 100644
  %endif
  /usr/libexec
  %dir /usr/local
-@@ -485,16 +442,13 @@ end
+@@ -485,16 +444,13 @@ end
  %endif
  /usr/local/etc
  /usr/local/bin
@@ -188,7 +194,7 @@ index 0daf6bb..4a42c6e 100644
  /usr/share/backgrounds
  %dir /usr/share/bash-completion
  /usr/share/bash-completion/completions
-@@ -503,53 +457,40 @@ end
+@@ -503,53 +459,40 @@ end
  /usr/share/dict
  /usr/share/doc
  %attr(555,root,root) %dir /usr/share/empty
