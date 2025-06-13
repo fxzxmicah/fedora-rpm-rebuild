@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   job:
@@ -15,7 +16,7 @@ jobs:
 
     steps:
     - name: Install Dependencies
-      run: dnf install -y git-core
+      run: dnf install -y git-core gawk
 
     - name: Checkout Code
       uses: actions/checkout@v4
@@ -32,12 +33,12 @@ jobs:
           if [ -z "${ver}" ]; then
             echo "::warning::Not found ${pkg}" >&2
           else
-            if grep -E "^${pkg} " VERSION >/dev/null; then
+            if grep -E "^${pkg} " VERSION 2>&1 >/dev/null; then
               if [ $(grep -E "^${pkg} " VERSION | awk "{print \$2}") == "${ver}" ]; then
                 echo "::notice::No changes for ${pkg} (${ver})"
               else
                 echo "::notice::Updating ${pkg} to ${ver}"
-                packages+=" ${pkg}"
+                packages+="${pkg} "
               fi
             else
               echo "::notice::Adding new package ${pkg} (${ver})"
@@ -49,6 +50,7 @@ jobs:
         if [ -z "${packages}" ]; then
           echo "::notice::No packages updated"
         else
+          echo "::notice::Packages to update: ${packages}"
           echo "packages=${packages}" >> $GITHUB_ENV
         fi
 
@@ -69,4 +71,3 @@ jobs:
           -H "X-GitHub-Api-Version: 2022-11-28" \
           https://api.github.com/repos/${{ github.repository }}/actions/workflows/main.yml/dispatches \
           -d "{\"ref\":\"${{ github.ref }}\", \"inputs\": {\"package\": \"${packages}\"}}"
-        echo "::notice::Triggered build for packages: ${packages}"

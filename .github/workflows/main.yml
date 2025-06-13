@@ -42,7 +42,7 @@ jobs:
             packages=""
             for pkg in ${{ inputs.package }}; do
               if [[ -f "SPECS-PATCHES/${pkg}.patch" ]]; then
-                packages+=" ${pkg}"
+                packages+="${pkg} "
               else
                 echo "::warning::Patch not found for: ${pkg}" >&2
               fi
