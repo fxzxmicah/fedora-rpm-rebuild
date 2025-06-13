@@ -1,0 +1,72 @@
+name: Check and Trigger
+
+on:
+  schedule:
+    - cron: '0 0 */5 * *'  # Runs per 5 days at midnight UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  job:
+    runs-on: ubuntu-latest
+    container: fedora:latest
+
+    steps:
+    - name: Install Dependencies
+      run: dnf install -y git-core
+
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    # Workaround
+    - name: Set safe directory
+      run: git config --global --add safe.directory ${GITHUB_WORKSPACE}
+
+    - name: Check Version
+      run: |
+        packages=""
+        for pkg in $(find SPECS-PATCHES -name '*.patch' -exec basename {} .patch \; | sort); do
+          ver=$(dnf repoquery --qf "%{Version}-%{Release}" ${pkg} --latest-limit=1 --repo=fedora-source --repo=updates-source 2>/dev/null)
+          if [ -z "${ver}" ]; then
+            echo "::warning::Not found ${pkg}" >&2
+          else
+            if grep -E "^${pkg} " VERSION >/dev/null; then
+              if [ $(grep -E "^${pkg} " VERSION | awk "{print \$2}") == "${ver}" ]; then
+                echo "::notice::No changes for ${pkg} (${ver})"
+              else
+                echo "::notice::Updating ${pkg} to ${ver}"
+                packages+=" ${pkg}"
+              fi
+            else
+              echo "::notice::Adding new package ${pkg} (${ver})"
+            fi
+            echo "${pkg} ${ver}" >> VERSION.new
+          fi
+        done
+        mv VERSION.new VERSION
+        if [ -z "${packages}" ]; then
+          echo "::notice::No packages updated"
+        else
+          echo "packages=${packages}" >> $GITHUB_ENV
+        fi
+
+    - name: Commit Changes
+      uses: iarekylew00t/verified-bot-commit@v1
+      with:
+        if-no-commit: info
+        message: "Update package versions"
+        files: |
+          VERSION
+
+    - name: Trigger Build
+      if: env.packages
+      run: |
+        curl -X POST \
+          -H "Accept: application/vnd.github+json" \
+          -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+          -H "X-GitHub-Api-Version: 2022-11-28" \
+          https://api.github.com/repos/${{ github.repository }}/actions/workflows/main.yml/dispatches \
+          -d "{\"ref\":\"${{ github.ref }}\", \"inputs\": {\"package\": \"${packages}\"}}"
+        echo "::notice::Triggered build for packages: ${packages}"
