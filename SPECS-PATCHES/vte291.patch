@@ -1,8 +1,8 @@
 diff --git OLD/vte291.spec NEW/vte291.spec
-index 4fff9c6..6f7d229 100644
+index c9bccfb..6a283d1 100644
 --- OLD/vte291.spec
 +++ NEW/vte291.spec
-@@ -16,7 +16,7 @@ Release:        1%{?dist}
+@@ -16,7 +16,7 @@ Release:        2%{?dist}
  Summary:        GTK terminal emulator library
  
  # libvte-2.91.so is generated from LGPLv2+ and MIT sources
@@ -56,39 +56,34 @@ index 4fff9c6..6f7d229 100644
  
  %description gtk4-devel
  The %{name}-gtk4-devel package contains libraries and header files for
-@@ -130,22 +142,23 @@ sed -i -e "/^vte_systemduserunitdir =/s|vte_prefix|'/usr'|" meson.build
+@@ -127,21 +139,18 @@ sed -i -e "/^vte_systemduserunitdir =/s|vte_prefix|'/usr'|" meson.build
+ 
+ %install
+ %meson_install
+-rm %{buildroot}/%{_datadir}/applications/org.gnome.Vte.App.Gtk3.desktop
+-rm %{buildroot}/%{_datadir}/applications/org.gnome.Vte.App.Gtk4.desktop
  
  %find_lang vte-%{apiver}
  
 -%files -f vte-%{apiver}.lang
--%license COPYING.LGPL3
--%license COPYING.XTERM
--%doc README.md
 +%files
- %{_libdir}/libvte-%{apiver}.so.0*
--%dir %{_libdir}/girepository-1.0
- %{_libdir}/girepository-1.0/Vte-2.91.typelib
--%{_userunitdir}/vte-spawn-.scope.d
- %{_datadir}/applications/org.gnome.Vte.App.Gtk3.desktop
--%{_datadir}/applications/org.gnome.Vte.App.Gtk4.desktop
- %{_datadir}/xdg-terminals/org.gnome.Vte.App.Gtk3.desktop
--%{_datadir}/xdg-terminals/org.gnome.Vte.App.Gtk4.desktop
++%{_libdir}/libvte-%{apiver}.so.0*
++%{_libdir}/girepository-1.0/Vte-2.91.typelib
 +
 +%files common -f vte-%{apiver}.lang
-+%license COPYING.LGPL3
-+%license COPYING.XTERM
-+%doc README.md
-+%{_userunitdir}/vte-spawn-.scope.d
+ %license COPYING.LGPL3
+ %license COPYING.XTERM
+ %doc README.md
+-%{_libdir}/libvte-%{apiver}.so.0*
+-%dir %{_libdir}/girepository-1.0
+-%{_libdir}/girepository-1.0/Vte-2.91.typelib
+ %{_userunitdir}/vte-spawn-.scope.d
+-%{_datadir}/xdg-terminals/org.gnome.Vte.App.Gtk3.desktop
+-%{_datadir}/xdg-terminals/org.gnome.Vte.App.Gtk4.desktop
  
  %files gtk4
  %{_libdir}/libvte-%{apiver}-gtk4.so.0*
- %{_libdir}/girepository-1.0/Vte-3.91.typelib
-+%{_datadir}/applications/org.gnome.Vte.App.Gtk4.desktop
-+%{_datadir}/xdg-terminals/org.gnome.Vte.App.Gtk4.desktop
- 
- %files devel
- %license COPYING.GPL3
-@@ -153,16 +166,14 @@ sed -i -e "/^vte_systemduserunitdir =/s|vte_prefix|'/usr'|" meson.build
+@@ -153,16 +162,16 @@ rm %{buildroot}/%{_datadir}/applications/org.gnome.Vte.App.Gtk4.desktop
  %{_includedir}/vte-%{apiver}/
  %{_libdir}/libvte-%{apiver}.so
  %{_libdir}/pkgconfig/vte-%{apiver}.pc
@@ -100,9 +95,20 @@ index 4fff9c6..6f7d229 100644
 -%dir %{_datadir}/vala/vapi
  %{_datadir}/vala/vapi/vte-2.91.deps
  %{_datadir}/vala/vapi/vte-2.91.vapi
++%{_datadir}/applications/org.gnome.Vte.App.Gtk3.desktop
++%{_datadir}/xdg-terminals/org.gnome.Vte.App.Gtk3.desktop
  
  %files gtk4-devel
 +%license COPYING.GPL3
  %{_bindir}/vte-%{apiver}-gtk4
  %{_includedir}/vte-%{apiver}-gtk4/
  %{_libdir}/libvte-%{apiver}-gtk4.so
+@@ -171,6 +180,8 @@ rm %{buildroot}/%{_datadir}/applications/org.gnome.Vte.App.Gtk4.desktop
+ %doc %{_docdir}/vte-2.91-gtk4/
+ %{_datadir}/vala/vapi/vte-2.91-gtk4.deps
+ %{_datadir}/vala/vapi/vte-2.91-gtk4.vapi
++%{_datadir}/applications/org.gnome.Vte.App.Gtk4.desktop
++%{_datadir}/xdg-terminals/org.gnome.Vte.App.Gtk4.desktop
+ 
+ %files -n vte-profile
+ %license COPYING.GPL3
