@@ -1,0 +1,38 @@
+diff --git OLD/selinux-policy.spec NEW/selinux-policy.spec
+index 6621548..6fb46c9 100644
+--- OLD/selinux-policy.spec
++++ NEW/selinux-policy.spec
+@@ -57,6 +57,7 @@ BuildRequires: groff
+ Requires(pre): policycoreutils >= %{POLICYCOREUTILSVER}
+ Requires(post): /bin/awk /usr/bin/sha512sum
+ Requires(meta): (rpm-plugin-selinux if rpm-libs)
++Requires(meta): (%{name}-rpm-macros = %{version}-%{release} if rpm-build)
+ Requires: selinux-policy-any = %{version}-%{release}
+ Provides: selinux-policy-base = %{version}-%{release}
+ Suggests: selinux-policy-targeted
+@@ -75,7 +76,6 @@ the policy has been adjusted to provide support for Fedora.
+ %ghost %config(noreplace) %{_sysconfdir}/selinux/config
+ %ghost %{_sysconfdir}/sysconfig/selinux
+ %{_usr}/lib/tmpfiles.d/selinux-policy.conf
+-%{_rpmconfigdir}/macros.d/macros.selinux-policy
+ %{_unitdir}/selinux-check-proper-disable.service
+ %{_libexecdir}/selinux/binsbin-convert.sh
+ %{_libexecdir}/selinux/varrun-convert.sh
+@@ -143,6 +143,17 @@ and some additional files.
+ selinuxenabled && sepolgen-ifgen 2>/dev/null
+ exit 0
+ 
++%package rpm-macros
++Summary: SELinux policy rpm macros
++BuildArch: noarch
++
++%description rpm-macros
++SELinux policy rpm macros package.
++This package contains macros for building SELinux policy modules.
++
++%files rpm-macros
++%{_rpmconfigdir}/macros.d/macros.selinux-policy
++
+ %package doc
+ Summary: SELinux policy documentation
+ Requires(pre): selinux-policy = %{version}-%{release}

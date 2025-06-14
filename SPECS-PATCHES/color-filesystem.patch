@@ -1,0 +1,33 @@
+diff --git OLD/color-filesystem.spec NEW/color-filesystem.spec
+index 7188161..b9b6fa9 100644
+--- OLD/color-filesystem.spec
++++ NEW/color-filesystem.spec
+@@ -8,10 +8,19 @@ BuildArch:      noarch
+ 
+ Requires:  filesystem
+ Requires:  rpm
++Requires(meta): (color-rpm-macros = %{version}-%{release} if rpm-build)
+ 
+ %description
+ This package provides some directories that are required/used to store color.
+ 
++%package -n color-rpm-macros
++Summary:        RPM macros for color-filesystem
++BuildArch:      noarch
++
++%description -n color-rpm-macros
++This package provides the RPM macros used by colord and other color-related
++packages.
++
+ %prep
+ # Nothing to prep
+ 
+@@ -42,6 +51,8 @@ EOF
+ %dir %{_datadir}/color/settings
+ %dir %{_localstatedir}/lib/color
+ %dir %{_localstatedir}/lib/color/icc
++
++%files -n color-rpm-macros
+ %{_rpmconfigdir}/macros.d/macros.color
+ 
+ %changelog

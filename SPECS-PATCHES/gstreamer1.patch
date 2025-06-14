@@ -1,5 +1,5 @@
 diff --git OLD/gstreamer1.spec NEW/gstreamer1.spec
-index 052b24e..302cf20 100644
+index 052b24e..d82aece 100644
 --- OLD/gstreamer1.spec
 +++ NEW/gstreamer1.spec
 @@ -65,12 +65,21 @@ types or processing capabilities can be added simply by installing new
@@ -20,7 +20,7 @@ index 052b24e..302cf20 100644
  Requires:       glib2-devel%{?_isa} >= %{_glib2}
  Requires:       libxml2-devel%{?_isa} >= %{_libxml2}
  Requires:       check-devel
-+Requires:       %{name}-rpm-macros = %{version}-%{release}
++Requires(meta): (%{name}-rpm-macros = %{version}-%{release} if rpm-build)
  # file /usr/include/gstreamer-1.0/gst/base/gstaggregator.h conflicts between attempted installs of gstreamer1-plugins-bad-free-devel-1.12.4-3.fc28.x86_64 and gstreamer1-devel-1.13.1-1.fc29.x86_64
  Conflicts:      gstreamer1-plugins-bad-free-devel < 1.13
  

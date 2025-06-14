@@ -1,0 +1,45 @@
+diff --git OLD/pam.spec NEW/pam.spec
+index 13e7d25..40cda3b 100644
+--- OLD/pam.spec
++++ NEW/pam.spec
+@@ -84,6 +84,7 @@ having to recompile programs that handle authentication.
+ %package devel
+ Summary: Files needed for developing PAM-aware applications and modules for PAM
+ Requires: pam-libs%{?_isa} = %{version}-%{release}
++Requires(meta): (%{name}-rpm-macros = %{version}-%{release} if rpm-build)
+ 
+ %description devel
+ PAM (Pluggable Authentication Modules) is a system security tool that
+@@ -92,6 +93,14 @@ having to recompile programs that handle authentication. This package
+ contains header files used for building both PAM-aware applications
+ and modules for use with the PAM system.
+ 
++%package rpm-macros
++Summary: RPM macros for the PAM package
++BuildArch: noarch
++
++%description rpm-macros
++This package contains the RPM macros for the PAM package. It is used
++to simplify the process of building and packaging PAM modules.
++
+ %package doc
+ Summary: Extra documentation for PAM.
+ Requires: pam = %{version}-%{release}
+@@ -263,7 +272,6 @@ done
+ %dir %{_pam_vendordir}
+ %config(noreplace) %{_pam_confdir}/other
+ %config(noreplace) %{_pam_confdir}/config-util
+-%{_rpmconfigdir}/macros.d/macros.%{name}
+ %{_sbindir}/pam_namespace_helper
+ %{_sbindir}/faillock
+ %attr(4755,root,root) %{_sbindir}/pam_timestamp_check
+@@ -359,6 +367,9 @@ done
+ %{_libdir}/pkgconfig/pam_misc.pc
+ %{_libdir}/pkgconfig/pamc.pc
+ 
++%files rpm-macros
++%{_rpmconfigdir}/macros.d/macros.%{name}
++
+ %files doc
+ %doc %{_pkgdocdir}
+ 

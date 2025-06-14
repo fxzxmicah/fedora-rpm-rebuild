@@ -31,7 +31,7 @@ jobs:
         for pkg in $(find SPECS-PATCHES -name '*.patch' -exec basename {} .patch \; | sort); do
           ver=$(dnf repoquery --qf "%{Version}-%{Release}" ${pkg} --latest-limit=1 --repo=fedora-source --repo=updates-source 2>/dev/null)
           if [ -z "${ver}" ]; then
-            echo "::warning::Not found ${pkg}" >&2
+            echo "::warning::Not found ${pkg}"
           else
             if grep -E "^${pkg} " VERSION 2>&1 >/dev/null; then
               if [ $(grep -E "^${pkg} " VERSION | awk "{print \$2}") == "${ver}" ]; then
