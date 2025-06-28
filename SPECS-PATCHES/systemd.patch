@@ -1,5 +1,5 @@
 diff --git OLD/systemd.spec NEW/systemd.spec
-index 517ee20..d20d49c 100644
+index 517ee20..5c13e98 100644
 --- OLD/systemd.spec
 +++ NEW/systemd.spec
 @@ -294,10 +294,6 @@ Provides:       syslog
@@ -239,7 +239,7 @@ index 517ee20..d20d49c 100644
          -Dntp-servers='0.%{ntpvendor}.pool.ntp.org 1.%{ntpvendor}.pool.ntp.org 2.%{ntpvendor}.pool.ntp.org 3.%{ntpvendor}.pool.ntp.org'
          -Ddns-servers=
          -Dservice-watchdog=
-@@ -1120,6 +1207,28 @@ python3 %{SOURCE2} %buildroot %{!?want_bootloader:--no-bootloader}
+@@ -1120,6 +1207,30 @@ python3 %{SOURCE2} %buildroot %{!?want_bootloader:--no-bootloader}
  BRP_PESIGN_FILES=/usr/lib/systemd/boot/efi/systemd-boot%{efi_arch}.efi BRP_PESIGN_PACKAGES=systemd-boot /usr/lib/rpm/brp-suse.d/brp-99-pesign
  %endif
  
@@ -258,17 +258,19 @@ index 517ee20..d20d49c 100644
 +sed -i -e '/portable/ { s/.*/echo "&" >> .file-list-portable/e; d; }' .file-list-container
 +sed -i -e '/portable/ { s/.*/echo "&" >> .file-list-portable/e; d; }' .file-list-udev
 +sed -i -e '/resolv/ { s/.*/echo "&" >> .file-list-resolve/e; d; }' .file-list-main
++sed -i -e '/resolve/ { s/.*/echo "&" >> .file-list-resolve/e; d; }' .file-list-libs
 +sed -i -e '/network-generator/ { s/.*/echo "&" >> .file-list-networkd/e; d; }' .file-list-udev
 +sed -i -e '/fstab\|tpm\|battery\|bluetooth\|printer\|smartcard\|modprobe\|wait\|ntp\|kernel\|pcrlock\|emergency\|rescue\|serial-getty\|sigpwr\|usb-gadget\|time-sync\|debug/ { s/.*/echo "&" >> .file-list-udev/e; d; }' .file-list-main
 +sed -i -e '/stub\|sbsign/ { s/.*/echo "&" >> .file-list-boot/e; d; }' .file-list-main
 +sed -i -e '/bootctl/ { s/.*/echo "&" >> .file-list-boot/e; d; }' .file-list-udev
 +sed -i -e '/pkgconfig/ { s/.*/echo "&" >> .file-list-devel/e; d; }' .file-list-main
 +sed -i -e '/storage/ { s/.*/echo "&" >> .file-list-storagetm/e; d; }' .file-list-main
++sed -i -e '/libnss/ { s/.*/echo "&" >> .file-list-main/e; d; }' .file-list-libs
 +
  %check
  %if %{with tests}
  meson test -C %{_vpath_builddir} -t 6 --print-errorlogs
-@@ -1237,9 +1346,6 @@ systemctl --no-reload preset systemd-journald-audit.socket &>/dev/null || :
+@@ -1237,9 +1348,6 @@ systemctl --no-reload preset systemd-journald-audit.socket &>/dev/null || :
                          systemd-hibernate-clear.service
                          systemd-hibernate-resume.service
                          systemd-hibernate.service
@@ -278,7 +280,7 @@ index 517ee20..d20d49c 100644
                          systemd-hwdb-update.service
                          systemd-hybrid-sleep.service
                          systemd-modules-load.service
-@@ -1263,7 +1369,6 @@ systemctl --no-reload preset systemd-journald-audit.socket &>/dev/null || :
+@@ -1263,7 +1371,6 @@ systemctl --no-reload preset systemd-journald-audit.socket &>/dev/null || :
                          systemd-pcrphase-initrd.service
                          systemd-pcrphase-sysinit.service
                          systemd-pcrphase.service
@@ -286,7 +288,7 @@ index 517ee20..d20d49c 100644
                          systemd-pstore.service
                          systemd-quotacheck-root.service
                          systemd-quotacheck@.service
-@@ -1328,7 +1433,19 @@ grep -q -E '^KEYMAP="?fi-latin[19]"?' /etc/vconsole.conf 2>/dev/null &&
+@@ -1328,7 +1435,19 @@ grep -q -E '^KEYMAP="?fi-latin[19]"?' /etc/vconsole.conf 2>/dev/null &&
  %posttrans udev
  # Restart some services.
  # Others are either oneshot services, or sockets, and restarting them causes issues (#1378974)
@@ -307,7 +309,7 @@ index 517ee20..d20d49c 100644
  
  %global journal_remote_units_restart systemd-journal-gatewayd.service systemd-journal-remote.service systemd-journal-upload.service
  %global journal_remote_units_norestart systemd-journal-gatewayd.socket systemd-journal-remote.socket
-@@ -1451,21 +1568,17 @@ fi
+@@ -1451,21 +1570,17 @@ fi
  %license LICENSE.GPL2
  %license LICENSES/MIT.txt
  %ghost %dir %attr(0755,-,-) /etc/systemd/system/basic.target.wants
@@ -329,7 +331,7 @@ index 517ee20..d20d49c 100644
  %ghost %dir %attr(0755,-,-) /var/lib/rpm-state/systemd
  
  %files libs -f .file-list-libs
-@@ -1486,6 +1599,8 @@ fi
+@@ -1486,6 +1601,8 @@ fi
  %files devel -f .file-list-devel
  
  %files udev -f .file-list-udev
@@ -338,7 +340,7 @@ index 517ee20..d20d49c 100644
  
  %files ukify -f .file-list-ukify
  %if 0%{?want_bootloader}
-@@ -1496,9 +1611,31 @@ fi
+@@ -1496,9 +1613,31 @@ fi
  %endif
  %endif
  
