@@ -1,0 +1,73 @@
+diff --git OLD/libkcapi.spec NEW/libkcapi.spec
+index 9338486..f2db71e 100644
+--- OLD/libkcapi.spec
++++ NEW/libkcapi.spec
+@@ -148,8 +148,9 @@ BuildRequires:  clang
+ BuildRequires:  cppcheck >= 2.4
+ %endif
+ 
+-# For ownership of %%{_sysctldir}.
+-Requires:       systemd
++%if %{with_sysctl_tweak}
++Requires:       (%{name}-default-optmem if udev)
++%endif
+ 
+ Obsoletes:      %{name}-replacements <= %{version}-%{release}
+ 
+@@ -176,6 +177,18 @@ Requires:       %{name}%{?_isa} == %{version}-%{release}
+ Header files for applications that use %{name}.
+ 
+ 
++%if %{with_sysctl_tweak}
++%package        default-optmem
++Summary:        Default optimization memory settings for the %{name} package
++# For ownership of %%{_sysctldir}.
++Requires:       udev
++BuildArch:      noarch
++
++%description    default-optmem
++This package provides the default optimization memory settings for the %{name} package.
++%endif
++
++
+ %if %{with doc}
+ %package        doc
+ Summary:        User documentation for the %{name} package
+@@ -356,10 +369,12 @@ EOF
+ %install
+ %make_install
+ 
++%if %{with_sysctl_tweak}
+ # Install sysctl.d preset.
+ %{__mkdir_p} %{buildroot}%{_sysctldir}
+ %{__install} -Dpm 0644 -t %{buildroot}%{_sysctldir} \
+   %{sysctl_prio}-%{name}-optmem_max.conf
++%endif
+ 
+ # Install into proper location for inclusion by %%doc.
+ %{__mkdir_p} %{buildroot}%{_pkgdocdir}
+@@ -462,10 +477,6 @@ popd
+ %{_libdir}/%{name}.so.%{version}
+ %{_libdir}/hmaccalc/%{name}.so.%{vmajor}.hmac
+ %{_libdir}/hmaccalc/%{name}.so.%{version}.hmac
+-%if %{with_sysctl_tweak}
+-%doc %{_pkgdocdir}/README.%{distroname_ext}
+-%{_sysctldir}/%{sysctl_prio}-%{name}-optmem_max.conf
+-%endif
+ 
+ 
+ %files          devel
+@@ -477,6 +488,13 @@ popd
+ %{_libdir}/pkgconfig/%{name}.pc
+ 
+ 
++%if %{with_sysctl_tweak}
++%files          default-optmem
++%doc %{_pkgdocdir}/README.%{distroname_ext}
++%{_sysctldir}/%{sysctl_prio}-%{name}-optmem_max.conf
++%endif
++
++
+ %if %{with doc}
+ %files          doc
+ %doc %{_pkgdocdir}/html

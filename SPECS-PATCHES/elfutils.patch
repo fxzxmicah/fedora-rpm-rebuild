@@ -1,0 +1,29 @@
+diff --git OLD/elfutils.spec NEW/elfutils.spec
+index 0a545aa..adca2d8 100644
+--- OLD/elfutils.spec
++++ NEW/elfutils.spec
+@@ -113,7 +113,7 @@ Provides: elfutils-libs%{depsuffix} = %{version}-%{release}
+ %endif
+ Requires: elfutils-libelf%{depsuffix} = %{version}-%{release}
+ %if %{provide_yama_scope}
+-Requires: default-yama-scope
++Requires: (default-yama-scope if udev)
+ %endif
+ %if 0%{?rhel} >= 8 || 0%{?fedora} >= 20
+ Recommends: elfutils-debuginfod-client%{depsuffix} = %{version}-%{release}
+@@ -225,11 +225,12 @@ BuildArch: noarch
+ # also is available inside the container. So if we have weak dependencies
+ # use Recommends (sadly Recommends(post) doesn't exist). This works because
+ # in all cases that really matter systemd will already be installed. #1599083
+-BuildRequires: systemd >= 215
++BuildRequires: rpm_macro(sysctl_apply)
+ %if 0%{?fedora} > 24 || 0%{?rhel} > 7
+-Recommends: systemd
++# For ownership of %%{_sysctldir}.
++Requires: udev
+ %else
+-Requires(post): systemd
++Requires(post): udev
+ %endif
+ 
+ %description default-yama-scope
