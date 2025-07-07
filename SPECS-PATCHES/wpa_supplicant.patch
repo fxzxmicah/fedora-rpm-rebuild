@@ -1,8 +1,16 @@
 diff --git OLD/wpa_supplicant.spec NEW/wpa_supplicant.spec
-index 6814e77..f2b5098 100644
+index c2dddad..705209a 100644
 --- OLD/wpa_supplicant.spec
 +++ NEW/wpa_supplicant.spec
-@@ -86,6 +86,12 @@ Graphical User Interface for wpa_supplicant written using QT
+@@ -65,7 +65,6 @@ BuildRequires: gcc
+ %if 0%{?fedora} >= 41
+ BuildRequires: openssl-devel-engine
+ %endif
+-Requires(post): systemd-sysv
+ Requires(post): systemd
+ Requires(preun): systemd
+ Requires(postun): systemd
+@@ -98,6 +97,12 @@ Graphical User Interface for wpa_supplicant written using QT
  %endif
  
  
@@ -15,7 +23,7 @@ index 6814e77..f2b5098 100644
  %prep
  %autosetup -p1 -n %{name}-%{version}
  
-@@ -128,7 +134,7 @@ install -m 0755 wpa_supplicant/wpa_cli %{buildroot}/%{_sbindir}
+@@ -143,7 +148,7 @@ install -m 0755 wpa_supplicant/wpa_cli %{buildroot}/%{_sbindir}
  install -m 0755 wpa_supplicant/wpa_supplicant %{buildroot}/%{_sbindir}
  install -m 0755 wpa_supplicant/eapol_test %{buildroot}/%{_sbindir}
  install -D -m 0644 wpa_supplicant/dbus/dbus-wpa_supplicant.conf \
@@ -24,7 +32,7 @@ index 6814e77..f2b5098 100644
  install -D -m 0644 wpa_supplicant/dbus/fi.w1.wpa_supplicant1.service \
    %{buildroot}/%{_datadir}/dbus-1/system-services/fi.w1.wpa_supplicant1.service
  
-@@ -143,10 +149,13 @@ install -d %{buildroot}%{_mandir}/man{5,8}
+@@ -158,10 +163,13 @@ install -d %{buildroot}%{_mandir}/man{5,8}
  install -m 0644 wpa_supplicant/doc/docbook/*.8 %{buildroot}%{_mandir}/man8
  install -m 0644 wpa_supplicant/doc/docbook/*.5 %{buildroot}%{_mandir}/man5
  
@@ -40,7 +48,24 @@ index 6814e77..f2b5098 100644
  
  
  %post
-@@ -173,7 +182,7 @@ chmod -R 0644 wpa_supplicant/examples/*.py
+@@ -171,16 +179,6 @@ chmod -R 0644 wpa_supplicant/examples/*.py
+ %preun
+ %systemd_preun wpa_supplicant.service
+ 
+-%triggerun -- wpa_supplicant < 0.7.3-10
+-# Save the current service runlevel info
+-# User must manually run systemd-sysv-convert --apply wpa_supplicant
+-# to migrate them to systemd targets
+-/usr/bin/systemd-sysv-convert --save wpa_supplicant >/dev/null 2>&1 ||:
+-
+-# Run these because the SysV package being removed won't do them
+-/sbin/chkconfig --del wpa_supplicant >/dev/null 2>&1 || :
+-/bin/systemctl try-restart wpa_supplicant.service >/dev/null 2>&1 || :
+-
+ 
+ %files
+ %config(noreplace) %{_sysconfdir}/wpa_supplicant/wpa_supplicant.conf
+@@ -188,7 +186,7 @@ chmod -R 0644 wpa_supplicant/examples/*.py
  %dir %{_sysconfdir}/logrotate.d
  %config(noreplace) %{_sysconfdir}/logrotate.d/wpa_supplicant
  %{_unitdir}/wpa_supplicant.service
@@ -49,7 +74,7 @@ index 6814e77..f2b5098 100644
  %{_datadir}/dbus-1/system-services/fi.w1.wpa_supplicant1.service
  %{_sbindir}/wpa_passphrase
  %{_sbindir}/wpa_supplicant
-@@ -191,8 +200,6 @@ chmod -R 0644 wpa_supplicant/examples/*.py
+@@ -206,8 +204,6 @@ chmod -R 0644 wpa_supplicant/examples/*.py
  %doc wpa_supplicant/ChangeLog
  %doc wpa_supplicant/eap_testing.txt
  %doc wpa_supplicant/todo.txt
@@ -58,7 +83,7 @@ index 6814e77..f2b5098 100644
  %license COPYING
  
  
-@@ -203,6 +210,11 @@ chmod -R 0644 wpa_supplicant/examples/*.py
+@@ -218,6 +214,11 @@ chmod -R 0644 wpa_supplicant/examples/*.py
  %endif
  
  
@@ -68,5 +93,5 @@ index 6814e77..f2b5098 100644
 +
 +
  %changelog
- * Sun Jan 19 2025 Fedora Release Engineering <releng@fedoraproject.org> - 1:2.11-4
- - Rebuilt for https://fedoraproject.org/wiki/Fedora_42_Mass_Rebuild
+ * Fri Apr 04 2025 Yaakov Selkowitz <yselkowi@redhat.com> - 1:2.11-6
+ - DIsable OpenSSL ENGINE in RHEL builds
