@@ -1,11 +1,49 @@
 diff --git OLD/gnome-desktop3.spec NEW/gnome-desktop3.spec
-index a49aace..fb38aae 100644
+index a49aace..98bc8eb 100644
 --- OLD/gnome-desktop3.spec
 +++ NEW/gnome-desktop3.spec
-@@ -73,6 +73,15 @@ reasons. There is no API or ABI guarantee, although we are doing our
+@@ -12,7 +12,7 @@ Version: 44.1
+ Release: %autorelease
+ Summary: Library with common API for various GNOME modules
+ 
+-License: GPL-2.0-or-later AND LGPL-2.0-or-later AND GFDL-1.1-or-later
++License: GPL-2.0-or-later AND LGPL-2.0-or-later
+ URL:     https://gitlab.gnome.org/GNOME/gnome-desktop
+ Source0: https://download.gnome.org/sources/gnome-desktop/44/gnome-desktop-%{tarball_version}.tar.xz
+ 
+@@ -49,9 +49,6 @@ BuildRequires: pkgconfig(xkeyboard-config)
+ BuildRequires: python3
+ BuildRequires: python3dist(langtable)
+ 
+-Conflicts: shared-mime-info < 2.0-4
+-Requires: shared-mime-info
+-
+ %if !0%{?flatpak}
+ Requires: bubblewrap
+ %endif
+@@ -59,6 +56,7 @@ Requires: gdk-pixbuf2%{?_isa} >= %{gdk_pixbuf2_version}
+ Requires: glib2%{?_isa} >= %{glib2_version}
+ # needed for GnomeWallClock
+ Requires: gsettings-desktop-schemas >= %{gsettings_desktop_schemas_version}
++Requires: gnome-desktop-common = %{version}-%{release}
+ 
+ # GnomeBGSlideShow API change breaks older gnome-shell versions
+ Conflicts: gnome-shell < 3.33.4
+@@ -73,6 +71,26 @@ reasons. There is no API or ABI guarantee, although we are doing our
  best to provide stability. Documentation for the API is available with
  gtk-doc.
  
++%package -n gnome-desktop-common
++Summary: Common files for gnome-desktop{3,4}
++License: GPL-2.0-or-later AND LGPL-2.0-or-later AND GFDL-1.1-or-later
++Conflicts: shared-mime-info < 2.0-4
++Requires: shared-mime-info
++BuildArch: noarch
++
++%description -n gnome-desktop-common
++The gnome-desktop-common package contains common files for the gnome-desktop{3,4} package,
++including translations, help files, and the mimeapps list.
++
 +%package debug
 +Summary: Debugging tools for %{name}
 +License: GPL-2.0-or-later AND LGPL-2.0-or-later
@@ -18,12 +56,70 @@ index a49aace..fb38aae 100644
  %package devel
  Summary: Libraries and headers for %{name}
  License: LGPL-2.0-or-later
-@@ -139,6 +148,8 @@ cat %SOURCE5 >> $RPM_BUILD_ROOT/%{_datadir}/applications/gnome-mimeapps.list
+@@ -82,11 +100,26 @@ Requires: %{name}%{?_isa} = %{version}-%{release}
+ The %{name}-devel package contains libraries and header files for
+ developing applications that use %{name}.
+ 
++%package -n gnome-desktop-doc
++Summary: Documentation for gnome-desktop{3,4}
++License: GFDL-1.1-or-later
++BuildArch: noarch
++
++%description -n gnome-desktop-doc
++The gnome-desktop-doc package contains the documentation for the
++gnome-desktop{3,4} library, which is used by various GNOME applications.
++
+ %package -n gnome-desktop4
+ Summary: Library with common API for various GNOME modules
+ License: GPL-2.0-or-later AND LGPL-2.0-or-later
+-# Depend on base package for translations, help, version and mimeapps.
+-Requires: %{name}%{?_isa} = %{version}-%{release}
++%if !0%{?flatpak}
++Requires: bubblewrap
++%endif
++Requires: gdk-pixbuf2%{?_isa} >= %{gdk_pixbuf2_version}
++Requires: glib2%{?_isa} >= %{glib2_version}
++# needed for GnomeWallClock
++Requires: gsettings-desktop-schemas >= %{gsettings_desktop_schemas_version}
++Requires: gnome-desktop-common = %{version}-%{release}
+ 
+ %description -n gnome-desktop4
+ gnome-desktop4 contains the libgnome-desktop library.
+@@ -132,13 +165,17 @@ cat %SOURCE5 >> $RPM_BUILD_ROOT/%{_datadir}/applications/gnome-mimeapps.list
+ 
+ %find_lang %{po_package} --all-name --with-gnome
+ 
+-%files -f %{po_package}.lang
+-%doc AUTHORS NEWS README.md
+-%license COPYING COPYING.LIB
+-%{_datadir}/applications/gnome-mimeapps.list
++%files
  # LGPL
  %{_libdir}/libgnome-desktop-3.so.20{,.*}
  %{_libdir}/girepository-1.0/GnomeDesktop-3.0.typelib
++
++%files -n gnome-desktop-common -f %{po_package}.lang
++%doc AUTHORS NEWS README.md
++%license COPYING COPYING.LIB
++%{_datadir}/applications/gnome-mimeapps.list
 +
 +%files debug
  %{_libexecdir}/gnome-desktop-debug/
  
  %files devel
+@@ -146,13 +183,13 @@ cat %SOURCE5 >> $RPM_BUILD_ROOT/%{_datadir}/applications/gnome-mimeapps.list
+ %{_libdir}/pkgconfig/gnome-desktop-3.0.pc
+ %{_includedir}/gnome-desktop-3.0
+ %{_datadir}/gir-1.0/GnomeDesktop-3.0.gir
++
++%files -n gnome-desktop-doc
+ %dir %{_datadir}/gtk-doc/
+ %dir %{_datadir}/gtk-doc/html/
+ %doc %{_datadir}/gtk-doc/html/gnome-desktop3/
+ 
+ %files -n gnome-desktop4
+-%doc AUTHORS NEWS README.md
+-%license COPYING COPYING.LIB
+ # LGPL
+ %{_libdir}/libgnome-bg-4.so.2{,.*}
+ %{_libdir}/libgnome-desktop-4.so.2{,.*}
