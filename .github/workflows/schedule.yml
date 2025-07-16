@@ -12,7 +12,7 @@ permissions:
 jobs:
   job:
     runs-on: ubuntu-latest
-    container: fedora:latest
+    container: fedora:${{ github.ref_name }}
 
     steps:
     - name: Install Dependencies
@@ -35,7 +35,7 @@ jobs:
           else
             if grep -E "^${pkg} " VERSION 2>&1 >/dev/null; then
               if [ $(grep -E "^${pkg} " VERSION | awk "{print \$2}") == "${ver}" ]; then
-                echo "::notice::No changes for ${pkg} (${ver})"
+                echo "No changes for ${pkg} (${ver})"
               else
                 echo "::notice::Updating ${pkg} to ${ver}"
                 packages+="${pkg} "
