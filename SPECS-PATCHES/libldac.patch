@@ -1,0 +1,17 @@
+diff --git OLD/libldac.spec NEW/libldac.spec
+index af8174f..c79f61b 100644
+--- OLD/libldac.spec
++++ NEW/libldac.spec
+@@ -53,10 +53,10 @@ developing applications that use %{name}.
+ %{_libdir}/libldacBT_abr.so.%{sonamebase}.*
+ %{_libdir}/libldacBT_enc.so.%{sonamebase}
+ %{_libdir}/libldacBT_enc.so.%{sonamebase}.*
+-%{_libdir}/libldacBT_abr.so
+-%{_libdir}/libldacBT_enc.so
+ 
+ %files devel
++%{_libdir}/libldacBT_abr.so
++%{_libdir}/libldacBT_enc.so
+ %dir %{_includedir}/ldac
+ %{_includedir}/ldac/ldacBT_abr.h
+ %{_includedir}/ldac/ldacBT.h

@@ -1,0 +1,31 @@
+diff --git OLD/icu.spec NEW/icu.spec
+index 6dd093b..ba418f8 100644
+--- OLD/icu.spec
++++ NEW/icu.spec
+@@ -137,6 +137,8 @@ chmod +x $RPM_BUILD_ROOT%{_libdir}/*.so.*
+ )
+ install -p -m755 -D %{SOURCE10} $RPM_BUILD_ROOT%{_bindir}/icu-config
+ 
++rm -f $RPM_BUILD_ROOT%{_libdir}/libicutest.so
++rm -f $RPM_BUILD_ROOT%{_libdir}/libicutu.so
+ 
+ %check
+ # test to ensure that -j(X>1) didn't "break" man pages. b.f.u #2357
+@@ -169,6 +171,8 @@ LD_LIBRARY_PATH=lib:stubdata:tools/ctestfw:$LD_LIBRARY_PATH bin/uconv -l
+ %{_sbindir}/gennorm2
+ %{_sbindir}/gensprep
+ %{_sbindir}/icupkg
++%{_libdir}/libicutest.so.*
++%{_libdir}/libicutu.so.*
+ %{_mandir}/man1/derb.1*
+ %{_mandir}/man1/genbrk.1*
+ %{_mandir}/man1/gencfu.1*
+@@ -185,6 +189,8 @@ LD_LIBRARY_PATH=lib:stubdata:tools/ctestfw:$LD_LIBRARY_PATH bin/uconv -l
+ %license LICENSE
+ %doc readme.html
+ %{_libdir}/*.so.*
++%exclude %{_libdir}/libicutest.so.*
++%exclude %{_libdir}/libicutu.so.*
+ 
+ %files -n lib%{name}-devel
+ %license LICENSE
