@@ -1,0 +1,28 @@
+diff --git OLD/orc.spec NEW/orc.spec
+index 5724b5e..3ebf676 100644
+--- OLD/orc.spec
++++ NEW/orc.spec
+@@ -69,8 +69,6 @@ rm -rf %{buildroot}/%{_libdir}/orc
+ %license COPYING
+ %doc README
+ %{_libdir}/liborc-0.4.so.0*
+-%{_libdir}/liborc-test-0.4.so*
+-%{_bindir}/orc-bugreport
+ 
+ %files doc
+ %doc %{_datadir}/gtk-doc/html/orc/
+@@ -79,11 +77,14 @@ rm -rf %{buildroot}/%{_libdir}/orc
+ %doc examples/*.c
+ %{_includedir}/%{name}-0.4/
+ %{_libdir}/liborc-0.4.so
++%{_libdir}/liborc-test-0.4.so
+ %{_libdir}/pkgconfig/orc-0.4.pc
+ %{_libdir}/pkgconfig/orc-test-0.4.pc
+ 
+ %files compiler
+ %{_bindir}/orcc
++%{_bindir}/orc-bugreport
++%{_libdir}/liborc-test-0.4.so.0*
+ 
+ 
+ %changelog
