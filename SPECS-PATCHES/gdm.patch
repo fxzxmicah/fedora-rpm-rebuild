@@ -1,5 +1,5 @@
 diff --git OLD/gdm.spec NEW/gdm.spec
-index a12a4bf..5779798 100644
+index a12a4bf..f2631c3 100644
 --- OLD/gdm.spec
 +++ NEW/gdm.spec
 @@ -21,11 +21,8 @@ Source5:        default.pa-for-gdm
@@ -100,7 +100,16 @@ index a12a4bf..5779798 100644
  %{_datadir}/gdm/greeter-dconf-defaults
  %{_datadir}/gdm/locale.alias
  %{_datadir}/gdm/gdb-cmd
-@@ -275,13 +271,14 @@ fi
+@@ -264,7 +260,7 @@ fi
+ %{_datadir}/polkit-1/rules.d/20-gdm.rules
+ %{_libdir}/girepository-1.0/Gdm-1.0.typelib
+ %{_libdir}/security/pam_gdm.so
+-%{_libdir}/libgdm*.so*
++%{_libdir}/libgdm.so.*
+ %{_libexecdir}/gdm-auth-config-redhat
+ %attr(0711, root, gdm) %dir %{_localstatedir}/log/gdm
+ %attr(1770, gdm, gdm) %dir %{_localstatedir}/lib/gdm
+@@ -275,14 +271,16 @@ fi
  %config %{_sysconfdir}/pam.d/gdm-smartcard
  %config %{_sysconfdir}/pam.d/gdm-fingerprint
  %{_sysconfdir}/pam.d/gdm-launch-environment
@@ -115,5 +124,7 @@ index a12a4bf..5779798 100644
 +%{_datadir}/gdm/greeter/autostart/orca-autostart.desktop
 +
  %files devel
++%{_libdir}/libgdm.so
  %dir %{_includedir}/gdm
  %{_includedir}/gdm/*.h
+ %exclude %{_includedir}/gdm/gdm-pam-extensions.h
