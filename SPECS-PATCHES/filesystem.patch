@@ -1,5 +1,5 @@
 diff --git OLD/filesystem.spec NEW/filesystem.spec
-index 2323919..0d72c06 100644
+index 2323919..2d4c58c 100644
 --- OLD/filesystem.spec
 +++ NEW/filesystem.spec
 @@ -16,9 +16,6 @@ Source7: macros.filesystem
@@ -60,9 +60,26 @@ index 2323919..0d72c06 100644
  
  %if %{with merged_sbin}
  ln -snf bin usr/sbin
-@@ -196,15 +210,12 @@ posix.symlink("usr/%{_lib}", "/usr/lib/debug/%{_lib}")
- posix.symlink("../.dwz", "/usr/lib/debug/usr/.dwz")
- posix.symlink("usr/sbin", "/usr/lib/debug/sbin")
+@@ -179,43 +193,28 @@ cp -p %{SOURCE7} %{buildroot}%{rpmmacrodir}/macros.filesystem
+ posix.mkdir("/usr")
+ posix.mkdir("/usr/bin")
+ posix.mkdir("/usr/lib")
+-posix.mkdir("/usr/lib/debug")
+-posix.mkdir("/usr/lib/debug/usr/")
+-posix.mkdir("/usr/lib/debug/usr/bin")
+-posix.mkdir("/usr/lib/debug/usr/lib")
+-posix.mkdir("/usr/lib/debug/usr/%{_lib}")
+ posix.mkdir("/usr/%{_lib}")
+ posix.mkdir("/usr/local")
+ posix.mkdir("/usr/local/bin")
+ posix.symlink("usr/bin", "/bin")
+ posix.symlink("usr/sbin", "/sbin")
+ posix.symlink("usr/lib", "/lib")
+-posix.symlink("usr/bin", "/usr/lib/debug/bin")
+-posix.symlink("usr/lib", "/usr/lib/debug/lib")
+-posix.symlink("usr/%{_lib}", "/usr/lib/debug/%{_lib}")
+-posix.symlink("../.dwz", "/usr/lib/debug/usr/.dwz")
+-posix.symlink("usr/sbin", "/usr/lib/debug/sbin")
  posix.symlink("usr/%{_lib}", "/%{_lib}")
 +posix.symlink("run/media", "/media")
  posix.mkdir("/run")
@@ -77,14 +94,50 @@ index 2323919..0d72c06 100644
  posix.mkdir("/var")
  posix.symlink("../run", "/var/run")
  posix.symlink("../run/lock", "/var/lock")
-@@ -387,9 +398,14 @@ end
+ 
+ %if %{with merged_sbin}
+ posix.symlink("bin", "/usr/sbin")
+-posix.symlink("bin", "/usr/lib/debug/usr/sbin")
+ posix.symlink("bin", "/usr/local/sbin")
+ %else
+ posix.mkdir("/usr/sbin")
+-posix.mkdir("/usr/lib/debug/usr/sbin")
+ %endif
+ 
+ %if %{with merged_sbin}
+@@ -228,6 +227,24 @@ end
+ print('}')
+ }
+ 
++%pretrans debug -p <lua>
++posix.mkdir("/usr/lib/debug")
++posix.mkdir("/usr/lib/debug/usr/")
++posix.mkdir("/usr/lib/debug/usr/bin")
++posix.mkdir("/usr/lib/debug/usr/lib")
++posix.mkdir("/usr/lib/debug/usr/%{_lib}")
++posix.symlink("usr/bin", "/usr/lib/debug/bin")
++posix.symlink("usr/lib", "/usr/lib/debug/lib")
++posix.symlink("usr/%{_lib}", "/usr/lib/debug/%{_lib}")
++posix.symlink("../.dwz", "/usr/lib/debug/usr/.dwz")
++posix.symlink("usr/sbin", "/usr/lib/debug/sbin")
++
++%if %{with merged_sbin}
++posix.symlink("bin", "/usr/lib/debug/usr/sbin")
++%else
++posix.mkdir("/usr/lib/debug/usr/sbin")
++%endif
++
+ %filetriggerin -p <lua> -- /usr/bin
+ --# This implements filesystem(unmerged-sbin-symlinks) feature.
+ st = posix.stat("/usr/sbin")
+@@ -387,9 +404,13 @@ end
  %posttrans -p <lua>
  --# we need to restorecon on some dirs and symlinks created in %pretrans or by other packages
  if posix.access ("/usr/sbin/restorecon", "x") then
 -  rpm.execute("/usr/sbin/restorecon", "/var", "/var/run", "/var/lock", "/sys", "/boot", "/dev",
 -              "/media", "/afs", "/usr/sbin", "/usr/local/sbin")
+-  rpm.execute("/usr/sbin/restorecon", "-r", "/usr/lib/debug")
 +  rpm.execute("/usr/sbin/restorecon", "/var", "/var/run", "/var/lock", "/sys", "/dev", "/usr/sbin", "/usr/local/sbin")
-   rpm.execute("/usr/sbin/restorecon", "-r", "/usr/lib/debug")
 +  if posix.access ("/boot", "x") then
 +    rpm.execute("/usr/sbin/restorecon", "/boot")
 +  end
@@ -94,7 +147,16 @@ index 2323919..0d72c06 100644
  end
  
  %if %{with merged_sbin}
-@@ -403,6 +419,26 @@ end
+@@ -399,10 +420,35 @@ end
+ %merge_scriptlet
+ %endif
+ 
++%posttrans debug -p <lua>
++if posix.access ("/usr/sbin/restorecon", "x") then
++  rpm.execute("/usr/sbin/restorecon", "-r", "/usr/lib/debug")
++end
++
+ %files content
  %dir %{_datadir}/filesystem
  %{_datadir}/filesystem/paths
  
@@ -121,7 +183,7 @@ index 2323919..0d72c06 100644
  %files srpm-macros
  %{_datadir}/filesystem/sbin-filenames
  %{_fileattrsdir}/filesystem.attr
-@@ -414,14 +450,11 @@ end
+@@ -414,14 +460,11 @@ end
  %dir %attr(555,root,root) /
  /bin
  /sbin
@@ -138,7 +200,7 @@ index 2323919..0d72c06 100644
  /etc/skel
  /etc/sysconfig
  /etc/keys
-@@ -429,19 +462,16 @@ end
+@@ -429,19 +472,16 @@ end
  /etc/bash_completion.d/
  %dir /etc/default
  %dir /etc/rwtab.d
@@ -159,7 +221,7 @@ index 2323919..0d72c06 100644
  %ghost %attr(555,root,root) /sys
  %attr(1777,root,root) /tmp
  %dir /usr
-@@ -451,8 +481,6 @@ end
+@@ -451,8 +491,6 @@ end
  %else
  %attr(555,root,root) /usr/sbin
  %endif
@@ -168,7 +230,7 @@ index 2323919..0d72c06 100644
  %dir %attr(555,root,root) /usr/lib
  %dir /usr/lib/swidtag
  %dir /usr/lib/sysimage
-@@ -463,27 +491,9 @@ end
+@@ -463,27 +501,9 @@ end
  %dir /usr/lib/tmpfiles.d
  %dir /usr/lib/locale
  %dir /usr/lib/modules
@@ -196,7 +258,7 @@ index 2323919..0d72c06 100644
  /usr/libexec
  %dir /usr/local
  %if %{with merged_sbin}
-@@ -493,16 +503,11 @@ end
+@@ -493,16 +513,11 @@ end
  %endif
  /usr/local/etc
  /usr/local/bin
@@ -213,7 +275,7 @@ index 2323919..0d72c06 100644
  /usr/share/backgrounds
  %dir /usr/share/bash-completion
  /usr/share/bash-completion/completions
-@@ -511,54 +516,39 @@ end
+@@ -511,54 +526,39 @@ end
  /usr/share/dict
  /usr/share/doc
  %attr(555,root,root) %dir /usr/share/empty
