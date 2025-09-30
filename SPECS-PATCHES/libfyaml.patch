@@ -1,0 +1,38 @@
+diff --git OLD/libfyaml.spec NEW/libfyaml.spec
+index e0d7c58..e8d743a 100644
+--- OLD/libfyaml.spec
++++ NEW/libfyaml.spec
+@@ -44,6 +44,13 @@ It is designed to be very efficient, avoiding copies of data,
+ and has no artificial limits like the 1024 character limit for
+ implicit keys.
+ 
++%package -n fyaml-utils
++Summary:  Utility tools for libfyaml
++Requires: %{name}%{?_isa} = %{version}-%{release}
++
++%description -n fyaml-utils
++Utility tools for libfyaml
++
+ %package devel
+ Summary:  Complete YAML parser and emitter
+ Requires: %{name}%{?_isa} = %{version}-%{release}
+@@ -76,6 +83,10 @@ make check
+ %license LICENSE-BSD-2-Clause
+ %doc README.md
+ %doc AUTHORS
++%{_libdir}/libfyaml.so.0
++%{_libdir}/libfyaml.so.0.0.0
++
++%files -n fyaml-utils
+ %{_bindir}/fy-compose
+ %{_bindir}/fy-dump
+ %{_bindir}/fy-filter
+@@ -83,8 +94,6 @@ make check
+ %{_bindir}/fy-testsuite
+ %{_bindir}/fy-tool
+ %{_bindir}/fy-ypath
+-%{_libdir}/libfyaml.so.0
+-%{_libdir}/libfyaml.so.0.0.0
+ %{_mandir}/man1/fy-compose.1.gz
+ %{_mandir}/man1/fy-dump.1.gz
+ %{_mandir}/man1/fy-filter.1.gz
