@@ -53,6 +53,7 @@ jobs:
         if [[ -z "${packages}" ]]; then
           echo "::warning::No packages to build."
         else
+          echo "::notice::Packages to build: ${packages}"
           echo "packages=$(echo "${packages}" | xargs)" >> $GITHUB_ENV
         fi
 
@@ -81,4 +82,3 @@ jobs:
         echo "${{ secrets.COPR_API }}" > copr-api
         . /etc/os-release
         copr-cli --config copr-api build --nowait --timeout 86400 --chroot ${ID}-${VERSION_ID}-$(uname -m) $(echo ${GITHUB_REPOSITORY} | cut -d "-" -f 2-) SRPMS/*.src.rpm
-        echo "::notice::Packages to build: ${packages}"
