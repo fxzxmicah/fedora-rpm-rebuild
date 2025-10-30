@@ -1,5 +1,5 @@
 diff --git OLD/gnupg2.spec NEW/gnupg2.spec
-index 530cf95..9fa949a 100644
+index 530cf95..95dfe85 100644
 --- OLD/gnupg2.spec
 +++ NEW/gnupg2.spec
 @@ -1,4 +1,5 @@
@@ -49,3 +49,13 @@ index 530cf95..9fa949a 100644
  
  # need scratch gpg database for tests
  mkdir -p $HOME/.gnupg
+@@ -346,7 +355,9 @@ make -k check
+ %license COPYING
+ %{_bindir}/dirmngr
+ %{_bindir}/dirmngr-client
++%if %{with ldap}
+ %{_libexecdir}/dirmngr_ldap
++%endif
+ %{_userunitdir}/dirmngr.*
+ %{_mandir}/man?/dirmngr.*
+ %{_mandir}/man?/dirmngr-client.*
