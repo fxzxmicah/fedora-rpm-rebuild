@@ -1,8 +1,8 @@
 diff --git OLD/shared-mime-info.spec NEW/shared-mime-info.spec
-index 6ee9212..43af937 100644
+index 6ee7f25..471c88c 100644
 --- OLD/shared-mime-info.spec
 +++ NEW/shared-mime-info.spec
-@@ -42,6 +42,14 @@ files. Frequently, it is necessary to work out the correct MIME type for
+@@ -41,6 +41,14 @@ files. Frequently, it is necessary to work out the correct MIME type for
  a file. This is generally done by examining the file's name or contents,
  and looking up the correct MIME type in a database.
  
@@ -17,7 +17,7 @@ index 6ee9212..43af937 100644
  %prep
  %autosetup -S git_am
  rmdir xdgmime
-@@ -89,13 +97,10 @@ update-mime-database -n %{_datadir}/mime &> /dev/null ||:
+@@ -93,13 +101,10 @@ update-mime-database -n %{_datadir}/mime &> /dev/null ||:
  
  %files -f %{name}.files
  %license COPYING
@@ -32,7 +32,7 @@ index 6ee9212..43af937 100644
  %{_mandir}/man*/update-mime-database.*
  # also co-own the gettext dirs, we don't require it
  %dir %{_datadir}/gettext
-@@ -103,5 +108,9 @@ update-mime-database -n %{_datadir}/mime &> /dev/null ||:
+@@ -107,5 +112,9 @@ update-mime-database -n %{_datadir}/mime &> /dev/null ||:
  %{_datadir}/gettext/its/shared-mime-info.its
  %{_datadir}/gettext/its/shared-mime-info.loc
  

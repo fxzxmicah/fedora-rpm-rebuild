@@ -1,28 +1,51 @@
 diff --git OLD/gnupg2.spec NEW/gnupg2.spec
-index 8ff3c99..5ed623c 100644
+index 530cf95..9fa949a 100644
 --- OLD/gnupg2.spec
 +++ NEW/gnupg2.spec
-@@ -54,7 +54,6 @@ BuildRequires: libassuan-devel >= 2.5.0
+@@ -1,4 +1,5 @@
+ %bcond_with bootstrap
++%bcond_with ldap
+ 
+ %global split_min_version 2.4.8-2
+ 
+@@ -60,7 +61,9 @@ BuildRequires: libassuan-devel >= 2.5.0
  BuildRequires: libgcrypt-devel >= 1.9.1
  BuildRequires: libgpg-error-devel >= 1.46
  BuildRequires: libksba-devel >= 1.6.3
--BuildRequires: openldap-devel
++%if %{with ldap}
+ BuildRequires: openldap-devel
++%endif
  BuildRequires: pcsc-lite-libs
  BuildRequires: ncurses-devel
  BuildRequires: npth-devel
-@@ -154,7 +153,9 @@ sed -i -e 's/"libpcsclite\.so"/"%{pcsclib}"/' scd/scdaemon.c
+@@ -80,11 +83,11 @@ BuildRequires: swtpm
+ Requires: libgcrypt >= 1.9.1
+ Requires: libgpg-error >= 1.46
+ 
+-Requires: gnupg2-dirmngr%{?_isa} = %{version}-%{release}
+-Requires: gnupg2-gpgconf%{?_isa} = %{version}-%{release}
+-Requires: gnupg2-gpg-agent%{?_isa} = %{version}-%{release}
++Recommends: gnupg2-dirmngr%{?_isa} = %{version}-%{release}
++Recommends: gnupg2-gpgconf%{?_isa} = %{version}-%{release}
++Recommends: gnupg2-gpg-agent%{?_isa} = %{version}-%{release}
+ Requires: gnupg2-keyboxd%{?_isa} = %{version}-%{release}
+-Requires: gnupg2-verify%{?_isa} = %{version}-%{release}
++Recommends: gnupg2-verify%{?_isa} = %{version}-%{release}
+ 
+ Recommends: pinentry
+ 
+@@ -250,7 +253,13 @@ sed -i -e 's/"libpcsclite\.so"/"%{pcsclib}"/' scd/scdaemon.c
    --enable-g13 \
    --disable-ccid-driver \
    --with-tss=intel \
 -  --enable-large-secmem
 +  --enable-large-secmem \
++%if %{with ldap}
++  --enable-ldap \
++%else
 +  --disable-ldap \
++%endif
 +  %{nil}
  
  # need scratch gpg database for tests
  mkdir -p $HOME/.gnupg
-@@ -1011,4 +1012,3 @@ make -k check
- * Tue Oct 19 2004 Rex Dieter <rexdieter[AT]users.sf.net> 1.9.11-0.fdr.1
- - first try
- - leave out opensc support (for now), enable --with-opensc
--

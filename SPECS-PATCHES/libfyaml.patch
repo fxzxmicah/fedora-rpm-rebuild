@@ -1,5 +1,5 @@
 diff --git OLD/libfyaml.spec NEW/libfyaml.spec
-index e0d7c58..e8d743a 100644
+index a31ad74..0483c83 100644
 --- OLD/libfyaml.spec
 +++ NEW/libfyaml.spec
 @@ -44,6 +44,13 @@ It is designed to be very efficient, avoiding copies of data,

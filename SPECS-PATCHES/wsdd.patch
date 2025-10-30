@@ -1,5 +1,5 @@
 diff --git OLD/wsdd.spec NEW/wsdd.spec
-index 5013e49..4e9fd25 100644
+index a470f50..0bdbe82 100644
 --- OLD/wsdd.spec
 +++ NEW/wsdd.spec
 @@ -10,6 +10,7 @@ Patch:          Modify-systemd-service-for-Fedora.patch
@@ -7,10 +7,10 @@ index 5013e49..4e9fd25 100644
  BuildArch:      noarch
  BuildRequires:  systemd
 +Requires:       (%{name}-firewalld%{?_isa} = %{version}-%{release} if firewalld)
- Requires(pre):  shadow-utils
  
  
-@@ -19,6 +20,15 @@ hosts, like your local NAS device, to be found by Web Service Discovery Clients
+ %description
+@@ -18,6 +19,15 @@ hosts, like your local NAS device, to be found by Web Service Discovery Clients
  like Windows.
  
  
@@ -26,7 +26,7 @@ index 5013e49..4e9fd25 100644
  %prep
  %autosetup -p1
  
-@@ -50,14 +60,15 @@ exit 0
+@@ -50,8 +60,6 @@ install -m0644 -D wsdd.sysusers.conf %{buildroot}%{_sysusersdir}/wsdd.conf
  
  %files
  %{_unitdir}/wsdd.service
@@ -35,12 +35,13 @@ index 5013e49..4e9fd25 100644
  %config(noreplace) %{_sysconfdir}/sysconfig/wsdd
  %{_bindir}/wsdd
  %{_mandir}/man8/wsdd.8*
- %license LICENSE
+@@ -59,6 +67,9 @@ install -m0644 -D wsdd.sysusers.conf %{buildroot}%{_sysusersdir}/wsdd.conf
  %doc AUTHORS README.md
+ %{_sysusersdir}/wsdd.conf
  
 +%files firewalld
 +%{_usr}/lib/firewalld/services/wsdd.xml
 +%{_usr}/lib/firewalld/services/wsdd-http.xml
  
  %changelog
- * Sun Jan 19 2025 Fedora Release Engineering <releng@fedoraproject.org> - 0.8-3
+ * Fri Jul 25 2025 Fedora Release Engineering <releng@fedoraproject.org> - 0.8-5

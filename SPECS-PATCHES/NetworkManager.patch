@@ -1,16 +1,16 @@
 diff --git OLD/NetworkManager.spec NEW/NetworkManager.spec
-index 15b50b9..c0150fa 100644
+index e6509ca..7f2961f 100644
 --- OLD/NetworkManager.spec
 +++ NEW/NetworkManager.spec
-@@ -193,6 +193,7 @@ Requires(postun): systemd
+@@ -194,6 +194,7 @@ Requires(postun): systemd
  Requires: dbus >= %{dbus_version}
  Requires: glib2 >= %{glib2_version}
  Requires: %{name}-libnm%{?_isa} = %{epoch}:%{version}-%{release}
 +Requires: (%{name}-firewalld%{?_isa} = %{epoch}:%{version}-%{release} if firewalld)
  
- %if 0%{?rhel} == 8
- # Older libndp versions use select() (rh#1933041). On well known distros,
-@@ -319,6 +320,15 @@ Ethernet, Bridge, Bond, VLAN, Team, InfiniBand, Wi-Fi, mobile broadband
+ Recommends: iputils
+ 
+@@ -323,6 +324,15 @@ Ethernet, Bridge, Bond, VLAN, Team, InfiniBand, Wi-Fi, mobile broadband
  services.
  
  
@@ -26,7 +26,7 @@ index 15b50b9..c0150fa 100644
  %if %{with adsl}
  %package adsl
  Summary: ADSL device plugin for NetworkManager
-@@ -786,11 +796,14 @@ if [ -S /run/udev/control ]; then
+@@ -796,11 +806,14 @@ if [ -S /run/udev/control ]; then
      /usr/bin/udevadm control --reload-rules || :
      /usr/bin/udevadm trigger --subsystem-match=net || :
  fi
@@ -42,7 +42,7 @@ index 15b50b9..c0150fa 100644
  %if %{with ifcfg_rh}
  %post initscripts-updown
  if [ -f %{_sbindir}/ifup -a ! -L %{_sbindir}/ifup ]; then
-@@ -837,11 +850,14 @@ fi
+@@ -847,11 +860,14 @@ fi
  %postun
  /usr/bin/udevadm control --reload-rules || :
  /usr/bin/udevadm trigger --subsystem-match=net || :
@@ -58,7 +58,7 @@ index 15b50b9..c0150fa 100644
  %if %{with nm_cloud_setup}
  %postun cloud-setup
  %systemd_postun %{systemd_units_cloud_setup}
-@@ -909,7 +925,6 @@ fi
+@@ -919,7 +935,6 @@ fi
  %{_datadir}/dbus-1/system-services/org.freedesktop.nm_priv_helper.service
  %{_datadir}/polkit-1/actions/*.policy
  %{_prefix}/lib/udev/rules.d/*.rules
@@ -66,7 +66,7 @@ index 15b50b9..c0150fa 100644
  # systemd stuff
  %{_unitdir}/NetworkManager.service
  %{_unitdir}/NetworkManager-wait-online.service
-@@ -926,6 +941,10 @@ fi
+@@ -936,6 +951,10 @@ fi
  %license COPYING.GFDL
  
  

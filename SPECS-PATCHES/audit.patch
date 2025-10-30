@@ -1,5 +1,5 @@
 diff --git OLD/audit.spec NEW/audit.spec
-index 14943fd..a741ace 100644
+index fd7d4c1..4b4e1b5 100644
 --- OLD/audit.spec
 +++ NEW/audit.spec
 @@ -197,7 +197,7 @@ fi

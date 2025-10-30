@@ -1,8 +1,8 @@
 diff --git OLD/gnome-control-center.spec NEW/gnome-control-center.spec
-index 8c6dee0..6dab503 100644
+index 80b70d4..2ee7e1d 100644
 --- OLD/gnome-control-center.spec
 +++ NEW/gnome-control-center.spec
-@@ -12,8 +12,10 @@
+@@ -13,8 +13,10 @@
  
  %global tarball_version %%(echo %{version} | tr '~' '.')
  
@@ -14,19 +14,19 @@ index 8c6dee0..6dab503 100644
 +%bcond samba 0
  
  Name:           gnome-control-center
- Version:        48.1
-@@ -24,6 +26,10 @@ License:        GPL-2.0-or-later AND CC0-1.0
+ Version:        49.1
+@@ -25,6 +27,10 @@ License:        GPL-2.0-or-later AND CC0-1.0
  URL:            https://gitlab.gnome.org/GNOME/gnome-control-center/
- Source0:        https://download.gnome.org/sources/%{name}/47/%{name}-%{tarball_version}.tar.xz
+ Source0:        https://download.gnome.org/sources/%{name}/49/%{name}-%{tarball_version}.tar.xz
  
 +# Samba dep patches
 +Patch0:         https://gitlab.gnome.org/GNOME/gnome-control-center/-/merge_requests/3118.patch
 +Patch1:         https://gitlab.gnome.org/fxzxmicah/gnome-control-center/-/commit/bf023127ca8e3ede0723395818b3baf4d03765e5.patch
 +
+ BuildRequires:  blueprint-compiler >= %{blueprint_compiler_version}
  BuildRequires:  desktop-file-utils
  BuildRequires:  docbook-style-xsl libxslt
- BuildRequires:  gcc
-@@ -61,7 +67,9 @@ BuildRequires:  pkgconfig(malcontent-0)
+@@ -63,7 +69,9 @@ BuildRequires:  pkgconfig(malcontent-0)
  BuildRequires:  pkgconfig(mm-glib)
  BuildRequires:  pkgconfig(polkit-gobject-1)
  BuildRequires:  pkgconfig(pwquality)
@@ -36,7 +36,7 @@ index 8c6dee0..6dab503 100644
  BuildRequires:  pkgconfig(tecla)
  BuildRequires:  pkgconfig(udisks2)
  BuildRequires:  pkgconfig(upower-glib) >= %{upower_version}
-@@ -120,10 +128,8 @@ Requires: /usr/bin/tecla
+@@ -122,10 +130,8 @@ Requires: /usr/bin/tecla
  %if 0%{?fedora} >= 35 || 0%{?rhel} >= 9
  # For the power panel
  Recommends: ppd-service
@@ -48,7 +48,7 @@ index 8c6dee0..6dab503 100644
  %endif
  %endif
  
-@@ -153,6 +159,13 @@ for applications. This package contains directories where applications
+@@ -155,6 +161,13 @@ for applications. This package contains directories where applications
  can install configuration files that are picked up by the control-center
  utilities.
  
@@ -62,7 +62,7 @@ index 8c6dee0..6dab503 100644
  %prep
  %autosetup -p1 -n %{name}-%{tarball_version}
  
-@@ -172,6 +185,11 @@ utilities.
+@@ -174,6 +187,11 @@ utilities.
    -Dmalcontent=true \
  %else
    -Dmalcontent=false \
@@ -74,15 +74,15 @@ index 8c6dee0..6dab503 100644
  %endif
    %{nil}
  %meson_build
-@@ -208,7 +226,6 @@ rm -rf $RPM_BUILD_ROOT%{_datadir}/gnome/cursor-fonts
+@@ -210,7 +228,6 @@ rm -rf $RPM_BUILD_ROOT%{_datadir}/gnome/cursor-fonts
  %{_mandir}/man1/gnome-control-center.1*
- %{_metainfodir}/org.gnome.Settings.appdata.xml
+ %{_metainfodir}/org.gnome.Settings.metainfo.xml
  %{_datadir}/pixmaps/faces
 -%{_datadir}/pkgconfig/gnome-keybindings.pc
  %{_datadir}/polkit-1/actions/org.gnome.controlcenter.*.policy
  %{_datadir}/polkit-1/rules.d/gnome-control-center.rules
  %{_datadir}/sounds/gnome/default/*/*.ogg
-@@ -221,5 +238,8 @@ rm -rf $RPM_BUILD_ROOT%{_datadir}/gnome/cursor-fonts
+@@ -223,5 +240,8 @@ rm -rf $RPM_BUILD_ROOT%{_datadir}/gnome/cursor-fonts
  %dir %{_datadir}/gnome-control-center/keybindings
  %dir %{_datadir}/gnome/wm-properties
  

@@ -1,8 +1,8 @@
 diff --git OLD/gnome-shell.spec NEW/gnome-shell.spec
-index 46e7bd6..ff4846a 100644
+index bf5eea2..95bf18a 100644
 --- OLD/gnome-shell.spec
 +++ NEW/gnome-shell.spec
-@@ -183,6 +183,14 @@ BuildArch: noarch
+@@ -189,6 +189,14 @@ BuildArch: noarch
  %description common
  %{summary}
  
@@ -17,30 +17,20 @@ index 46e7bd6..ff4846a 100644
  %prep
  %autosetup -S git -n %{name}-%{tarball_version}
  
-@@ -229,6 +237,8 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/org.gnome.Shell.Porta
+@@ -233,6 +241,7 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/org.gnome.Shell.Porta
  %{_datadir}/gnome-control-center/keybindings/50-gnome-shell-screenshots.xml
  %{_datadir}/gnome-control-center/keybindings/50-gnome-shell-system.xml
  %{_datadir}/gnome-shell/
 +%exclude %{_datadir}/gnome-shell/*.gir
-+%exclude %{_datadir}/gnome-shell/gir-1.0/
  %{_datadir}/dbus-1/services/org.gnome.ScreenSaver.service
  %{_datadir}/dbus-1/services/org.gnome.Shell.CalendarServer.service
  %{_datadir}/dbus-1/services/org.gnome.Shell.Extensions.service
-@@ -250,7 +260,6 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/org.gnome.Shell.Porta
- %{_userunitdir}/org.gnome.Shell-disable-extensions.service
- %{_userunitdir}/org.gnome.Shell.target
- %{_userunitdir}/org.gnome.Shell@wayland.service
--%{_userunitdir}/org.gnome.Shell@x11.service
- %{_libdir}/gnome-shell/
- %{_libexecdir}/gnome-shell-calendar-server
- %{_libexecdir}/gnome-shell-perf-helper
-@@ -269,5 +278,9 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/org.gnome.Shell.Porta
+@@ -273,5 +282,8 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/org.gnome.Shell.Porta
  %files common
  %{_datadir}/glib-2.0/schemas/*.xml
  
 +%files devel
 +%{_datadir}/gnome-shell/*.gir
-+%{_datadir}/gnome-shell/gir-1.0/
 +
  %changelog
  %autochangelog

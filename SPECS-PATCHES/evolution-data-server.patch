@@ -1,5 +1,5 @@
 diff --git OLD/evolution-data-server.spec NEW/evolution-data-server.spec
-index e4678f8..fabad5b 100644
+index 1882f52..e07012e 100644
 --- OLD/evolution-data-server.spec
 +++ NEW/evolution-data-server.spec
 @@ -1,17 +1,15 @@
@@ -33,15 +33,17 @@ index e4678f8..fabad5b 100644
  %define webkit2gtk4_version 2.36.0
  %define json_glib_version 1.0.4
  %define uuid_version 2.0
-@@ -102,7 +99,6 @@ BuildRequires: pkgconfig(icu-i18n)
+@@ -102,7 +99,9 @@ BuildRequires: pkgconfig(icu-i18n)
  BuildRequires: pkgconfig(gtk+-3.0) >= %{gtk3_version}
  BuildRequires: pkgconfig(gtk4) >= %{gtk4_version}
  BuildRequires: pkgconfig(goa-1.0) >= %{goa_version}
--BuildRequires: pkgconfig(gweather4) >= %{libgweather_version}
++%if %{weather_support}
+ BuildRequires: pkgconfig(gweather4) >= %{libgweather_version}
++%endif
  BuildRequires: pkgconfig(libical-glib) >= %{libical_version}
  BuildRequires: pkgconfig(libsecret-unstable) >= %{libsecret_version}
  BuildRequires: pkgconfig(libsoup-3.0) >= %{libsoup_version}
-@@ -112,7 +108,6 @@ BuildRequires: pkgconfig(nss) >= %{nss_version}
+@@ -112,7 +111,6 @@ BuildRequires: pkgconfig(nss) >= %{nss_version}
  BuildRequires: pkgconfig(sqlite3) >= %{sqlite_version}
  BuildRequires: pkgconfig(uuid) >= %{uuid_version}
  %if %{with_webkitgtk}
@@ -49,22 +51,13 @@ index e4678f8..fabad5b 100644
  BuildRequires: pkgconfig(webkitgtk-6.0) >= %{webkit2gtk4_version}
  %endif
  BuildRequires: pkgconfig(json-glib-1.0) >= %{json_glib_version}
-@@ -136,6 +131,10 @@ BuildRequires: boost-devel
- BuildRequires: abseil-cpp-devel
- %endif
- 
-+%if %{weather_support}
-+BuildRequires: pkgconfig(gweather4) >= %{libgweather_version}
-+%endif
-+
- # libical 3.0.16 added new API, this ensures to bring it in
- Requires: libical-glib >= %{libical_version}
- 
-@@ -151,16 +150,17 @@ Summary: Development files for building against %{name}
+@@ -151,13 +149,14 @@ Summary: Development files for building against %{name}
  Requires: %{name}%{?_isa} = %{version}-%{release}
  
  Requires: pkgconfig(goa-1.0) >= %{goa_version}
--Requires: pkgconfig(gweather4) >= %{libgweather_version}
++%if %{weather_support}
+ Requires: pkgconfig(gweather4) >= %{libgweather_version}
++%endif
  Requires: pkgconfig(libical-glib) >= %{libical_version}
  Requires: pkgconfig(libsecret-unstable) >= %{libsecret_version}
  Requires: pkgconfig(libsoup-3.0) >= %{libsoup_version}
@@ -74,13 +67,7 @@ index e4678f8..fabad5b 100644
  Requires: pkgconfig(webkitgtk-6.0) >= %{webkit2gtk4_version}
  %endif
  Requires: pkgconfig(json-glib-1.0) >= %{json_glib_version}
-+%if %{weather_support}
-+BuildRequires: pkgconfig(gweather4) >= %{libgweather_version}
-+%endif
- 
- %description devel
- Development files needed for building things which link against %{name}.
-@@ -258,6 +258,12 @@ fi
+@@ -258,6 +257,12 @@ fi
  %define phonenum_flags -DWITH_PHONENUMBER=OFF
  %endif
  
@@ -93,7 +80,7 @@ index e4678f8..fabad5b 100644
  %define ssl_flags -DENABLE_SMIME=ON
  
  %if %{with_docs}
-@@ -267,7 +273,7 @@ fi
+@@ -267,7 +272,7 @@ fi
  %endif
  
  %if %{with_webkitgtk}
@@ -102,16 +89,16 @@ index e4678f8..fabad5b 100644
  %else
  %define webkitgtk_flags -DENABLE_OAUTH2_WEBKITGTK=OFF -DENABLE_OAUTH2_WEBKITGTK4=OFF
  %endif
-@@ -291,7 +297,7 @@ export CFLAGS="$RPM_OPT_FLAGS -DLDAP_DEPRECATED -fPIC -I%{_includedir}/et -Wno-d
+@@ -289,7 +294,7 @@ export CFLAGS="$RPM_OPT_FLAGS -DLDAP_DEPRECATED -fPIC -I%{_includedir}/et -Wno-d
+ 	-DWITH_LIBDB=OFF \
          -DWITH_SYSTEMDUSERUNITDIR=%{_userunitdir} \
  	%ldap_flags %krb5_flags %ssl_flags %webkitgtk_flags \
- 	%largefile_flags %gtkdoc_flags %phonenum_flags \
--	%{nil}
-+	%weather_flags %{nil}
- 
- %cmake_build
- 
-@@ -421,13 +427,17 @@ find $RPM_BUILD_ROOT -name '*.so.*' -exec chmod +x {} \;
+-	%largefile_flags %gtkdoc_flags %phonenum_flags \
++	%largefile_flags %gtkdoc_flags %phonenum_flags %weather_flags \
+ 	-DINCLUDE_INSTALL_DIR:PATH=%{_includedir} \
+ 	-DLIB_INSTALL_DIR:PATH=%{_libdir} \
+ 	-DSYSCONF_INSTALL_DIR:PATH=%{_sysconfdir} \
+@@ -428,13 +433,17 @@ find $RPM_BUILD_ROOT -name '*.so.*' -exec chmod +x {} \;
  %{credential_modules_dir}/module-credentials-goa.so
  %{ebook_backends_dir}/libebookbackendcarddav.so
  %{ebook_backends_dir}/libebookbackendfile.so

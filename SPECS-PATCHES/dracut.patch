@@ -1,8 +1,8 @@
 diff --git OLD/dracut.spec NEW/dracut.spec
-index f0f860c..c9aea38 100644
+index a9346eb..7c0fa93 100644
 --- OLD/dracut.spec
 +++ NEW/dracut.spec
-@@ -190,6 +190,13 @@ This package provides a dracut module to build an initramfs, but store most file
+@@ -202,6 +202,13 @@ This package provides a dracut module to build an initramfs, but store most file
  in a squashfs image, result in a smaller initramfs size and reduce runtime memory
  usage.
  
@@ -16,7 +16,7 @@ index f0f860c..c9aea38 100644
  %prep
  %autosetup -n %{name}-ng-%{version} -S git_am
  cp %{SOURCE1} .
-@@ -282,8 +289,6 @@ echo 'dracut_rescue_image="yes"' > $RPM_BUILD_ROOT%{dracutlibdir}/dracut.conf.d/
+@@ -294,8 +301,6 @@ echo 'dracut_rescue_image="yes"' > $RPM_BUILD_ROOT%{dracutlibdir}/dracut.conf.d/
  %{dracutlibdir}/dracut.conf.d/01-dist.conf
  %dir %{_sysconfdir}/dracut.conf.d
  %dir %{dracutlibdir}/dracut.conf.d
@@ -25,7 +25,7 @@ index f0f860c..c9aea38 100644
  
  %if %{with doc}
  %{_mandir}/man8/dracut.8*
-@@ -482,6 +487,9 @@ echo 'dracut_rescue_image="yes"' > $RPM_BUILD_ROOT%{dracutlibdir}/dracut.conf.d/
+@@ -494,6 +499,9 @@ echo 'dracut_rescue_image="yes"' > $RPM_BUILD_ROOT%{dracutlibdir}/dracut.conf.d/
  %{dracutlibdir}/dracut.conf.d/02-rescue.conf
  %{_prefix}/lib/kernel/install.d/51-dracut-rescue.install
  
@@ -33,5 +33,5 @@ index f0f860c..c9aea38 100644
 +%{_datadir}/pkgconfig/dracut.pc
 +
  %changelog
- * Thu Jul 24 2025 Pavel Valena <pvalena@redhat.com> - 107-2
- - Revert "feat(hwdb): add hwdb module to install hwdb.bin on demand"
+ * Tue Oct 14 2025 Adam Williamson <awilliam@redhat.com> - 107-8
+ - fix: partial revert for hostonly sloppy mode

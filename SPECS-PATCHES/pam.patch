@@ -1,8 +1,8 @@
 diff --git OLD/pam.spec NEW/pam.spec
-index 13e7d25..40cda3b 100644
+index 558b4bc..5fd9bbc 100644
 --- OLD/pam.spec
 +++ NEW/pam.spec
-@@ -84,6 +84,7 @@ having to recompile programs that handle authentication.
+@@ -79,6 +79,7 @@ having to recompile programs that handle authentication.
  %package devel
  Summary: Files needed for developing PAM-aware applications and modules for PAM
  Requires: pam-libs%{?_isa} = %{version}-%{release}
@@ -10,7 +10,7 @@ index 13e7d25..40cda3b 100644
  
  %description devel
  PAM (Pluggable Authentication Modules) is a system security tool that
-@@ -92,6 +93,14 @@ having to recompile programs that handle authentication. This package
+@@ -87,6 +88,14 @@ having to recompile programs that handle authentication. This package
  contains header files used for building both PAM-aware applications
  and modules for use with the PAM system.
  
@@ -25,7 +25,7 @@ index 13e7d25..40cda3b 100644
  %package doc
  Summary: Extra documentation for PAM.
  Requires: pam = %{version}-%{release}
-@@ -263,7 +272,6 @@ done
+@@ -256,7 +265,6 @@ done
  %dir %{_pam_vendordir}
  %config(noreplace) %{_pam_confdir}/other
  %config(noreplace) %{_pam_confdir}/config-util
@@ -33,7 +33,7 @@ index 13e7d25..40cda3b 100644
  %{_sbindir}/pam_namespace_helper
  %{_sbindir}/faillock
  %attr(4755,root,root) %{_sbindir}/pam_timestamp_check
-@@ -359,6 +367,9 @@ done
+@@ -351,6 +359,9 @@ done
  %{_libdir}/pkgconfig/pam_misc.pc
  %{_libdir}/pkgconfig/pamc.pc
  

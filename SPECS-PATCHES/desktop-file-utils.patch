@@ -1,5 +1,5 @@
 diff --git OLD/desktop-file-utils.spec NEW/desktop-file-utils.spec
-index 25ae8c5..b0733b3 100644
+index 7161858..22af31b 100644
 --- OLD/desktop-file-utils.spec
 +++ NEW/desktop-file-utils.spec
 @@ -13,7 +13,8 @@ BuildRequires: gcc

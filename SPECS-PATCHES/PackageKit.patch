@@ -1,8 +1,8 @@
 diff --git OLD/PackageKit.spec NEW/PackageKit.spec
-index 5e052f9..0685161 100644
+index bf8d562..c5ee8df 100644
 --- OLD/PackageKit.spec
 +++ NEW/PackageKit.spec
-@@ -100,6 +100,13 @@ Requires: %{name}%{?_isa} = %{version}-%{release}
+@@ -122,6 +122,13 @@ Requires: %{name}%{?_isa} = %{version}-%{release}
  %description cron
  Crontab and utilities for running PackageKit as a cron job.
  
@@ -13,10 +13,10 @@ index 5e052f9..0685161 100644
 +%description backend-test
 +Utilities for testing the PackageKit backend.
 +
- %package glib-devel
- Summary: GLib Libraries and headers for PackageKit
- Requires: %{name}-glib%{?_isa} = %{version}-%{release}
-@@ -197,7 +204,6 @@ systemctl disable packagekit-offline-update.service > /dev/null 2>&1 || :
+ %package devel
+ Summary: Libraries and headers for PackageKit
+ Requires: %{name}-glib-devel%{?_isa} = %{version}-%{release}
+@@ -228,7 +235,6 @@ systemctl disable packagekit-offline-update.service > /dev/null 2>&1 || :
  %{_datadir}/polkit-1/actions/*.policy
  %{_datadir}/polkit-1/rules.d/*
  %{_datadir}/PackageKit/pk-upgrade-distro.sh
@@ -24,7 +24,7 @@ index 5e052f9..0685161 100644
  %{_metainfodir}/org.freedesktop.packagekit.metainfo.xml
  %{_libexecdir}/packagekitd
  %{_libexecdir}/packagekit-direct
-@@ -205,7 +211,6 @@ systemctl disable packagekit-offline-update.service > /dev/null 2>&1 || :
+@@ -236,7 +242,6 @@ systemctl disable packagekit-offline-update.service > /dev/null 2>&1 || :
  %{_bindir}/pkcon
  %exclude %{_libdir}/libpackagekit*.so.*
  %{_libdir}/packagekit-backend/libpk_backend_dummy.so
@@ -32,7 +32,7 @@ index 5e052f9..0685161 100644
  %ghost %verify(not md5 size mtime) %attr(0644,-,-) %{_localstatedir}/lib/PackageKit/transactions.db
  %{_datadir}/dbus-1/system.d/*
  %{_datadir}/dbus-1/system-services/*.service
-@@ -226,6 +231,11 @@ systemctl disable packagekit-offline-update.service > /dev/null 2>&1 || :
+@@ -263,6 +268,11 @@ systemctl disable packagekit-offline-update.service > /dev/null 2>&1 || :
  %config %{_sysconfdir}/cron.daily/packagekit-background.cron
  %config(noreplace) %{_sysconfdir}/sysconfig/packagekit-background
  

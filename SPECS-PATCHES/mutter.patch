@@ -1,16 +1,24 @@
 diff --git OLD/mutter.spec NEW/mutter.spec
-index b5874fb..571229a 100644
+index 0e9cac6..05cf9c3 100644
 --- OLD/mutter.spec
 +++ NEW/mutter.spec
-@@ -63,7 +63,6 @@ BuildRequires: pkgconfig(libsystemd)
- BuildRequires: pkgconfig(xkeyboard-config)
+@@ -46,7 +46,6 @@ BuildRequires: pkgconfig(libsystemd)
+ BuildRequires: pkgconfig(umockdev-1.0)
  BuildRequires: desktop-file-utils
  BuildRequires: cvt
 -BuildRequires: python3-argcomplete
  BuildRequires: python3-docutils
  # Bootstrap requirements
  BuildRequires: gettext-devel git-core
-@@ -96,7 +95,7 @@ Requires: libinput%{?_isa} >= %{libinput_version}
+@@ -69,7 +68,6 @@ BuildRequires: pkgconfig(libeis-1.0) >= %{libei_version}
+ 
+ BuildRequires: pkgconfig(libinput) >= %{libinput_version}
+ BuildRequires: pkgconfig(xwayland)
+-BuildRequires: pkgconfig(bash-completion)
+ 
+ BuildRequires: python3-dbusmock
+ 
+@@ -81,7 +79,7 @@ Requires: libinput%{?_isa} >= %{libinput_version}
  Requires: pipewire%{_isa} >= %{pipewire_version}
  Requires: startup-notification
  Requires: dbus
@@ -19,38 +27,25 @@ index b5874fb..571229a 100644
  
  # Need common
  Requires: %{name}-common = %{version}-%{release}
-@@ -160,7 +159,10 @@ the functionality of the installed %{name} package.
+@@ -145,7 +143,9 @@ the functionality of the installed %{name} package.
  %autosetup -S git -n %{name}-%{tarball_version}
  
  %build
 -%meson -Degl_device=true
 +%meson -Degl_device=true \
 +        -Dbash_completion=false \
-+        -Dx11=false \
 +        %{nil}
  %meson_build
  
  %install
-@@ -175,12 +177,11 @@ install -p %{SOURCE1} %{buildroot}%{_datadir}/glib-2.0/schemas
- %{_bindir}/mutter
+@@ -161,9 +161,9 @@ install -p %{SOURCE1} %{buildroot}%{_datadir}/glib-2.0/schemas
+ %{_datadir}/polkit-1/actions/org.gnome.mutter.*.policy
+ %{_bindir}/gdctl
+ %{_bindir}/gnome-service-client
+-%{_datadir}/bash-completion/completions/gdctl
  %{_libdir}/lib*.so.*
  %{_libdir}/mutter-%{mutter_api_version}/
--%{_libexecdir}/mutter-restart-helper
--%{_libexecdir}/mutter-x11-frames
 +%exclude %{_libdir}/mutter-%{mutter_api_version}/*.gir
-+%{_libexecdir}/mutter-*
+ %{_libexecdir}/mutter-backlight-helper
+ %{_libexecdir}/mutter-x11-frames
  %{_mandir}/man1/mutter.1*
- %{_bindir}/gdctl
- %{_mandir}/man1/gdctl.1*
--%{_sysconfdir}/bash_completion.d/gdctl
- 
- %files common
- %{_datadir}/GConf/gsettings/mutter-schemas.convert
-@@ -193,6 +194,7 @@ install -p %{SOURCE1} %{buildroot}%{_datadir}/glib-2.0/schemas
- %files devel
- %{_includedir}/*
- %{_libdir}/lib*.so
-+%{_libdir}/mutter-%{mutter_api_version}/*.gir
- %{_libdir}/pkgconfig/*
- 
- %files tests

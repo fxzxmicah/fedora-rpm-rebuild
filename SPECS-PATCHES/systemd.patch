@@ -1,8 +1,8 @@
 diff --git OLD/systemd.spec NEW/systemd.spec
-index 517ee20..985a2ee 100644
+index 0c56c7b..f1614ec 100644
 --- OLD/systemd.spec
 +++ NEW/systemd.spec
-@@ -294,10 +294,6 @@ Provides:       syslog
+@@ -293,10 +293,6 @@ Provides:       syslog
  Provides:       systemd-units = %{version}-%{release}
  Obsoletes:      system-setup-keyboard < 0.9
  Provides:       system-setup-keyboard = 0.9
@@ -13,14 +13,14 @@ index 517ee20..985a2ee 100644
  %if 0%{?fedora}
  Conflicts:      fedora-release < 23-0.12
  %endif
-@@ -322,6 +318,14 @@ Provides:       %{name}-tmpfiles = %{version}-%{release}
- Conflicts:      %{name}-standalone-shutdown
- Provides:       %{name}-shutdown = %{version}-%{release}
+@@ -321,6 +317,14 @@ Provides:       systemd-tmpfiles = %{version}-%{release}
+ Conflicts:      systemd-standalone-shutdown
+ Provides:       systemd-shutdown = %{version}-%{release}
  
 +# If we are in a container
-+Requires:       (%{name}-containerized = %{version}-%{release} if fedora-release-container)
++Requires:       (systemd-containerized = %{version}-%{release} if fedora-release-container)
 +# If we are in a atomic or ostree desktop
-+Requires:       (%{name}-atomic = %{version}-%{release} if %{shrink:(
++Requires:       (systemd-atomic = %{version}-%{release} if %{shrink:(
 +        fedora-release-ostree-desktop or
 +        fedora-release-coreos
 +)})
@@ -28,7 +28,7 @@ index 517ee20..985a2ee 100644
  %if "%{_sbindir}" == "%{_bindir}"
  # Compat symlinks for Requires in other packages.
  # We rely on filesystem to create the symlinks for us.
-@@ -340,11 +344,6 @@ Recommends:     libxkbcommon.so.0%{?elf_suffix}
+@@ -339,11 +343,6 @@ Recommends:     libxkbcommon.so.0%{?elf_suffix}
  Recommends:     libidn2.so.0%{?elf_suffix}
  Recommends:     libidn2.so.0(IDN2_0.0.0)%{?elf_bits}
  Recommends:     libpcre2-8.so.0%{?elf_suffix}
@@ -40,7 +40,7 @@ index 517ee20..985a2ee 100644
  Recommends:     libbpf.so.1%{?elf_suffix}
  Recommends:     libbpf.so.1(LIBBPF_0.4.0)%{?elf_bits}
  
-@@ -358,15 +357,6 @@ Recommends:     libelf.so.1(ELFUTILS_1.7)%{?elf_bits}
+@@ -357,15 +356,6 @@ Recommends:     libelf.so.1(ELFUTILS_1.7)%{?elf_bits}
  Recommends:     libcryptsetup.so.12%{?elf_suffix}
  Recommends:     libcryptsetup.so.12(CRYPTSETUP_2.4)%{?elf_bits}
  
@@ -56,7 +56,7 @@ index 517ee20..985a2ee 100644
  Recommends:     libarchive.so.13%{?elf_suffix}
  
  %description
-@@ -375,8 +365,7 @@ of the system. It provides aggressive parallelization capabilities, uses socket
+@@ -374,8 +364,7 @@ of the system. It provides aggressive parallelization capabilities, uses socket
  and D-Bus activation for starting services, offers on-demand starting of
  daemons, keeps track of processes using Linux control groups, maintains mount
  and automount points, and implements an elaborate transactional dependency-based
@@ -66,16 +66,27 @@ index 517ee20..985a2ee 100644
  utilities to control basic system configuration like the hostname, date, locale,
  maintain a list of logged-in users, system accounts, runtime directories and
  settings, and a logging daemons.
-@@ -429,7 +418,7 @@ This package contains the systemd-sysusers program.
+@@ -437,7 +426,7 @@ This package contains the systemd-sysusers program.
  %package devel
  Summary:        Development headers for systemd
  License:        LGPL-2.1-or-later AND MIT
--Requires:       %{name}-libs%{_isa} = %{version}-%{release}
-+Requires:       %{name}%{_isa} = %{version}-%{release}
- Requires(meta): (%{name}-rpm-macros = %{version}-%{release} if rpm-build)
+-Requires:       systemd-libs%{_isa} = %{version}-%{release}
++Requires:       systemd%{_isa} = %{version}-%{release}
+ Requires(meta): (systemd-rpm-macros = %{version}-%{release} if rpm-build)
  Provides:       libudev-devel = %{version}
  Provides:       libudev-devel%{_isa} = %{version}
-@@ -513,9 +502,6 @@ virtual machines, but not in containers.
+@@ -508,10 +497,6 @@ Obsoletes:      u2f-hidraw-policy < 1.0.2-40
+ Conflicts:      systemd-standalone-repart
+ Provides:       systemd-repart = %{version}-%{release}
+ 
+-# Newer versions of those are required to support X11 keycode remapping
+-Conflicts:      xorg-x11-drv-evdev < 2.11.0
+-Conflicts:      xorg-x11-drv-libinput < 1.5.0
+-
+ %if "%{_sbindir}" == "%{_bindir}"
+ # Compat symlinks for Requires in other packages.
+ # We rely on filesystem to create the symlinks for us.
+@@ -526,9 +511,6 @@ virtual machines, but not in containers.
  
  This package also provides systemd-timesyncd, a network time protocol daemon.
  
@@ -84,8 +95,8 @@ index 517ee20..985a2ee 100644
 -
  %package ukify
  Summary:        Tool to build Unified Kernel Images
- Requires:       %{name} = %{noarch_requires_version}
-@@ -588,28 +574,129 @@ This package contains the signed version.
+ Requires:       systemd = %{noarch_requires_version}
+@@ -601,28 +583,129 @@ This package contains the signed version.
  %endif
  %endif
  
@@ -94,8 +105,8 @@ index 517ee20..985a2ee 100644
 -Summary: Tools for containers and VMs
 +%package home
 +Summary:        Home directory manager
-+Requires:       %{name} = %{version}-%{release}
-+Requires:       (%{name}-ssh = %{version}-%{release} if openssh-server)
++Requires:       systemd = %{version}-%{release}
++Requires:       (systemd-ssh = %{version}-%{release} if openssh-server)
 +Recommends:     libpwquality.so.1%{?elf_suffix}
 +Recommends:     libpwquality.so.1(LIBPWQUALITY_1.0)%{?elf_bits}
 +%if 0%{?fedora}
@@ -111,8 +122,8 @@ index 517ee20..985a2ee 100644
 +
 +%package portable
 +Summary:        Systemd portable service manager
-+Requires:       %{name} = %{version}-%{release}
-+Recommends:     %{name}-rootless%{_isa} = %{version}-%{release}
++Requires:       systemd = %{version}-%{release}
++Recommends:     systemd-rootless%{_isa} = %{version}-%{release}
 +License:        LGPL-2.1-or-later
 +
 +%description portable
@@ -121,7 +132,7 @@ index 517ee20..985a2ee 100644
 +
 +%package ssh
 +Summary:        Systemd SSH and SSHD related tools and configuration
-+Requires:       %{name} = %{version}-%{release}
++Requires:       systemd = %{version}-%{release}
 +Recommends:     openssh-clients
 +Recommends:     openssh-server
 +License:        LGPL-2.1-or-later
@@ -131,7 +142,7 @@ index 517ee20..985a2ee 100644
 +
 +%package containerized
 +Summary:        Systemd containerized components
-+Requires:       %{name} = %{version}-%{release}
++Requires:       systemd = %{version}-%{release}
 +License:        LGPL-2.1-or-later
 +
 +%description containerized
@@ -140,7 +151,7 @@ index 517ee20..985a2ee 100644
 +
 +%package atomic
 +Summary:        Systemd atomic desktop components
-+Requires:       %{name} = %{version}-%{release}
++Requires:       systemd = %{version}-%{release}
 +License:        LGPL-2.1-or-later
 +
 +%description atomic
@@ -149,22 +160,22 @@ index 517ee20..985a2ee 100644
 +
 +%package machine
 +Summary:        Tools for both nspawn and vmspawn
- Requires:       %{name}%{_isa} = %{version}-%{release}
+ Requires:       systemd%{_isa} = %{version}-%{release}
 -Requires(post):   systemd%{_isa} = %{version}-%{release}
 -Requires(preun):  systemd%{_isa} = %{version}-%{release}
 -Requires(postun): systemd%{_isa} = %{version}-%{release}
-+Requires:       (%{name}-ssh = %{version}-%{release} if openssh-clients)
++Requires:       (systemd-ssh = %{version}-%{release} if openssh-clients)
  # For systemd-vmspawn which uses qemu:
 -Recommends:     qemu-kvm-core
-+Requires:       (qemu-kvm-core if %{name}-vmspawn)
++Requires:       (qemu-kvm-core if systemd-vmspawn)
  %if 0%{?fedora}
 -Recommends:     qemu-device-display-virtio-gpu
 -Recommends:     qemu-device-display-virtio-vga
-+Recommends:     (qemu-device-display-virtio-gpu if %{name}-vmspawn)
-+Recommends:     (qemu-device-display-virtio-vga if %{name}-vmspawn)
++Recommends:     (qemu-device-display-virtio-gpu if systemd-vmspawn)
++Recommends:     (qemu-device-display-virtio-vga if systemd-vmspawn)
  %endif
-+Recommends:     %{name}-import%{_isa} = %{version}-%{release}
-+Recommends:     (%{name}-rootless%{_isa} = %{version}-%{release} if %{name}-nspawn)
++Recommends:     systemd-import%{_isa} = %{version}-%{release}
++Recommends:     (systemd-rootless%{_isa} = %{version}-%{release} if systemd-nspawn)
 +License:        LGPL-2.1-or-later
 +
 +%description machine
@@ -174,7 +185,7 @@ index 517ee20..985a2ee 100644
 +
 +%package import
 +Summary:        Tools to download, import and export container and VM images
-+Requires:       %{name}-machine%{_isa} = %{version}-%{release}
++Requires:       systemd-machine%{_isa} = %{version}-%{release}
  # Bias the system towards libcurl-minimal if nothing pulls in full libcurl (#1997040)
  Suggests:       libcurl-minimal
  License:        LGPL-2.1-or-later
@@ -186,9 +197,11 @@ index 517ee20..985a2ee 100644
 +
 +%package rootless
 +Summary:        Daemon to run rootless containers
-+Requires:       %{name}%{_isa} = %{version}-%{release}
++Requires:       systemd%{_isa} = %{version}-%{release}
 +License:        LGPL-2.1-or-later
-+
+ 
+-This package contains systemd-nspawn, systemd-vmspawn, machinectl,
+-systemd-machined, and systemd-importd.
 +%description rootless
 +Systemd daemon to run rootless containers.
 +
@@ -196,19 +209,17 @@ index 517ee20..985a2ee 100644
 +
 +%package nspawn
 +Summary:        Tools for containers
-+Requires:       %{name}-machine%{_isa} = %{version}-%{release}
++Requires:       systemd-machine%{_isa} = %{version}-%{release}
 +License:        LGPL-2.1-or-later
 +
 +%description nspawn
 +Systemd tools to spawn and manage containers.
 +
 +This package contains systemd-nspawn.
- 
--This package contains systemd-nspawn, systemd-vmspawn, machinectl,
--systemd-machined, and systemd-importd.
++
 +%package vmspawn
 +Summary:        Tools for VMs
-+Requires:       %{name}-machine%{_isa} = %{version}-%{release}
++Requires:       systemd-machine%{_isa} = %{version}-%{release}
 +License:        LGPL-2.1-or-later
 +
 +%description vmspawn
@@ -218,7 +229,7 @@ index 517ee20..985a2ee 100644
 +
 +%package storagetm
 +Summary:        Systemd storage target mode
-+Requires:       %{name} = %{version}-%{release}
++Requires:       systemd = %{version}-%{release}
 +License:        LGPL-2.1-or-later
 +
 +%description storagetm
@@ -228,7 +239,7 @@ index 517ee20..985a2ee 100644
  
  %package journal-remote
  # Name is the same as in Debian
-@@ -776,8 +863,8 @@ VMLINUX_H_PATH=$(%python3 -c '%find_vmlinux_h')
+@@ -794,8 +877,8 @@ VMLINUX_H_PATH=$(%python3 -c '%find_vmlinux_h')
  CONFIGURE_OPTS=(
          -Dmode=release
          -Dslow-tests=true
@@ -239,7 +250,7 @@ index 517ee20..985a2ee 100644
          -Dntp-servers='0.%{ntpvendor}.pool.ntp.org 1.%{ntpvendor}.pool.ntp.org 2.%{ntpvendor}.pool.ntp.org 3.%{ntpvendor}.pool.ntp.org'
          -Ddns-servers=
          -Dservice-watchdog=
-@@ -1120,6 +1207,30 @@ python3 %{SOURCE2} %buildroot %{!?want_bootloader:--no-bootloader}
+@@ -1140,6 +1223,30 @@ python3 %{SOURCE2} %buildroot %{!?want_bootloader:--no-bootloader}
  BRP_PESIGN_FILES=/usr/lib/systemd/boot/efi/systemd-boot%{efi_arch}.efi BRP_PESIGN_PACKAGES=systemd-boot /usr/lib/rpm/brp-suse.d/brp-99-pesign
  %endif
  
@@ -270,7 +281,7 @@ index 517ee20..985a2ee 100644
  %check
  %if %{with tests}
  meson test -C %{_vpath_builddir} -t 6 --print-errorlogs
-@@ -1237,9 +1348,6 @@ systemctl --no-reload preset systemd-journald-audit.socket &>/dev/null || :
+@@ -1265,9 +1372,6 @@ systemctl --no-reload preset systemd-journald-audit.socket &>/dev/null || :
                          systemd-hibernate-clear.service
                          systemd-hibernate-resume.service
                          systemd-hibernate.service
@@ -280,7 +291,7 @@ index 517ee20..985a2ee 100644
                          systemd-hwdb-update.service
                          systemd-hybrid-sleep.service
                          systemd-modules-load.service
-@@ -1263,7 +1371,6 @@ systemctl --no-reload preset systemd-journald-audit.socket &>/dev/null || :
+@@ -1291,7 +1395,6 @@ systemctl --no-reload preset systemd-journald-audit.socket &>/dev/null || :
                          systemd-pcrphase-initrd.service
                          systemd-pcrphase-sysinit.service
                          systemd-pcrphase.service
@@ -288,7 +299,7 @@ index 517ee20..985a2ee 100644
                          systemd-pstore.service
                          systemd-quotacheck-root.service
                          systemd-quotacheck@.service
-@@ -1328,7 +1435,19 @@ grep -q -E '^KEYMAP="?fi-latin[19]"?' /etc/vconsole.conf 2>/dev/null &&
+@@ -1356,7 +1459,19 @@ grep -q -E '^KEYMAP="?fi-latin[19]"?' /etc/vconsole.conf 2>/dev/null &&
  %posttrans udev
  # Restart some services.
  # Others are either oneshot services, or sockets, and restarting them causes issues (#1378974)
@@ -309,7 +320,7 @@ index 517ee20..985a2ee 100644
  
  %global journal_remote_units_restart systemd-journal-gatewayd.service systemd-journal-remote.service systemd-journal-upload.service
  %global journal_remote_units_norestart systemd-journal-gatewayd.socket systemd-journal-remote.socket
-@@ -1451,21 +1570,16 @@ fi
+@@ -1479,21 +1594,16 @@ fi
  %license LICENSE.GPL2
  %license LICENSES/MIT.txt
  %ghost %dir %attr(0755,-,-) /etc/systemd/system/basic.target.wants
@@ -331,7 +342,7 @@ index 517ee20..985a2ee 100644
  %ghost %dir %attr(0755,-,-) /var/lib/rpm-state/systemd
  
  %files libs -f .file-list-libs
-@@ -1486,6 +1600,9 @@ fi
+@@ -1514,6 +1624,9 @@ fi
  %files devel -f .file-list-devel
  
  %files udev -f .file-list-udev
@@ -341,7 +352,7 @@ index 517ee20..985a2ee 100644
  
  %files ukify -f .file-list-ukify
  %if 0%{?want_bootloader}
-@@ -1496,9 +1613,31 @@ fi
+@@ -1524,9 +1637,31 @@ fi
  %endif
  %endif
  

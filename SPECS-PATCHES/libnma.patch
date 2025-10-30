@@ -1,5 +1,5 @@
 diff --git OLD/libnma.spec NEW/libnma.spec
-index 1af63dd..c2c34b4 100644
+index 1e2ed59..3dd822b 100644
 --- OLD/libnma.spec
 +++ NEW/libnma.spec
 @@ -1,6 +1,3 @@

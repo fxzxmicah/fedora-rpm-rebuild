@@ -1,8 +1,8 @@
 diff --git OLD/vte291.spec NEW/vte291.spec
-index c9bccfb..6a283d1 100644
+index d6435fd..0269f3f 100644
 --- OLD/vte291.spec
 +++ NEW/vte291.spec
-@@ -16,7 +16,7 @@ Release:        2%{?dist}
+@@ -24,7 +24,7 @@ Release:        %autorelease
  Summary:        GTK terminal emulator library
  
  # libvte-2.91.so is generated from LGPLv2+ and MIT sources
@@ -10,17 +10,17 @@ index c9bccfb..6a283d1 100644
 +License:        GPL-3.0-or-later AND LGPL-3.0-or-later AND MIT AND X11
  
  URL:            https://wiki.gnome.org/Apps/Terminal/VTE
- Source0:        https://download.gnome.org/sources/vte/0.80/vte-%{version}.tar.xz
-@@ -51,7 +51,7 @@ Requires:       libicu%{?_isa} >= %{icu_uc_version}
+ Source0:        https://download.gnome.org/sources/vte/0.82/vte-%{version}.tar.xz
+@@ -64,7 +64,7 @@ Requires:       libicu%{?_isa} >= %{icu_uc_version}
  Requires:       pango >= %{pango_version}
  Requires:       pcre2%{?_isa} >= %{pcre2_version}
  Requires:       systemd-libs%{?_isa} >= %{libsystemd_version}
 -Requires:       vte-profile
 +Requires:       %{name}-common = %{version}-%{release}
  
- Conflicts:      gnome-terminal < 3.20.1-2
- 
-@@ -60,13 +60,26 @@ VTE is a library implementing a terminal emulator widget for GTK+. VTE
+ %if %{with bundled_fast_float}
+ Provides:       bundled(fast_float)
+@@ -75,13 +75,26 @@ VTE is a library implementing a terminal emulator widget for GTK+. VTE
  is mainly used in gnome-terminal, but can also be used to embed a
  console/terminal in games, editors, IDEs, etc.
  
@@ -48,15 +48,15 @@ index c9bccfb..6a283d1 100644
  
  %description gtk4
  VTE is a library implementing a terminal emulator widget for GTK 4. VTE
-@@ -94,7 +107,6 @@ Summary:        Development files for GTK 4 %{name}
+@@ -113,7 +126,6 @@ Summary:        Development files for GTK 4 %{name}
  License:        GPL-3.0-or-later AND LGPL-3.0-or-later
  
  Requires:       %{name}-gtk4%{?_isa} = %{version}-%{release}
 -Requires:       %{name}-devel%{?_isa} = %{version}-%{release}
- 
- %description gtk4-devel
- The %{name}-gtk4-devel package contains libraries and header files for
-@@ -127,21 +139,18 @@ sed -i -e "/^vte_systemduserunitdir =/s|vte_prefix|'/usr'|" meson.build
+ # Because web fonts from upstream are not bundled in the gi-docgen package,
+ # packages containing documentation generated with gi-docgen should depend on
+ # this metapackage to ensure the proper system fonts are present.
+@@ -158,21 +170,18 @@ rm -rf subprojects/
  
  %install
  %meson_install
@@ -83,7 +83,7 @@ index c9bccfb..6a283d1 100644
  
  %files gtk4
  %{_libdir}/libvte-%{apiver}-gtk4.so.0*
-@@ -153,16 +162,16 @@ rm %{buildroot}/%{_datadir}/applications/org.gnome.Vte.App.Gtk4.desktop
+@@ -184,16 +193,16 @@ rm %{buildroot}/%{_datadir}/applications/org.gnome.Vte.App.Gtk4.desktop
  %{_includedir}/vte-%{apiver}/
  %{_libdir}/libvte-%{apiver}.so
  %{_libdir}/pkgconfig/vte-%{apiver}.pc
@@ -103,7 +103,7 @@ index c9bccfb..6a283d1 100644
  %{_bindir}/vte-%{apiver}-gtk4
  %{_includedir}/vte-%{apiver}-gtk4/
  %{_libdir}/libvte-%{apiver}-gtk4.so
-@@ -171,6 +180,8 @@ rm %{buildroot}/%{_datadir}/applications/org.gnome.Vte.App.Gtk4.desktop
+@@ -202,6 +211,8 @@ rm %{buildroot}/%{_datadir}/applications/org.gnome.Vte.App.Gtk4.desktop
  %doc %{_docdir}/vte-2.91-gtk4/
  %{_datadir}/vala/vapi/vte-2.91-gtk4.deps
  %{_datadir}/vala/vapi/vte-2.91-gtk4.vapi

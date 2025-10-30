@@ -1,8 +1,8 @@
 diff --git OLD/icu.spec NEW/icu.spec
-index 6dd093b..ba418f8 100644
+index 72c5c87..f16df1b 100644
 --- OLD/icu.spec
 +++ NEW/icu.spec
-@@ -137,6 +137,8 @@ chmod +x $RPM_BUILD_ROOT%{_libdir}/*.so.*
+@@ -127,6 +127,8 @@ chmod +x $RPM_BUILD_ROOT%{_libdir}/*.so.*
  )
  install -p -m755 -D %{SOURCE10} $RPM_BUILD_ROOT%{_bindir}/icu-config
  
@@ -11,7 +11,7 @@ index 6dd093b..ba418f8 100644
  
  %check
  # test to ensure that -j(X>1) didn't "break" man pages. b.f.u #2357
-@@ -169,6 +171,8 @@ LD_LIBRARY_PATH=lib:stubdata:tools/ctestfw:$LD_LIBRARY_PATH bin/uconv -l
+@@ -159,6 +161,8 @@ LD_LIBRARY_PATH=lib:stubdata:tools/ctestfw:$LD_LIBRARY_PATH bin/uconv -l
  %{_sbindir}/gennorm2
  %{_sbindir}/gensprep
  %{_sbindir}/icupkg
@@ -20,7 +20,7 @@ index 6dd093b..ba418f8 100644
  %{_mandir}/man1/derb.1*
  %{_mandir}/man1/genbrk.1*
  %{_mandir}/man1/gencfu.1*
-@@ -185,6 +189,8 @@ LD_LIBRARY_PATH=lib:stubdata:tools/ctestfw:$LD_LIBRARY_PATH bin/uconv -l
+@@ -175,6 +179,8 @@ LD_LIBRARY_PATH=lib:stubdata:tools/ctestfw:$LD_LIBRARY_PATH bin/uconv -l
  %license LICENSE
  %doc readme.html
  %{_libdir}/*.so.*

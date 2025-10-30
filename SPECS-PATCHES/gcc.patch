@@ -1,8 +1,8 @@
 diff --git OLD/gcc.spec NEW/gcc.spec
-index d5797aa..cb32707 100644
+index 9020640..9ac36cf 100644
 --- OLD/gcc.spec
 +++ NEW/gcc.spec
-@@ -394,6 +394,7 @@ including templates and exception handling.
+@@ -393,6 +393,7 @@ including templates and exception handling.
  Summary: GNU Standard C++ Library
  Autoreq: true
  Requires: glibc >= 2.10.90-7
@@ -10,7 +10,7 @@ index d5797aa..cb32707 100644
  BuildRequires: tzdata >= 2017c
  %if 0%{?fedora} > 38 || 0%{?rhel} > 9
  Recommends: tzdata >= 2017c
-@@ -405,6 +406,15 @@ Requires: tzdata >= 2017c
+@@ -404,6 +405,15 @@ Requires: tzdata >= 2017c
  The libstdc++ package contains a rewritten standard compliant GCC Standard
  C++ Library.
  
@@ -26,7 +26,7 @@ index d5797aa..cb32707 100644
  %package -n libstdc++-devel
  Summary: Header files and libraries for C++ development
  Requires: libstdc++%{?_isa} = %{version}-%{release}
-@@ -2988,7 +2998,9 @@ end
+@@ -2989,7 +2999,9 @@ end
  %doc rpm.doc/changelogs/gcc/cp/ChangeLog*
  
  %files -n libstdc++
@@ -37,7 +37,7 @@ index d5797aa..cb32707 100644
  %dir %{_datadir}/gdb
  %dir %{_datadir}/gdb/auto-load
  %dir %{_datadir}/gdb/auto-load/%{_prefix}
-@@ -2999,9 +3011,9 @@ end
+@@ -3000,9 +3012,9 @@ end
  %endif
  %{_datadir}/gdb/auto-load/%{_prefix}/%{_lib}/libstdc*gdb.py*
  %{_datadir}/gdb/auto-load/%{_prefix}/%{_lib}/__pycache__

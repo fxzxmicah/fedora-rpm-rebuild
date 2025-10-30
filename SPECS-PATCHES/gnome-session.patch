@@ -1,30 +1,12 @@
 diff --git OLD/gnome-session.spec NEW/gnome-session.spec
-index ed5d13e..c36b587 100644
+index 1c209b5..8644bb0 100644
 --- OLD/gnome-session.spec
 +++ NEW/gnome-session.spec
-@@ -87,7 +87,6 @@ Desktop file to add GNOME to display manager session menu.
+@@ -62,7 +62,6 @@ the other core GNOME components and handles logout and saving the session.
  %package wayland-session
  Summary: Desktop file for wayland based gnome session
  Requires: %{name}%{?_isa} = %{version}-%{release}
 -Requires: xorg-x11-server-Xwayland%{?_isa} >= 1.20.99.1
  Requires: gnome-shell
+ Obsoletes: gnome-session-xsession < %{version}-%{release}
  
- %description wayland-session
-@@ -101,6 +100,7 @@ Desktop file to add GNOME on wayland to display manager session menu.
- %if 0%{?with_session_selector}
-     -Dsession_selector=true \
- %endif
-+    -Dx11=false \
-   %{nil}
- %meson_build
- 
-@@ -122,9 +122,6 @@ Desktop file to add GNOME on wayland to display manager session menu.
- %license COPYING
- %{_bindir}/gnome-session*
- %{_libexecdir}/gnome-session-binary
--%{_libexecdir}/gnome-session-check-accelerated
--%{_libexecdir}/gnome-session-check-accelerated-gl-helper
--%{_libexecdir}/gnome-session-check-accelerated-gles-helper
- %{_libexecdir}/gnome-session-ctl
- %{_libexecdir}/gnome-session-failed
- %{_mandir}/man1/gnome-session*1.*

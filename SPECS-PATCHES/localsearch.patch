@@ -1,13 +1,14 @@
 diff --git OLD/localsearch.spec NEW/localsearch.spec
-index 788bade..2d615dd 100644
+index 2108175..8e9df7d 100644
 --- OLD/localsearch.spec
 +++ NEW/localsearch.spec
-@@ -8,8 +8,11 @@
+@@ -8,9 +8,11 @@
  %endif
  
  %global with_enca 1
+-%global with_ffmpeg 1
++%global with_ffmpeg 0
 +%global with_iso 0
-+%global with_libav 0
  %global with_libcue 1
 -%global with_totem_pl_parser 1
 +%global with_totem_pl_parser 0
@@ -15,15 +16,7 @@ index 788bade..2d615dd 100644
  
  %if 0%{?rhel} || 0%{?flatpak}
  %global with_enca 0
-@@ -58,13 +61,17 @@ BuildRequires:  pkgconfig(gstreamer-pbutils-1.0)
- BuildRequires:  pkgconfig(gstreamer-tag-1.0)
- BuildRequires:  pkgconfig(icu-i18n)
- BuildRequires:  pkgconfig(icu-uc)
-+%if 0%{?with_libav}
- BuildRequires:  pkgconfig(libavformat)
-+%endif
- %if 0%{?with_libcue}
- BuildRequires:  pkgconfig(libcue)
+@@ -68,7 +70,9 @@ BuildRequires:  pkgconfig(libcue)
  %endif
  BuildRequires:  pkgconfig(libexif)
  BuildRequires:  pkgconfig(libgsf-1)
@@ -33,7 +26,7 @@ index 788bade..2d615dd 100644
  BuildRequires:  pkgconfig(libiptcdata)
  BuildRequires:  pkgconfig(libjpeg)
  BuildRequires:  pkgconfig(libpng)
-@@ -78,7 +85,9 @@ BuildRequires:  pkgconfig(totem-plparser)
+@@ -82,7 +86,9 @@ BuildRequires:  pkgconfig(totem-plparser)
  BuildRequires:  pkgconfig(tinysparql-3.0) >= %{tinysparql_version}
  BuildRequires:  pkgconfig(vorbisfile)
  %if !0%{?flatpak}
@@ -43,7 +36,7 @@ index 788bade..2d615dd 100644
  BuildRequires:  pkgconfig(libnm)
  BuildRequires:  pkgconfig(upower-glib)
  %endif
-@@ -95,6 +104,14 @@ tag/metadata database and search tool.
+@@ -100,6 +106,14 @@ tag/metadata database and search tool.
  This package contains various miners and metadata extractors for tinysparql.
  
  
@@ -58,13 +51,10 @@ index 788bade..2d615dd 100644
  %prep
  %autosetup -p1 -n %{name}-%{tarball_version}
  
-@@ -117,6 +134,15 @@ This package contains various miners and metadata extractors for tinysparql.
+@@ -124,6 +138,12 @@ This package contains various miners and metadata extractors for tinysparql.
  %endif
  %if ! 0%{?with_totem_pl_parser}
    -Dplaylist=disabled \
-+%endif
-+%if ! 0%{?with_libav}
-+  -Dlibav=disabled \
 +%endif
 +%if ! 0%{?with_xps}
 +  -Dxps=disabled \
@@ -74,7 +64,7 @@ index 788bade..2d615dd 100644
  %endif
    %{nil}
  
-@@ -149,6 +175,7 @@ install -D -m 0755 %{SOURCE1} %{buildroot}%{_bindir}/%{name}-flatpak-fixup.sh
+@@ -161,6 +181,7 @@ ln -sr %{buildroot}%{_datadir}/dbus-1/services/%{domain_ontology}.Tracker3.Miner
  %config(noreplace) %{_sysconfdir}/xdg/autostart/localsearch-3.desktop
  %{_bindir}/localsearch
  %{_libdir}/localsearch-3.0/
@@ -82,7 +72,7 @@ index 788bade..2d615dd 100644
  %{_libexecdir}/localsearch-3
  %{_libexecdir}/localsearch-control-3
  %{_libexecdir}/localsearch-extractor-3
-@@ -173,6 +200,9 @@ install -D -m 0755 %{SOURCE1} %{buildroot}%{_bindir}/%{name}-flatpak-fixup.sh
+@@ -192,6 +213,9 @@ ln -sr %{buildroot}%{_datadir}/dbus-1/services/%{domain_ontology}.Tracker3.Miner
  %{_bindir}/%{name}-flatpak-fixup.sh
  %endif
  
@@ -91,4 +81,4 @@ index 788bade..2d615dd 100644
 +
  
  %changelog
- * Thu Mar 20 2025 nmontero <nmontero@redhat.com> - 3.9.0-1
+ %autochangelog

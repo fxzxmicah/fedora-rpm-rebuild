@@ -1,5 +1,5 @@
 diff --git OLD/geoclue2.spec NEW/geoclue2.spec
-index 183e62c..c99374e 100644
+index c7d16b3..2528d8e 100644
 --- OLD/geoclue2.spec
 +++ NEW/geoclue2.spec
 @@ -79,6 +79,7 @@ The %{name}-demos package contains demo applications that use %{name}.

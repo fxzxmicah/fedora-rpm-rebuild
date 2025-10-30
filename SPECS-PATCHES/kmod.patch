@@ -1,9 +1,30 @@
 diff --git OLD/kmod.spec NEW/kmod.spec
-index d1417b0..7c5a6e5 100644
+index f91d5b1..90bcc79 100644
 --- OLD/kmod.spec
 +++ NEW/kmod.spec
-@@ -115,7 +115,7 @@ wishes to load or unload Linux kernel modules from the running system.
+@@ -84,6 +84,8 @@ BuildRequires:  make automake libtool
+ BuildRequires:  libzstd-devel
+ %endif
  
++Requires:	(%{name}-fish-completion = %{version}-%{release} if fish)
++
+ Provides:	module-init-tools = 4.0-1
+ Obsoletes:	module-init-tools < 4.0-1
+ Provides:	/sbin/modprobe
+@@ -113,9 +115,19 @@ Summary:	Libraries to handle kernel module loading and unloading
+ The kmod-libs package provides runtime libraries for any application that
+ wishes to load or unload Linux kernel modules from the running system.
+ 
++%package fish-completion
++Summary:  Fish shell completion for %{name}
++Requires: %{name}%{?_isa} = %{version}-%{release}
++Requires: fish
++
++BuildArch:  noarch
++
++%description fish-completion
++This package contains fish shell completion for %{name}.
++
  %package devel
  Summary:	Header files for kmod development
 -Requires:	%{name}-libs%{?_isa} = %{version}-%{release}
@@ -11,7 +32,12 @@ index d1417b0..7c5a6e5 100644
  
  %description devel
  The kmod-devel package provides header files used for development of
-@@ -186,7 +186,6 @@ install -m 0644 %{SOURCE2} $RPM_BUILD_ROOT%{_sysconfdir}/depmod.d/dist.conf
+@@ -177,12 +189,10 @@ install -m 0644 %{SOURCE2} $RPM_BUILD_ROOT%{_sysconfdir}/depmod.d/dist.conf
+ %{_sbindir}/weak-modules
+ %endif
+ %{_datadir}/bash-completion/
+-%{_datadir}/fish/vendor_functions.d/*
+ %{_datadir}/zsh/site-functions/*
  %if %{with dist_conf}
  %{_sysconfdir}/depmod.d/dist.conf
  %endif
@@ -19,8 +45,13 @@ index d1417b0..7c5a6e5 100644
  %attr(0644,root,root) %{_mandir}/man5/mod*.d*.5*
  %attr(0644,root,root) %{_mandir}/man5/depmod.d.5*
  %{_mandir}/man5/modprobe.conf.5*
-@@ -199,6 +198,7 @@ install -m 0644 %{SOURCE2} $RPM_BUILD_ROOT%{_sysconfdir}/depmod.d/dist.conf
+@@ -193,8 +203,12 @@ install -m 0644 %{SOURCE2} $RPM_BUILD_ROOT%{_sysconfdir}/depmod.d/dist.conf
+ %license COPYING
+ %{_libdir}/libkmod.so.*
  
++%files fish-completion
++%{_datadir}/fish/vendor_functions.d/*
++
  %files devel
  %{_includedir}/libkmod.h
 +%{_datadir}/pkgconfig/kmod.pc

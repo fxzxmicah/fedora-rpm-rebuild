@@ -1,5 +1,5 @@
 diff --git OLD/nautilus.spec NEW/nautilus.spec
-index d060eda..ea238f9 100644
+index 70bcf61..4a657fa 100644
 --- OLD/nautilus.spec
 +++ NEW/nautilus.spec
 @@ -18,8 +18,6 @@ Summary:        File manager for GNOME
@@ -21,7 +21,7 @@ index d060eda..ea238f9 100644
  
  %files extensions
 @@ -139,6 +135,8 @@ desktop-file-validate $RPM_BUILD_ROOT%{_datadir}/applications/*.desktop
- %{_libdir}/girepository-1.0/Nautilus-4.0.typelib
+ %{_libdir}/girepository-1.0/Nautilus-4.1.typelib
  %dir %{_libdir}/nautilus
  %dir %{_libdir}/nautilus/extensions-4
 +%{_libdir}/nautilus/extensions-4/libnautilus-image-properties.so

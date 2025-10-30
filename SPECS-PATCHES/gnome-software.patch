@@ -1,8 +1,8 @@
 diff --git OLD/gnome-software.spec NEW/gnome-software.spec
-index 61b268c..c514ed0 100644
+index 3eb95da..afc999d 100644
 --- OLD/gnome-software.spec
 +++ NEW/gnome-software.spec
-@@ -10,12 +10,12 @@
+@@ -11,12 +11,12 @@
  
  # Disable WebApps for RHEL builds
  %bcond webapps %[!0%{?rhel}]
@@ -17,5 +17,5 @@ index 61b268c..c514ed0 100644
 +# Disable DKMS/akmods support for all builds
 +%bcond dkms 0
  
- # this is not a library version
- %define gs_plugin_version 22
+ %bcond packagekit 1
+ %bcond dnf5 0

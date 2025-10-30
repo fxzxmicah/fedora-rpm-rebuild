@@ -1,37 +1,52 @@
 diff --git OLD/gdm.spec NEW/gdm.spec
-index a12a4bf..f2631c3 100644
+index c38c6fe..c277654 100644
 --- OLD/gdm.spec
 +++ NEW/gdm.spec
-@@ -21,11 +21,8 @@ Source5:        default.pa-for-gdm
- Source6:        gdm.sysusers
+@@ -5,13 +5,8 @@
+ %global major_version %%(echo %{version} | cut -d '.' -f1)
+ %global tarball_version %%(echo %{version} | tr '~' '.')
  
+-# This controls support for launching X11 desktops.
+-# gdm itself will always use Wayland.
+-%if 0%{?rhel}
++# Disable X11
+ %bcond x11 0
+-%else
+-%bcond x11 1
+-%endif
+ 
+ Name:           gdm
+ Epoch:          1
+@@ -28,7 +23,6 @@ Source2:        gdm.sysusers
  # Downstream patches
--Patch:          0001-data-Drop-X11-fallback-rules.patch
  Patch:          0001-Honor-initial-setup-being-disabled-by-distro-install.patch
  Patch:          0001-data-add-system-dconf-databases-to-gdm-profile.patch
--Patch:          0001-xorg-detect.patch
 -Patch:          0001-Add-headless-session-files.patch
  
- Patch:          0001-gdm-settings-utils-rename-variable-to-fix-build-with.patch
- 
-@@ -67,14 +64,12 @@ Requires: gnome-session-wayland-session
+ BuildRequires:  dconf
+ BuildRequires:  desktop-file-utils
+@@ -71,18 +65,14 @@ Requires: gnome-session-wayland-session
  Requires: gnome-settings-daemon >= 3.27.90
  Requires: gnome-shell
  Requires: iso-codes
--# We need 1.0.4-5 since it lets us use "localhost" in auth cookies
--Requires: libXau >= 1.0.4-4
++%if %{with x11}
+ # We need 1.0.4-5 since it lets us use "localhost" in auth cookies
+ Requires: libXau >= 1.0.4-4
++%endif
  Requires: pam
  Requires: /sbin/nologin
  Requires: systemd >= 186
  Requires: system-logos
--Requires: xorg-x11-xinit
 -Requires: python3-pam
-+
-+Requires: (%{name}-orca = %{epoch}:%{version}-%{release} if orca)
+-
+-# Until the greeter gets dynamic user support, it can't
+-# use a user bus
+-Requires: /usr/bin/dbus-run-session
+-
  
- # Until the greeter gets dynamic user support, it can't
- # use a user bus
-@@ -88,9 +83,15 @@ Provides: gdm-libs%{?_isa} = %{epoch}:%{version}-%{release}
+ Provides: gdm-libs%{?_isa} = %{epoch}:%{version}-%{release}
+ 
+@@ -90,9 +80,7 @@ Provides: gdm-libs%{?_isa} = %{epoch}:%{version}-%{release}
  GDM, the GNOME Display Manager, handles authentication-related backend
  functionality for logging in a user and unlocking the user's session after
  it's been locked. GDM also provides functionality for initiating user-switching,
@@ -39,48 +54,13 @@ index a12a4bf..f2631c3 100644
 -graphical session registration with the system for both local and remote
 -sessions (in the latter case, via GNOME Remote Desktop and the RDP protocol).
 +so more than one user can be logged in at the same time.
-+
-+%package orca
-+Summary: GDM Orca support
-+Requires: %{name}%{?_isa} = %{epoch}:%{version}-%{release}
-+BuildArch: noarch
-+
-+%description orca
-+This package contains the Orca support files for GDM.
  
  %package devel
  Summary: Development files for gdm
-@@ -124,7 +125,7 @@ GDM specific authentication features.
-        -Dplymouth=enabled \
-        -Dselinux=enabled\
-        -Dwayland-support=true \
--       -Dx11-support=true \
-+       -Dx11-support=false \
-        -Dxdmcp=disabled
- 
- %meson_build
-@@ -149,8 +150,6 @@ rm -rf %{buildroot}/%{_prefix}/doc
- # create log dir
- mkdir -p %{buildroot}/var/log/gdm
- 
--ln -sf ../X11/xinit/Xsession %{buildroot}%{_sysconfdir}/gdm/
--
- mkdir -p %{buildroot}%{_datadir}/gdm/autostart/LoginWindow
- 
- mkdir -p %{buildroot}/run/gdm
-@@ -230,7 +229,6 @@ fi
- %config %{_sysconfdir}/pam.d/gdm-autologin
- %config %{_sysconfdir}/pam.d/gdm-password
- # not config files
--%{_sysconfdir}/gdm/Xsession
- %{_datadir}/gdm/gdm.schemas
- %{_datadir}/dbus-1/system.d/gdm.conf
- %dir %{_sysconfdir}/gdm/Init
-@@ -244,19 +242,17 @@ fi
- %{_libexecdir}/gdm-runtime-config
- %{_libexecdir}/gdm-session-worker
- %{_libexecdir}/gdm-wayland-session
--%{_libexecdir}/gdm-x-session
+@@ -184,13 +172,13 @@ ln -sf ../X11/xinit/Xsession %{buildroot}%{_sysconfdir}/gdm/
+ %if %{with x11}
+ %{_libexecdir}/gdm-x-session
+ %endif
 -%{_libexecdir}/gdm-headless-login-session
  %{_sbindir}/gdm
  %{_bindir}/gdmflexiserver
@@ -90,41 +70,22 @@ index a12a4bf..f2631c3 100644
  %{_datadir}/dconf/profile/gdm
 +%dir %{_datadir}/gdm
  %dir %{_datadir}/gdm/greeter
--%dir %{_datadir}/gdm/greeter/applications
--%{_datadir}/gdm/greeter/applications/*
--%dir %{_datadir}/gdm/greeter/autostart
--%{_datadir}/gdm/greeter/autostart/*
-+%{_datadir}/gdm/greeter/applications
-+%{_datadir}/gdm/greeter/autostart
-+%exclude %{_datadir}/gdm/greeter/autostart/orca-autostart.desktop
- %{_datadir}/gdm/greeter-dconf-defaults
- %{_datadir}/gdm/locale.alias
- %{_datadir}/gdm/gdb-cmd
-@@ -264,7 +260,7 @@ fi
+ %dir %{_datadir}/gdm/greeter/applications
+ %{_datadir}/gdm/greeter/applications/*
+@@ -201,7 +189,7 @@ ln -sf ../X11/xinit/Xsession %{buildroot}%{_sysconfdir}/gdm/
  %{_datadir}/polkit-1/rules.d/20-gdm.rules
  %{_libdir}/girepository-1.0/Gdm-1.0.typelib
  %{_libdir}/security/pam_gdm.so
--%{_libdir}/libgdm*.so*
+-%{_libdir}/libgdm.so.1{,.*}
 +%{_libdir}/libgdm.so.*
  %{_libexecdir}/gdm-auth-config-redhat
- %attr(0711, root, gdm) %dir %{_localstatedir}/log/gdm
- %attr(1770, gdm, gdm) %dir %{_localstatedir}/lib/gdm
-@@ -275,14 +271,16 @@ fi
- %config %{_sysconfdir}/pam.d/gdm-smartcard
+ %ghost %dir %{_localstatedir}/log/gdm
+ %ghost %dir %{_localstatedir}/lib/gdm
+@@ -210,7 +198,6 @@ ln -sf ../X11/xinit/Xsession %{buildroot}%{_sysconfdir}/gdm/
  %config %{_sysconfdir}/pam.d/gdm-fingerprint
  %{_sysconfdir}/pam.d/gdm-launch-environment
--%{_udevrulesdir}/61-gdm.rules
  %{_unitdir}/gdm.service
 -%{_unitdir}/gnome-headless-session@.service
  %dir %{_userunitdir}/gnome-session@gnome-login.target.d/
- %{_userunitdir}/gnome-session@gnome-login.target.d/session.conf
+ %{_userunitdir}/gnome-session@gnome-login.target.d/gnome-login.session.conf
  %{_sysusersdir}/%{name}.conf
- 
-+%files orca
-+%{_datadir}/gdm/greeter/autostart/orca-autostart.desktop
-+
- %files devel
-+%{_libdir}/libgdm.so
- %dir %{_includedir}/gdm
- %{_includedir}/gdm/*.h
- %exclude %{_includedir}/gdm/gdm-pam-extensions.h

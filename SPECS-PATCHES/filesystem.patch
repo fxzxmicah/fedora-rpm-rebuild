@@ -1,10 +1,10 @@
 diff --git OLD/filesystem.spec NEW/filesystem.spec
-index 2323919..2d4c58c 100644
+index 015b29f..adc568b 100644
 --- OLD/filesystem.spec
 +++ NEW/filesystem.spec
-@@ -16,9 +16,6 @@ Source7: macros.filesystem
- BuildRequires: iso-codes
- Requires(pre): setup
+@@ -22,9 +22,6 @@ Requires(pre): setup
+ Provides: basesystem = 12-%{release}
+ Obsoletes: basesystem < 11-30
  
 -Provides:   filesystem-afs = %{version}-%{release}
 -Obsoletes:  filesystem-afs < 3.14-2
@@ -12,10 +12,17 @@ index 2323919..2d4c58c 100644
  %if %{with merged_sbin}
  # A virtual provides to indicate merged bin and sbin directories.
  # This is intended in particular for rpm-ostree, so it can conditionalize
-@@ -48,6 +45,22 @@ This subpackage of filesystem package contains just the file with
+@@ -54,6 +51,29 @@ This subpackage of filesystem package contains just the file with
  the directories owned by the filesystem package. This can be used
  during the build process instead of calling rpm -ql filesystem.
  
++%package games
++Summary: Games directories tree for the filesystem package
++Requires: filesystem = %{version}-%{release}
++
++%description games
++This subpackage of filesystem package contains the games directories
++
 +%package debug
 +Summary: Debugging directories tree for the filesystem package
 +Requires: filesystem = %{version}-%{release}
@@ -35,7 +42,7 @@ index 2323919..2d4c58c 100644
  %package srpm-macros
  Summary: Macros for the sbin-merge
  BuildArch: noarch
-@@ -70,11 +83,11 @@ install -p -c -m755 %SOURCE3 %{buildroot}/iso_3166.sed
+@@ -76,11 +96,11 @@ install -p -c -m755 %SOURCE3 %{buildroot}/iso_3166.sed
  cd %{buildroot}
  
  Paths=(
@@ -47,12 +54,12 @@ index 2323919..2d4c58c 100644
 +        boot dev \
 +        etc/{X11,xdg/autostart,skel,sysconfig,keys/ima,pki,bash_completion.d,default,rwtab.d} \
 +        home mnt root run tmp \
-+        usr/{bin,include,%{_lib},lib/{debug/{.dwz,usr},locale,modules,sysimage,systemd/{system,user},swidtag,sysusers.d,tmpfiles.d},libexec,local/{bin,etc,lib,%{_lib},src,share/{applications,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x},info},libexec,include},share/{appdata,applications,backgrounds,bash-completion/{completions,helpers},desktop-directories,dict,doc,empty,gnome,help,icons,ima,info,licenses,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x,0p,1p,3p},metainfo,misc,pixmaps,sounds,themes,X11,wayland-sessions},src,src/kernels,src/debug} \
-+        var/{adm,empty,lib/{misc,rpm-state},local,log,preserve,spool/{mail,lpd},tmp,db,cache,opt}
++        usr/{bin,games,include,%{_lib}/games,lib/{debug/{.dwz,usr},games,locale,modules,sysimage,systemd/{system,user},swidtag,sysusers.d,tmpfiles.d},libexec,local/{bin,etc,games,lib,%{_lib},src,share/{applications,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x},info},libexec,include},share/{appdata,applications,backgrounds,bash-completion/{completions,helpers},desktop-directories,dict,doc,empty,games,gnome,help,icons,ima,info,licenses,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x,0p,1p,3p},metainfo,misc,pixmaps,sounds,themes,X11,wayland-sessions},src,src/kernels,src/debug} \
++        var/{adm,empty,lib/{games,misc,rpm-state},local,log,preserve,spool/{mail,lpd},tmp,db,cache,games,opt}
  )
  for i in "${Paths[@]}"; do
      mkdir -p "$i"
-@@ -93,6 +106,7 @@ ln -snf usr/lib usr/lib/debug/lib
+@@ -102,6 +122,7 @@ ln -snf usr/lib usr/lib/debug/lib
  ln -snf usr/%{_lib} usr/lib/debug/%{_lib}
  ln -snf ../.dwz usr/lib/debug/usr/.dwz
  ln -snf usr/sbin usr/lib/debug/sbin
@@ -60,7 +67,7 @@ index 2323919..2d4c58c 100644
  
  %if %{with merged_sbin}
  ln -snf bin usr/sbin
-@@ -179,43 +193,28 @@ cp -p %{SOURCE7} %{buildroot}%{rpmmacrodir}/macros.filesystem
+@@ -188,46 +209,31 @@ cp -p %{SOURCE7} %{buildroot}%{rpmmacrodir}/macros.filesystem
  posix.mkdir("/usr")
  posix.mkdir("/usr/bin")
  posix.mkdir("/usr/lib")
@@ -81,6 +88,9 @@ index 2323919..2d4c58c 100644
 -posix.symlink("../.dwz", "/usr/lib/debug/usr/.dwz")
 -posix.symlink("usr/sbin", "/usr/lib/debug/sbin")
  posix.symlink("usr/%{_lib}", "/%{_lib}")
+ if "%{_arch}" == "riscv64" then
+   posix.symlink(".", "/usr/%{_lib}/lp64d")
+ end
 +posix.symlink("run/media", "/media")
  posix.mkdir("/run")
  posix.mkdir("/proc")
@@ -105,7 +115,7 @@ index 2323919..2d4c58c 100644
  %endif
  
  %if %{with merged_sbin}
-@@ -228,6 +227,24 @@ end
+@@ -240,6 +246,24 @@ end
  print('}')
  }
  
@@ -130,7 +140,7 @@ index 2323919..2d4c58c 100644
  %filetriggerin -p <lua> -- /usr/bin
  --# This implements filesystem(unmerged-sbin-symlinks) feature.
  st = posix.stat("/usr/sbin")
-@@ -387,9 +404,13 @@ end
+@@ -399,9 +423,13 @@ end
  %posttrans -p <lua>
  --# we need to restorecon on some dirs and symlinks created in %pretrans or by other packages
  if posix.access ("/usr/sbin/restorecon", "x") then
@@ -147,7 +157,7 @@ index 2323919..2d4c58c 100644
  end
  
  %if %{with merged_sbin}
-@@ -399,10 +420,35 @@ end
+@@ -411,10 +439,45 @@ end
  %merge_scriptlet
  %endif
  
@@ -160,6 +170,16 @@ index 2323919..2d4c58c 100644
  %dir %{_datadir}/filesystem
  %{_datadir}/filesystem/paths
  
++%files games
++/usr/games
++%attr(555,root,root) /usr/lib/games
++%ifarch x86_64 ppc64 sparc64 s390x aarch64 ppc64le mips64 mips64el riscv64
++%attr(555,root,root) /usr/%{_lib}/games
++%endif
++/usr/local/games
++/usr/share/games
++/var/games
++
 +%files debug
 +%dir /usr/lib/debug
 +%dir /usr/lib/debug/.dwz
@@ -183,7 +203,7 @@ index 2323919..2d4c58c 100644
  %files srpm-macros
  %{_datadir}/filesystem/sbin-filenames
  %{_fileattrsdir}/filesystem.attr
-@@ -414,14 +460,11 @@ end
+@@ -426,14 +489,11 @@ end
  %dir %attr(555,root,root) /
  /bin
  /sbin
@@ -200,7 +220,7 @@ index 2323919..2d4c58c 100644
  /etc/skel
  /etc/sysconfig
  /etc/keys
-@@ -429,19 +472,16 @@ end
+@@ -441,19 +501,16 @@ end
  /etc/bash_completion.d/
  %dir /etc/default
  %dir /etc/rwtab.d
@@ -221,7 +241,7 @@ index 2323919..2d4c58c 100644
  %ghost %attr(555,root,root) /sys
  %attr(1777,root,root) /tmp
  %dir /usr
-@@ -451,8 +491,6 @@ end
+@@ -463,8 +520,6 @@ end
  %else
  %attr(555,root,root) /usr/sbin
  %endif
@@ -230,7 +250,7 @@ index 2323919..2d4c58c 100644
  %dir %attr(555,root,root) /usr/lib
  %dir /usr/lib/swidtag
  %dir /usr/lib/sysimage
-@@ -463,27 +501,9 @@ end
+@@ -475,30 +530,12 @@ end
  %dir /usr/lib/tmpfiles.d
  %dir /usr/lib/locale
  %dir /usr/lib/modules
@@ -248,17 +268,20 @@ index 2323919..2d4c58c 100644
 -%ghost /usr/lib/debug/sbin
 -%attr(555,root,root) /usr/lib/games
  %ifarch x86_64 ppc64 sparc64 s390x aarch64 ppc64le mips64 mips64el riscv64
- %attr(555,root,root) /usr/%{_lib}
--%else
--%attr(555,root,root) /usr/lib/bpf
--%attr(555,root,root) /usr/lib/X11
--%attr(555,root,root) /usr/lib/pm-utils
+ %dir %attr(555,root,root) /usr/%{_lib}
+-%attr(555,root,root) /usr/%{_lib}/games
  %endif
--%attr(755,root,root) /usr/%{_lib}/pkgconfig
+-%attr(555,root,root) /usr/%{_lib}/bpf
+-%attr(555,root,root) /usr/%{_lib}/X11
+-%attr(555,root,root) /usr/%{_lib}/pm-utils
+ %ifarch riscv64
+ /usr/%{_lib}/lp64d
+ %endif
+-/usr/%{_lib}/pkgconfig
  /usr/libexec
  %dir /usr/local
  %if %{with merged_sbin}
-@@ -493,16 +513,11 @@ end
+@@ -508,16 +545,11 @@ end
  %endif
  /usr/local/etc
  /usr/local/bin
@@ -275,7 +298,7 @@ index 2323919..2d4c58c 100644
  /usr/share/backgrounds
  %dir /usr/share/bash-completion
  /usr/share/bash-completion/completions
-@@ -511,54 +526,39 @@ end
+@@ -526,54 +558,39 @@ end
  /usr/share/dict
  /usr/share/doc
  %attr(555,root,root) %dir /usr/share/empty

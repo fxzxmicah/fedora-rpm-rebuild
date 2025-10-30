@@ -1,5 +1,5 @@
 diff --git OLD/gcr.spec NEW/gcr.spec
-index ba6cb26..9e86057 100644
+index bc2e4ea..9248a83 100644
 --- OLD/gcr.spec
 +++ NEW/gcr.spec
 @@ -2,6 +2,9 @@
@@ -11,8 +11,16 @@ index ba6cb26..9e86057 100644
 +
  Name:           gcr
  Version:        4.4.0.1
- Release:        1%{?dist}
-@@ -32,14 +35,17 @@ BuildRequires:  vala
+ Release:        2%{?dist}
+@@ -14,6 +17,7 @@ Summary:        A library for bits of crypto UI and parsing
+ License:        LGPL-2.1-or-later AND FSFULLRWD AND (LGPL-3.0-or-later OR CC-BY-SA-3.0) AND (MPL-1.1 OR GPL-2.0-or-later OR LGPL-2.1-or-later) AND GCR-docs
+ URL:            https://gitlab.gnome.org/GNOME/gcr
+ Source0:        https://download.gnome.org/sources/%{name}/4.2/%{name}-%{version}.tar.xz
++Source1:        https://gitlab.gnome.org/GNOME/gcr/-/raw/3.41.1/ui/gcr-viewer.desktop.in.in
+ 
+ BuildRequires:  gettext
+ BuildRequires:  meson
+@@ -32,14 +36,17 @@ BuildRequires:  vala
  BuildRequires:  valgrind-devel
  %endif
  BuildRequires:  /usr/bin/gpg2
@@ -32,7 +40,7 @@ index ba6cb26..9e86057 100644
  
  %description
  gcr is a library for displaying certificates, and crypto UI, accessing
-@@ -76,29 +82,45 @@ developing applications that use %{name}.
+@@ -76,29 +83,50 @@ developing applications that use %{name}.
  %autosetup -p1
  
  %build
@@ -51,6 +59,10 @@ index ba6cb26..9e86057 100644
  
 +mv %{buildroot}%{_bindir}/gcr-viewer-gtk4 %{buildroot}%{_bindir}/gcr-viewer
 +mv %{buildroot}%{_libexecdir}/gcr4-ssh-askpass %{buildroot}%{_libexecdir}/gcr-ssh-askpass
++
++# Install desktop file from old version
++install -Dm644 %{SOURCE1} %{buildroot}%{_datadir}/applications/gcr-viewer.desktop
++sed -i 's|@bindir@|%{_bindir}|g' %{buildroot}%{_datadir}/applications/gcr-viewer.desktop
 +
 +%if %{with ssh_agent}
  %post
@@ -78,6 +90,7 @@ index ba6cb26..9e86057 100644
  %{_userunitdir}/gcr-ssh-agent.service
  %{_userunitdir}/gcr-ssh-agent.socket
 +%endif
++%{_datadir}/applications/gcr-viewer.desktop
  
  %files libs -f gcr-4.lang
  %license COPYING

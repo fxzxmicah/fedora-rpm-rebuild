@@ -33,7 +33,7 @@ jobs:
       run: |
         case "${{ inputs.package }}" in
           "" )
-            packages=$(git diff-tree --diff-filter=AM --no-commit-id --name-only -r HEAD -- SPECS-PATCHES | sed -E "s|.*/||; s/\.patch\$//")
+            packages=$(git diff-tree --diff-filter=AM --no-commit-id --name-only -r HEAD -- SPECS-PATCHES | sed -E "s|.*/||; s/\.patch\$//" | xargs)
             ;;
           "_all" )
             packages=$(find SPECS-PATCHES -name "*.patch" -exec basename {} .patch \;)
@@ -71,7 +71,7 @@ jobs:
             exit 1
           else
             echo "Patch applied successfully for ${pkg}"
-            spectool --define "_topdir ${GITHUB_WORKSPACE}" --get-files --sourcedir --patches SPECS/${pkg}.spec
+            spectool --define "_topdir ${GITHUB_WORKSPACE}" --get-files --sourcedir SPECS/${pkg}.spec
           fi
         done
         rpmbuild --define "_topdir ${GITHUB_WORKSPACE}" -bs SPECS/*.spec

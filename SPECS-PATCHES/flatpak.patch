@@ -1,5 +1,5 @@
 diff --git OLD/flatpak.spec NEW/flatpak.spec
-index a70139d..fc66296 100644
+index 4f12c70..3969854 100644
 --- OLD/flatpak.spec
 +++ NEW/flatpak.spec
 @@ -7,8 +7,8 @@
@@ -12,8 +12,8 @@ index a70139d..fc66296 100644
 +%bcond malcontent 0
  
  Name:           flatpak
- Version:        1.16.0
-@@ -86,8 +86,9 @@ Requires:       ostree-libs%{?_isa} >= %{ostree_version}
+ Version:        1.16.1
+@@ -80,8 +80,9 @@ Requires:       ostree-libs%{?_isa} >= %{ostree_version}
  Requires:       /usr/bin/fusermount3
  Requires:       /usr/bin/xdg-dbus-proxy
  # https://fedoraproject.org/wiki/SELinux/IndependentPolicy
@@ -24,7 +24,7 @@ index a70139d..fc66296 100644
  Recommends:     p11-kit-server
  
  # Make sure the document portal is installed
-@@ -140,6 +141,16 @@ Requires:       systemd
+@@ -134,6 +135,16 @@ Requires:       systemd
  This package contains the org.freedesktop.Flatpak user D-Bus service
  that's used by %{name} and other packages.
  
@@ -41,7 +41,7 @@ index a70139d..fc66296 100644
  %package tests
  Summary:        Tests for %{name}
  Requires:       %{name}%{?_isa} = %{?epoch:%{epoch}:}%{version}-%{release}
-@@ -161,6 +172,7 @@ This package contains installed tests for %{name}.
+@@ -155,6 +166,7 @@ This package contains installed tests for %{name}.
      -Dinstalled_tests=true \
      -Dsystem_bubblewrap=/usr/bin/bwrap \
      -Dsystem_dbus_proxy=/usr/bin/xdg-dbus-proxy \
@@ -49,7 +49,7 @@ index a70139d..fc66296 100644
      -Dtmpfilesdir=%{_tmpfilesdir} \
  %if %{with malcontent}
      -Dmalcontent=enabled \
-@@ -230,8 +242,8 @@ fi
+@@ -221,8 +233,8 @@ fi
  %{_datadir}/dbus-1/interfaces/org.freedesktop.Flatpak.Authenticator.xml
  %{_datadir}/dbus-1/services/org.flatpak.Authenticator.Oci.service
  %{_datadir}/dbus-1/services/org.freedesktop.portal.Flatpak.service
@@ -59,7 +59,7 @@ index a70139d..fc66296 100644
  %{_datadir}/%{name}
  %{_datadir}/polkit-1/actions/org.freedesktop.Flatpak.policy
  %{_datadir}/polkit-1/rules.d/org.freedesktop.Flatpak.rules
-@@ -250,7 +262,6 @@ fi
+@@ -241,7 +253,6 @@ fi
  %{_mandir}/man5/flatpak-remote.5*
  %{_mandir}/man5/flatpakref.5*
  %{_mandir}/man5/flatpakrepo.5*
@@ -67,7 +67,7 @@ index a70139d..fc66296 100644
  %dir %{_sysconfdir}/flatpak
  %{_sysconfdir}/flatpak/remotes.d
  %{_sysconfdir}/profile.d/flatpak.csh
-@@ -270,6 +281,7 @@ fi
+@@ -261,6 +272,7 @@ fi
  %files devel
  %{_datadir}/gir-1.0/Flatpak-1.0.gir
  %{_datadir}/gtk-doc/
@@ -75,7 +75,7 @@ index a70139d..fc66296 100644
  %{_includedir}/%{name}/
  %{_libdir}/libflatpak.so
  %{_libdir}/pkgconfig/%{name}.pc
-@@ -281,7 +293,6 @@ fi
+@@ -272,7 +284,6 @@ fi
  
  %files selinux
  %{_datadir}/selinux/packages/flatpak.pp.bz2
@@ -83,7 +83,7 @@ index a70139d..fc66296 100644
  
  %files session-helper
  %license COPYING
-@@ -290,6 +301,9 @@ fi
+@@ -281,6 +292,9 @@ fi
  %{_libexecdir}/flatpak-session-helper
  %{_userunitdir}/flatpak-session-helper.service
  

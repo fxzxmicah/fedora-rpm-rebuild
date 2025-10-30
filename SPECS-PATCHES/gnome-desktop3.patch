@@ -1,8 +1,8 @@
 diff --git OLD/gnome-desktop3.spec NEW/gnome-desktop3.spec
-index a49aace..98bc8eb 100644
+index 56c8b51..97238e6 100644
 --- OLD/gnome-desktop3.spec
 +++ NEW/gnome-desktop3.spec
-@@ -12,7 +12,7 @@ Version: 44.1
+@@ -12,7 +12,7 @@ Version: 44.4
  Release: %autorelease
  Summary: Library with common API for various GNOME modules
  

@@ -1,13 +1,17 @@
 diff --git OLD/gvfs.spec NEW/gvfs.spec
-index 41cd27e..8cb5a1b 100644
+index caa3bef..9b5027c 100644
 --- OLD/gvfs.spec
 +++ NEW/gvfs.spec
-@@ -1,4 +1,3 @@
--%global avahi_version 0.6
- %global fuse_version 3.0.0
- %global glib2_version 2.70.0
- %global gsettings_desktop_schemas_version 3.33.0
-@@ -36,14 +35,11 @@ BuildRequires: pkgconfig(glib-2.0) >= %{glib2_version}
+@@ -20,6 +20,8 @@
+ %global talloc_version 1.3.0
+ %global udisks2_version 1.97
+ 
++%bcond dnssd 0
++
+ Name:    gvfs
+ Version: 1.58.0
+ Release: 1%{?dist}
+@@ -36,14 +38,15 @@ BuildRequires: pkgconfig(glib-2.0) >= %{glib2_version}
  BuildRequires: pkgconfig(dbus-1)
  BuildRequires: pkgconfig(gcr-4)
  BuildRequires: pkgconfig(gsettings-desktop-schemas) >= %{gsettings_desktop_schemas_version}
@@ -17,12 +21,14 @@ index 41cd27e..8cb5a1b 100644
  %endif
  BuildRequires: pkgconfig(gudev-1.0) >= %{gudev_version}
  BuildRequires: pkgconfig(libsoup-3.0) >= %{libsoup_version}
--BuildRequires: pkgconfig(avahi-client) >= %{avahi_version}
--BuildRequires: pkgconfig(avahi-glib) >= %{avahi_version}
++%if %{with dnssd}
+ BuildRequires: pkgconfig(avahi-client) >= %{avahi_version}
+ BuildRequires: pkgconfig(avahi-glib) >= %{avahi_version}
++%endif
  BuildRequires: pkgconfig(libsecret-1)
  BuildRequires: gettext-devel
  BuildRequires: pkgconfig(udisks2) >= %{udisks2_version}
-@@ -61,8 +57,8 @@ Requires: %{name}-client%{?_isa} = %{version}-%{release}
+@@ -60,8 +63,8 @@ Requires: %{name}-client%{?_isa} = %{version}-%{release}
  Requires: glib2%{?_isa} >= %{glib2_version}
  Requires: gsettings-desktop-schemas >= %{gsettings_desktop_schemas_version}
  Requires: polkit
@@ -33,7 +39,7 @@ index 41cd27e..8cb5a1b 100644
  
  Obsoletes: gnome-mount <= 0.8
  Obsoletes: gnome-mount-nautilus-properties <= 0.8
-@@ -76,7 +72,7 @@ Obsoletes: gvfs-mtp < 1.55.1-4
+@@ -75,7 +78,7 @@ Obsoletes: gvfs-mtp < 1.55.1-4
  
  %description
  The gvfs package provides backend implementations for the gio
@@ -42,7 +48,7 @@ index 41cd27e..8cb5a1b 100644
  
  
  %package client
-@@ -88,6 +84,59 @@ The gvfs package provides client modules of backend implementations for the gio
+@@ -87,6 +90,59 @@ The gvfs package provides client modules of backend implementations for the gio
  framework in GLib.
  
  
@@ -102,7 +108,7 @@ index 41cd27e..8cb5a1b 100644
  %package fuse
  Summary: FUSE support for gvfs
  Requires: %{name}%{?_isa} = %{version}-%{release}
-@@ -104,6 +153,7 @@ to access the gvfs filesystems.
+@@ -103,6 +159,7 @@ to access the gvfs filesystems.
  Summary: Windows fileshare support for gvfs
  Requires: %{name}%{?_isa} = %{version}-%{release}
  Requires: %{name}-client%{?_isa} = %{version}-%{release}
@@ -110,15 +116,19 @@ index 41cd27e..8cb5a1b 100644
  BuildRequires: libsmbclient-devel >= %{libsmbclient_version}
  BuildRequires: pkgconfig(talloc) >= %{talloc_version}
  
-@@ -240,6 +290,7 @@ file services.
+@@ -239,6 +296,11 @@ file services.
+ %if 0%{?rhel} >= 10
         -Dgoogle=false \
         -Dcdda=false \
- %endif
++%endif
++%if %{with dnssd}
++       -Ddnssd=true \
++%else
 +       -Ddnssd=false \
+ %endif
          %{nil}
  %meson_build
- 
-@@ -256,6 +307,16 @@ cp -p daemon/trashlib/COPYING COPYING.GPL3
+@@ -256,6 +318,16 @@ cp -p daemon/trashlib/COPYING COPYING.GPL3
  killall -USR1 gvfsd >&/dev/null || :
  
  # Reload .mount files when single subpackage is installed:
@@ -135,7 +145,7 @@ index 41cd27e..8cb5a1b 100644
  %post smb
  killall -USR1 gvfsd >&/dev/null || :
  %ifnarch s390 s390x
-@@ -291,56 +352,28 @@ killall -USR1 gvfsd >&/dev/null || :
+@@ -291,56 +363,34 @@ killall -USR1 gvfsd >&/dev/null || :
  %dir %{_datadir}/gvfs
  %dir %{_datadir}/gvfs/mounts
  %{_datadir}/gvfs/mounts/admin.mount
@@ -149,7 +159,9 @@ index 41cd27e..8cb5a1b 100644
 -%{_datadir}/gvfs/mounts/dav+sd.mount
 -%{_datadir}/gvfs/mounts/http.mount
 -%{_datadir}/gvfs/mounts/localtest.mount
--%{_datadir}/gvfs/mounts/dns-sd.mount
++%if %{with dnssd}
+ %{_datadir}/gvfs/mounts/dns-sd.mount
++%endif
  %{_datadir}/gvfs/mounts/network.mount
 -%{_datadir}/gvfs/mounts/ftp.mount
 -%{_datadir}/gvfs/mounts/ftpis.mount
@@ -179,7 +191,9 @@ index 41cd27e..8cb5a1b 100644
 -%{_libexecdir}/gvfsd-dav
 -%{_libexecdir}/gvfsd-http
 -%{_libexecdir}/gvfsd-localtest
--%{_libexecdir}/gvfsd-dnssd
++%if %{with dnssd}
+ %{_libexecdir}/gvfsd-dnssd
++%endif
  %{_libexecdir}/gvfsd-network
  %{_libexecdir}/gvfsd-metadata
 -%{_libexecdir}/gvfs-udisks2-volume-monitor
@@ -193,7 +207,7 @@ index 41cd27e..8cb5a1b 100644
  
  %files client -f gvfs.lang
  %license COPYING COPYING.GPL3
-@@ -351,6 +384,41 @@ killall -USR1 gvfsd >&/dev/null || :
+@@ -351,6 +401,44 @@ killall -USR1 gvfsd >&/dev/null || :
  %{_libdir}/gio/modules/libgvfsdbus.so
  %{_mandir}/man7/gvfs.7*
  
@@ -226,6 +240,9 @@ index 41cd27e..8cb5a1b 100644
 +%files webdav
 +%{_libexecdir}/gvfsd-dav
 +%{_datadir}/gvfs/mounts/dav.mount
++%if %{with dnssd}
++%{_datadir}/gvfs/mounts/dav+sd.mount
++%endif
 +
 +%files wsdd
 +%{_libexecdir}/gvfsd-wsdd
@@ -235,7 +252,7 @@ index 41cd27e..8cb5a1b 100644
  %files fuse
  %{_libexecdir}/gvfsd-fuse
  %{_mandir}/man1/gvfsd-fuse.1*
-@@ -361,6 +429,8 @@ killall -USR1 gvfsd >&/dev/null || :
+@@ -361,6 +449,8 @@ killall -USR1 gvfsd >&/dev/null || :
  %{_libexecdir}/gvfsd-smb-browse
  %{_datadir}/gvfs/mounts/smb-browse.mount
  %{_datadir}/gvfs/mounts/smb.mount
