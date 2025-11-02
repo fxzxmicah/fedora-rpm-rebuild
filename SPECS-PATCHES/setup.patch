@@ -1,0 +1,72 @@
+diff --git OLD/setup.spec NEW/setup.spec
+index ceee55e..0b82c35 100644
+--- OLD/setup.spec
++++ NEW/setup.spec
+@@ -41,10 +41,19 @@ BuildRequires: systemd-rpm-macros
+ #require system release for saner dependency order
+ Requires: system-release
+ 
++Requires: (%{name}-csh = %{version}-%{release} if tcsh)
++
+ %description
+ The setup package contains a set of important system configuration and
+ setup files, such as passwd, group, and profile.
+ 
++%package csh
++Summary: C shell configuration files
++Requires: %{name} = %{version}-%{release}
++
++%description csh
++The C shell configuration files for the setup package.
++
+ %prep
+ mkdir -p etc/profile.d
+ cp %{lua: for i=1,15 do print(sources[i]..' ') end} etc/
+@@ -147,11 +156,11 @@ end
+ %verify(not md5 size mtime) %config(noreplace) /etc/subuid
+ %verify(not md5 size mtime) %config(noreplace) /etc/subgid
+ %config(noreplace) /etc/services
+-%verify(not md5 size mtime) %config(noreplace) /etc/exports
++%ghost %verify(not md5 size mtime) %config(noreplace,missingok) /etc/exports
+ %config(noreplace) /etc/aliases
+ %config(noreplace) /etc/environment
+ %config(noreplace) /etc/filesystems
+-%config(noreplace) /etc/host.conf
++%ghost %config(noreplace,missingok) /etc/host.conf
+ %verify(not md5 size mtime) %config(noreplace) /etc/hosts
+ %verify(not md5 size mtime) %config(noreplace) /etc/motd
+ %dir /etc/motd.d
+@@ -159,19 +168,16 @@ end
+ %dir /run/motd.d
+ %verify(not md5 size mtime) %config(noreplace) /usr/lib/motd
+ %dir /usr/lib/motd.d
+-%config(noreplace) /etc/printcap
++%ghost %config(noreplace,missingok) /etc/printcap
+ %verify(not md5 size mtime) %config(noreplace) /etc/inputrc
+ %config(noreplace) /etc/bashrc
+ %config(noreplace) /etc/profile
+ %config(noreplace) /etc/protocols
+ %config(noreplace) /etc/ethertypes
+-%config(noreplace) /etc/csh.login
+-%config(noreplace) /etc/csh.cshrc
+ %config(noreplace) /etc/networks
+ %dir /etc/profile.d
+ %config(noreplace) /etc/profile.d/sh.local
+-%config(noreplace) /etc/profile.d/csh.local
+-/etc/profile.d/lang.{sh,csh}
++/etc/profile.d/lang.sh
+ %config(noreplace) %verify(not md5 size mtime) /etc/shells
+ %ghost %verify(not md5 size mtime) %config(noreplace,missingok) /etc/fstab
+ %{_tmpfilesdir}/%{name}.conf
+@@ -181,5 +187,11 @@ end
+ %dir /usr/share/dnf5/libdnf.conf.d
+ /usr/share/dnf5/libdnf.conf.d/protect-setup.conf
+ 
++%files csh
++%config(noreplace) /etc/csh.login
++%config(noreplace) /etc/csh.cshrc
++%config(noreplace) /etc/profile.d/csh.local
++/etc/profile.d/lang.csh
++
+ %changelog
+ %autochangelog
