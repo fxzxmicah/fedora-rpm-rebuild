@@ -1,5 +1,5 @@
 diff --git OLD/dbus.spec NEW/dbus.spec
-index 5f0ac45..8aeb01f 100644
+index 5f0ac45..7a0de3c 100644
 --- OLD/dbus.spec
 +++ NEW/dbus.spec
 @@ -97,6 +97,7 @@ implementations to provide a System and User Message Bus.
@@ -20,8 +20,8 @@ index 5f0ac45..8aeb01f 100644
 +Conflicts:      generic-release < %{generic_release_version}
 +Conflicts:      dbus-daemon
 +Requires:       libselinux%{?_isa} >= %{libselinux_version}
-+Requires:       dbus-common = %{epoch}:%{version}-%{release}
-+Requires:       dbus-libs%{?_isa} = %{epoch}:%{version}-%{release}
++Requires:       dbus-common
++Requires:       dbus-libs%{?_isa}
 +%{?sysusers_requires_compat}
 +
 +%description gdm
