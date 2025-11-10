@@ -1,8 +1,16 @@
 diff --git OLD/systemd.spec NEW/systemd.spec
-index 0c56c7b..f1614ec 100644
+index 0c56c7b..e8d492c 100644
 --- OLD/systemd.spec
 +++ NEW/systemd.spec
-@@ -293,10 +293,6 @@ Provides:       syslog
+@@ -98,7 +98,6 @@ Source1:        triggers.systemd
+ Source2:        split-files.py
+ Source4:        test_sysusers_defined.py
+ 
+-Source6:        inittab
+ Source7:        sysctl.conf.README
+ Source8:        systemd-journal-remote.xml
+ Source9:        systemd-journal-gatewayd.xml
+@@ -293,10 +292,6 @@ Provides:       syslog
  Provides:       systemd-units = %{version}-%{release}
  Obsoletes:      system-setup-keyboard < 0.9
  Provides:       system-setup-keyboard = 0.9
@@ -13,7 +21,7 @@ index 0c56c7b..f1614ec 100644
  %if 0%{?fedora}
  Conflicts:      fedora-release < 23-0.12
  %endif
-@@ -321,6 +317,14 @@ Provides:       systemd-tmpfiles = %{version}-%{release}
+@@ -321,6 +316,14 @@ Provides:       systemd-tmpfiles = %{version}-%{release}
  Conflicts:      systemd-standalone-shutdown
  Provides:       systemd-shutdown = %{version}-%{release}
  
@@ -28,7 +36,7 @@ index 0c56c7b..f1614ec 100644
  %if "%{_sbindir}" == "%{_bindir}"
  # Compat symlinks for Requires in other packages.
  # We rely on filesystem to create the symlinks for us.
-@@ -339,11 +343,6 @@ Recommends:     libxkbcommon.so.0%{?elf_suffix}
+@@ -339,11 +342,6 @@ Recommends:     libxkbcommon.so.0%{?elf_suffix}
  Recommends:     libidn2.so.0%{?elf_suffix}
  Recommends:     libidn2.so.0(IDN2_0.0.0)%{?elf_bits}
  Recommends:     libpcre2-8.so.0%{?elf_suffix}
@@ -40,7 +48,7 @@ index 0c56c7b..f1614ec 100644
  Recommends:     libbpf.so.1%{?elf_suffix}
  Recommends:     libbpf.so.1(LIBBPF_0.4.0)%{?elf_bits}
  
-@@ -357,15 +356,6 @@ Recommends:     libelf.so.1(ELFUTILS_1.7)%{?elf_bits}
+@@ -357,15 +355,6 @@ Recommends:     libelf.so.1(ELFUTILS_1.7)%{?elf_bits}
  Recommends:     libcryptsetup.so.12%{?elf_suffix}
  Recommends:     libcryptsetup.so.12(CRYPTSETUP_2.4)%{?elf_bits}
  
@@ -56,7 +64,7 @@ index 0c56c7b..f1614ec 100644
  Recommends:     libarchive.so.13%{?elf_suffix}
  
  %description
-@@ -374,8 +364,7 @@ of the system. It provides aggressive parallelization capabilities, uses socket
+@@ -374,8 +363,7 @@ of the system. It provides aggressive parallelization capabilities, uses socket
  and D-Bus activation for starting services, offers on-demand starting of
  daemons, keeps track of processes using Linux control groups, maintains mount
  and automount points, and implements an elaborate transactional dependency-based
@@ -66,7 +74,7 @@ index 0c56c7b..f1614ec 100644
  utilities to control basic system configuration like the hostname, date, locale,
  maintain a list of logged-in users, system accounts, runtime directories and
  settings, and a logging daemons.
-@@ -437,7 +426,7 @@ This package contains the systemd-sysusers program.
+@@ -437,7 +425,7 @@ This package contains the systemd-sysusers program.
  %package devel
  Summary:        Development headers for systemd
  License:        LGPL-2.1-or-later AND MIT
@@ -75,7 +83,7 @@ index 0c56c7b..f1614ec 100644
  Requires(meta): (systemd-rpm-macros = %{version}-%{release} if rpm-build)
  Provides:       libudev-devel = %{version}
  Provides:       libudev-devel%{_isa} = %{version}
-@@ -508,10 +497,6 @@ Obsoletes:      u2f-hidraw-policy < 1.0.2-40
+@@ -508,10 +496,6 @@ Obsoletes:      u2f-hidraw-policy < 1.0.2-40
  Conflicts:      systemd-standalone-repart
  Provides:       systemd-repart = %{version}-%{release}
  
@@ -86,7 +94,7 @@ index 0c56c7b..f1614ec 100644
  %if "%{_sbindir}" == "%{_bindir}"
  # Compat symlinks for Requires in other packages.
  # We rely on filesystem to create the symlinks for us.
-@@ -526,9 +511,6 @@ virtual machines, but not in containers.
+@@ -526,9 +510,6 @@ virtual machines, but not in containers.
  
  This package also provides systemd-timesyncd, a network time protocol daemon.
  
@@ -96,13 +104,34 @@ index 0c56c7b..f1614ec 100644
  %package ukify
  Summary:        Tool to build Unified Kernel Images
  Requires:       systemd = %{noarch_requires_version}
-@@ -601,28 +583,129 @@ This package contains the signed version.
+@@ -601,28 +582,150 @@ This package contains the signed version.
  %endif
  %endif
  
 -%package container
 -# Name is the same as in Debian
 -Summary: Tools for containers and VMs
++%package factory
++Summary:        Systemd factory reset components
++Requires:       systemd-udev = %{version}-%{release}
++
++%description factory
++This package contains systemd-factory, which provides factory reset capabilities.
++
++%package debug
++Summary:        Debugging tools for systemd
++Requires:       systemd = %{version}-%{release}
++
++%description debug
++This package contains debugging tools for systemd.
++
++%package pcr
++Summary:        Platform Configuration Register (PCR) management tools
++Requires:       systemd = %{version}-%{release}
++
++%description pcr
++This package provides tools for managing Platform Configuration Registers (PCRs).
++
 +%package home
 +Summary:        Home directory manager
 +Requires:       systemd = %{version}-%{release}
@@ -199,9 +228,7 @@ index 0c56c7b..f1614ec 100644
 +Summary:        Daemon to run rootless containers
 +Requires:       systemd%{_isa} = %{version}-%{release}
 +License:        LGPL-2.1-or-later
- 
--This package contains systemd-nspawn, systemd-vmspawn, machinectl,
--systemd-machined, and systemd-importd.
++
 +%description rootless
 +Systemd daemon to run rootless containers.
 +
@@ -234,12 +261,14 @@ index 0c56c7b..f1614ec 100644
 +
 +%description storagetm
 +Systemd storage target mode.
-+
+ 
+-This package contains systemd-nspawn, systemd-vmspawn, machinectl,
+-systemd-machined, and systemd-importd.
 +This package contains systemd-storagetm.
  
  %package journal-remote
  # Name is the same as in Debian
-@@ -794,8 +877,8 @@ VMLINUX_H_PATH=$(%python3 -c '%find_vmlinux_h')
+@@ -794,8 +897,8 @@ VMLINUX_H_PATH=$(%python3 -c '%find_vmlinux_h')
  CONFIGURE_OPTS=(
          -Dmode=release
          -Dslow-tests=true
@@ -250,7 +279,17 @@ index 0c56c7b..f1614ec 100644
          -Dntp-servers='0.%{ntpvendor}.pool.ntp.org 1.%{ntpvendor}.pool.ntp.org 2.%{ntpvendor}.pool.ntp.org 3.%{ntpvendor}.pool.ntp.org'
          -Ddns-servers=
          -Dservice-watchdog=
-@@ -1140,6 +1223,30 @@ python3 %{SOURCE2} %buildroot %{!?want_bootloader:--no-bootloader}
+@@ -978,9 +1081,6 @@ touch %{buildroot}/etc/systemd/coredump.conf \
+       %{buildroot}/etc/udev/udev.conf \
+       %{buildroot}/etc/udev/iocost.conf
+ 
+-# /etc/initab
+-install -Dm0644 -t %{buildroot}/etc/ %{SOURCE6}
+-
+ # /etc/sysctl.conf compat
+ install -Dm0644 %{SOURCE7} %{buildroot}/etc/sysctl.conf
+ ln -s ../sysctl.conf %{buildroot}/etc/sysctl.d/99-sysctl.conf
+@@ -1140,6 +1240,39 @@ python3 %{SOURCE2} %buildroot %{!?want_bootloader:--no-bootloader}
  BRP_PESIGN_FILES=/usr/lib/systemd/boot/efi/systemd-boot%{efi_arch}.efi BRP_PESIGN_PACKAGES=systemd-boot /usr/lib/rpm/brp-suse.d/brp-99-pesign
  %endif
  
@@ -258,22 +297,31 @@ index 0c56c7b..f1614ec 100644
 +sed -i -e '/nspawn/ { s/.*/echo "&" >> .file-list-nspawn/e; d; }' .file-list-container
 +sed -i -e '/vmspawn/ { s/.*/echo "&" >> .file-list-vmspawn/e; d; }' .file-list-container
 +sed -i -e '/import\|pull\|export\|dissect\|ddi/ { s/.*/echo "&" >> .file-list-import/e; d; }' .file-list-container
++sed -i -e '/import\|loop\|image/ { s/.*/echo "&" >> .file-list-import/e; d; }' .file-list-main
++sed -i -e '/image\|dissect/ { s/.*/echo "&" >> .file-list-import/e; d; }' .file-list-udev
 +sed -i -e '/container/ { s/.*/echo "&" >> .file-list-containerized/e; d; }' .file-list-main
 +sed -i -e '/confext\|sysext\|sysupdate\|extension/ { s/.*/echo "&" >> .file-list-atomic/e; d; }' .file-list-main
 +sed -i -e '/confext\|sysext/ { s/.*/echo "&" >> .file-list-atomic/e; d; }' .file-list-udev
 +sed -i -e '/mountfs\|mountwork\|nsresource/ { s/.*/echo "&" >> .file-list-rootless/e; d; }' .file-list-container
++sed -i -e '/factory/ { s/.*/echo "&" >> .file-list-factory/e; d; }' .file-list-main
++sed -i -e '/factory/ { s/.*/echo "&" >> .file-list-factory/e; d; }' .file-list-udev
++sed -i -e '/breakpoint\|debug/ { s/.*/echo "&" >> .file-list-debug/e; d; }' .file-list-main
++sed -i -e '/breakpoint\|debug/ { s/.*/echo "&" >> .file-list-debug/e; d; }' .file-list-udev
++sed -i -e '/pcr/ { s/.*/echo "&" >> .file-list-pcr/e; d; }' .file-list-udev
 +sed -i -e '/ssh/ { s/.*/echo "&" >> .file-list-ssh/e; d; }' .file-list-main
 +sed -i -e '/home/ { s/.*/echo "&" >> .file-list-home/e; d; }' .file-list-main
 +sed -i -e '/home/ { s/.*/echo "&" >> .file-list-home/e; d; }' .file-list-udev
 +sed -i -e '/portable/ { s/.*/echo "&" >> .file-list-portable/e; d; }' .file-list-main
 +sed -i -e '/portable/ { s/.*/echo "&" >> .file-list-portable/e; d; }' .file-list-container
 +sed -i -e '/portable/ { s/.*/echo "&" >> .file-list-portable/e; d; }' .file-list-udev
-+sed -i -e '/resolv/ { s/.*/echo "&" >> .file-list-resolve/e; d; }' .file-list-main
++sed -i -e '/uki/ { s/.*/echo "&" >> .file-list-ukify/e; d; }' .file-list-main
++sed -i -e '/uki/ { s/.*/echo "&" >> .file-list-ukify/e; d; }' .file-list-udev
++sed -i -e '/resolv\|dns/ { s/.*/echo "&" >> .file-list-resolve/e; d; }' .file-list-main
 +sed -i -e '/resolve/ { s/.*/echo "&" >> .file-list-resolve/e; d; }' .file-list-libs
 +sed -i -e '/network-generator/ { s/.*/echo "&" >> .file-list-networkd/e; d; }' .file-list-udev
-+sed -i -e '/fstab\|tpm\|battery\|bluetooth\|printer\|smartcard\|modprobe\|wait\|ntp\|kernel\|pcrlock\|emergency\|rescue\|getty\|sigpwr\|usb-gadget\|time-sync\|debug/ { s/.*/echo "&" >> .file-list-udev/e; d; }' .file-list-main
-+sed -i -e '/stub\|sbsign/ { s/.*/echo "&" >> .file-list-boot/e; d; }' .file-list-main
-+sed -i -e '/bootctl/ { s/.*/echo "&" >> .file-list-boot/e; d; }' .file-list-udev
++sed -i -e '/fstab\|tpm\|battery\|bluetooth\|printer\|smartcard\|modprobe\|wait\|ntp\|kernel\|emergency\|rescue\|getty\|sigpwr\|usb-gadget\|time-sync\|time-set\|validatefs/ { s/.*/echo "&" >> .file-list-udev/e; d; }' .file-list-main
++sed -i -e '/stub\|sbsign\|sysfail/ { s/.*/echo "&" >> .file-list-boot/e; d; }' .file-list-main
++sed -i -e '/bootctl\|systemd-boot\|systemd\/boot/ { s/.*/echo "&" >> .file-list-boot/e; d; }' .file-list-udev
 +sed -i -e '/pkgconfig/ { s/.*/echo "&" >> .file-list-devel/e; d; }' .file-list-main
 +sed -i -e '/storage/ { s/.*/echo "&" >> .file-list-storagetm/e; d; }' .file-list-main
 +sed -i -e '/libnss/ { s/.*/echo "&" >> .file-list-main/e; d; }' .file-list-libs
@@ -281,7 +329,7 @@ index 0c56c7b..f1614ec 100644
  %check
  %if %{with tests}
  meson test -C %{_vpath_builddir} -t 6 --print-errorlogs
-@@ -1265,9 +1372,6 @@ systemctl --no-reload preset systemd-journald-audit.socket &>/dev/null || :
+@@ -1265,33 +1398,12 @@ systemctl --no-reload preset systemd-journald-audit.socket &>/dev/null || :
                          systemd-hibernate-clear.service
                          systemd-hibernate-resume.service
                          systemd-hibernate.service
@@ -291,20 +339,69 @@ index 0c56c7b..f1614ec 100644
                          systemd-hwdb-update.service
                          systemd-hybrid-sleep.service
                          systemd-modules-load.service
-@@ -1291,7 +1395,6 @@ systemctl --no-reload preset systemd-journald-audit.socket &>/dev/null || :
-                         systemd-pcrphase-initrd.service
-                         systemd-pcrphase-sysinit.service
-                         systemd-pcrphase.service
+                         systemd-network-generator.service
+                         systemd-oomd.service
+                         systemd-oomd.socket
+-                        systemd-pcrextend.socket
+-                        systemd-pcrextend@.service
+-                        systemd-pcrfs-root.service
+-                        systemd-pcrfs@.service
+-                        systemd-pcrlock-file-system.service
+-                        systemd-pcrlock-firmware-code.service
+-                        systemd-pcrlock-firmware-config.service
+-                        systemd-pcrlock-machine-id.service
+-                        systemd-pcrlock-make-policy.service
+-                        systemd-pcrlock-secureboot-authority.service
+-                        systemd-pcrlock-secureboot-policy.service
+-                        systemd-pcrlock.socket
+-                        systemd-pcrlock@.service
+-                        systemd-pcrmachine.service
+-                        systemd-pcrphase-initrd.service
+-                        systemd-pcrphase-sysinit.service
+-                        systemd-pcrphase.service
 -                        systemd-portabled.service
                          systemd-pstore.service
                          systemd-quotacheck-root.service
                          systemd-quotacheck@.service
-@@ -1356,7 +1459,19 @@ grep -q -E '^KEYMAP="?fi-latin[19]"?' /etc/vconsole.conf 2>/dev/null &&
+@@ -1324,6 +1436,26 @@ systemctl --no-reload preset systemd-journald-audit.socket &>/dev/null || :
+                          }
+                        }
+ 
++%global pcr_services %{shrink:
++                        systemd-pcrextend.socket
++                        systemd-pcrextend@.service
++                        systemd-pcrfs-root.service
++                        systemd-pcrfs@.service
++                        systemd-pcrlock-file-system.service
++                        systemd-pcrlock-firmware-code.service
++                        systemd-pcrlock-firmware-config.service
++                        systemd-pcrlock-machine-id.service
++                        systemd-pcrlock-make-policy.service
++                        systemd-pcrlock-secureboot-authority.service
++                        systemd-pcrlock-secureboot-policy.service
++                        systemd-pcrlock.socket
++                        systemd-pcrlock@.service
++                        systemd-pcrmachine.service
++                        systemd-pcrphase-initrd.service
++                        systemd-pcrphase-sysinit.service
++                        systemd-pcrphase.service
++                       }
++
+ %post udev
+ # Move old stuff around in /var/lib
+ mv %{_localstatedir}/lib/random-seed %{_localstatedir}/lib/systemd/random-seed &>/dev/null
+@@ -1356,7 +1488,25 @@ grep -q -E '^KEYMAP="?fi-latin[19]"?' /etc/vconsole.conf 2>/dev/null &&
  %posttrans udev
  # Restart some services.
  # Others are either oneshot services, or sockets, and restarting them causes issues (#1378974)
 -%systemd_posttrans_with_restart systemd-udevd.service systemd-timesyncd.service systemd-homed.service systemd-oomd.service systemd-portabled.service
 +%systemd_posttrans_with_restart systemd-udevd.service systemd-timesyncd.service systemd-oomd.service
++
++%post pcr
++%systemd_post %pcr_services
++
++%preun pcr
++%systemd_preun %pcr_services
 +
 +%preun home
 +%systemd_preun systemd-homed-activate.service systemd-homed-firstboot.service systemd-homed.service
@@ -320,7 +417,7 @@ index 0c56c7b..f1614ec 100644
  
  %global journal_remote_units_restart systemd-journal-gatewayd.service systemd-journal-remote.service systemd-journal-upload.service
  %global journal_remote_units_norestart systemd-journal-gatewayd.socket systemd-journal-remote.socket
-@@ -1479,21 +1594,16 @@ fi
+@@ -1479,21 +1629,16 @@ fi
  %license LICENSE.GPL2
  %license LICENSES/MIT.txt
  %ghost %dir %attr(0755,-,-) /etc/systemd/system/basic.target.wants
@@ -342,7 +439,7 @@ index 0c56c7b..f1614ec 100644
  %ghost %dir %attr(0755,-,-) /var/lib/rpm-state/systemd
  
  %files libs -f .file-list-libs
-@@ -1514,6 +1624,9 @@ fi
+@@ -1514,6 +1659,9 @@ fi
  %files devel -f .file-list-devel
  
  %files udev -f .file-list-udev
@@ -352,11 +449,17 @@ index 0c56c7b..f1614ec 100644
  
  %files ukify -f .file-list-ukify
  %if 0%{?want_bootloader}
-@@ -1524,9 +1637,31 @@ fi
+@@ -1524,9 +1672,37 @@ fi
  %endif
  %endif
  
 -%files container -f .file-list-container
++%files factory -f .file-list-factory
++
++%files debug -f .file-list-debug
++
++%files pcr -f .file-list-pcr
++
 +%files home -f .file-list-home
 +
 +%files portable -f .file-list-portable

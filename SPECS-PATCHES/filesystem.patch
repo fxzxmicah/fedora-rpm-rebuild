@@ -1,5 +1,5 @@
 diff --git OLD/filesystem.spec NEW/filesystem.spec
-index 015b29f..adc568b 100644
+index 015b29f..804f5bb 100644
 --- OLD/filesystem.spec
 +++ NEW/filesystem.spec
 @@ -22,9 +22,6 @@ Requires(pre): setup
@@ -157,7 +157,7 @@ index 015b29f..adc568b 100644
  end
  
  %if %{with merged_sbin}
-@@ -411,10 +439,45 @@ end
+@@ -411,10 +439,46 @@ end
  %merge_scriptlet
  %endif
  
@@ -179,6 +179,7 @@ index 015b29f..adc568b 100644
 +/usr/local/games
 +/usr/share/games
 +/var/games
++/var/lib/games
 +
 +%files debug
 +%dir /usr/lib/debug
@@ -203,7 +204,7 @@ index 015b29f..adc568b 100644
  %files srpm-macros
  %{_datadir}/filesystem/sbin-filenames
  %{_fileattrsdir}/filesystem.attr
-@@ -426,14 +489,11 @@ end
+@@ -426,14 +490,11 @@ end
  %dir %attr(555,root,root) /
  /bin
  /sbin
@@ -220,7 +221,7 @@ index 015b29f..adc568b 100644
  /etc/skel
  /etc/sysconfig
  /etc/keys
-@@ -441,19 +501,16 @@ end
+@@ -441,19 +502,16 @@ end
  /etc/bash_completion.d/
  %dir /etc/default
  %dir /etc/rwtab.d
@@ -241,7 +242,7 @@ index 015b29f..adc568b 100644
  %ghost %attr(555,root,root) /sys
  %attr(1777,root,root) /tmp
  %dir /usr
-@@ -463,8 +520,6 @@ end
+@@ -463,8 +521,6 @@ end
  %else
  %attr(555,root,root) /usr/sbin
  %endif
@@ -250,7 +251,7 @@ index 015b29f..adc568b 100644
  %dir %attr(555,root,root) /usr/lib
  %dir /usr/lib/swidtag
  %dir /usr/lib/sysimage
-@@ -475,30 +530,12 @@ end
+@@ -475,30 +531,12 @@ end
  %dir /usr/lib/tmpfiles.d
  %dir /usr/lib/locale
  %dir /usr/lib/modules
@@ -281,7 +282,7 @@ index 015b29f..adc568b 100644
  /usr/libexec
  %dir /usr/local
  %if %{with merged_sbin}
-@@ -508,16 +545,11 @@ end
+@@ -508,16 +546,11 @@ end
  %endif
  /usr/local/etc
  /usr/local/bin
@@ -298,7 +299,7 @@ index 015b29f..adc568b 100644
  /usr/share/backgrounds
  %dir /usr/share/bash-completion
  /usr/share/bash-completion/completions
-@@ -526,54 +558,39 @@ end
+@@ -526,54 +559,41 @@ end
  /usr/share/dict
  /usr/share/doc
  %attr(555,root,root) %dir /usr/share/empty
@@ -340,7 +341,10 @@ index 015b29f..adc568b 100644
  /var/empty
 -/var/ftp
 -/var/games
- /var/lib
+-/var/lib
++%dir /var/lib
++/var/lib/misc
++/var/lib/rpm-state
  /var/local
  %ghost /var/lock
  /var/log
