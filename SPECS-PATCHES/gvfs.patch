@@ -1,17 +1,18 @@
 diff --git OLD/gvfs.spec NEW/gvfs.spec
-index caa3bef..9b5027c 100644
+index caa3bef..9ff7223 100644
 --- OLD/gvfs.spec
 +++ NEW/gvfs.spec
-@@ -20,6 +20,8 @@
+@@ -20,6 +20,9 @@
  %global talloc_version 1.3.0
  %global udisks2_version 1.97
  
 +%bcond dnssd 0
++%bcond bluray 0
 +
  Name:    gvfs
  Version: 1.58.0
  Release: 1%{?dist}
-@@ -36,14 +38,15 @@ BuildRequires: pkgconfig(glib-2.0) >= %{glib2_version}
+@@ -36,20 +39,23 @@ BuildRequires: pkgconfig(glib-2.0) >= %{glib2_version}
  BuildRequires: pkgconfig(dbus-1)
  BuildRequires: pkgconfig(gcr-4)
  BuildRequires: pkgconfig(gsettings-desktop-schemas) >= %{gsettings_desktop_schemas_version}
@@ -28,7 +29,15 @@ index caa3bef..9b5027c 100644
  BuildRequires: pkgconfig(libsecret-1)
  BuildRequires: gettext-devel
  BuildRequires: pkgconfig(udisks2) >= %{udisks2_version}
-@@ -60,8 +63,8 @@ Requires: %{name}-client%{?_isa} = %{version}-%{release}
++%if %{with bluray}
+ %if ! 0%{?rhel}
+ BuildRequires: pkgconfig(libbluray)
+ %endif
++%endif
+ BuildRequires: systemd-devel >= %{systemd_version}
+ BuildRequires: pkgconfig(libxslt)
+ BuildRequires: docbook-style-xsl
+@@ -60,8 +66,8 @@ Requires: %{name}-client%{?_isa} = %{version}-%{release}
  Requires: glib2%{?_isa} >= %{glib2_version}
  Requires: gsettings-desktop-schemas >= %{gsettings_desktop_schemas_version}
  Requires: polkit
@@ -39,7 +48,7 @@ index caa3bef..9b5027c 100644
  
  Obsoletes: gnome-mount <= 0.8
  Obsoletes: gnome-mount-nautilus-properties <= 0.8
-@@ -75,7 +78,7 @@ Obsoletes: gvfs-mtp < 1.55.1-4
+@@ -75,7 +81,7 @@ Obsoletes: gvfs-mtp < 1.55.1-4
  
  %description
  The gvfs package provides backend implementations for the gio
@@ -48,7 +57,7 @@ index caa3bef..9b5027c 100644
  
  
  %package client
-@@ -87,6 +90,59 @@ The gvfs package provides client modules of backend implementations for the gio
+@@ -87,6 +93,59 @@ The gvfs package provides client modules of backend implementations for the gio
  framework in GLib.
  
  
@@ -108,7 +117,7 @@ index caa3bef..9b5027c 100644
  %package fuse
  Summary: FUSE support for gvfs
  Requires: %{name}%{?_isa} = %{version}-%{release}
-@@ -103,6 +159,7 @@ to access the gvfs filesystems.
+@@ -103,6 +162,7 @@ to access the gvfs filesystems.
  Summary: Windows fileshare support for gvfs
  Requires: %{name}%{?_isa} = %{version}-%{release}
  Requires: %{name}-client%{?_isa} = %{version}-%{release}
@@ -116,7 +125,7 @@ index caa3bef..9b5027c 100644
  BuildRequires: libsmbclient-devel >= %{libsmbclient_version}
  BuildRequires: pkgconfig(talloc) >= %{talloc_version}
  
-@@ -239,6 +296,11 @@ file services.
+@@ -239,6 +299,16 @@ file services.
  %if 0%{?rhel} >= 10
         -Dgoogle=false \
         -Dcdda=false \
@@ -125,10 +134,15 @@ index caa3bef..9b5027c 100644
 +       -Ddnssd=true \
 +%else
 +       -Ddnssd=false \
++%endif
++%if %{with bluray}
++       -Dbluray=true \
++%else
++       -Dbluray=false \
  %endif
          %{nil}
  %meson_build
-@@ -256,6 +318,16 @@ cp -p daemon/trashlib/COPYING COPYING.GPL3
+@@ -256,6 +326,16 @@ cp -p daemon/trashlib/COPYING COPYING.GPL3
  killall -USR1 gvfsd >&/dev/null || :
  
  # Reload .mount files when single subpackage is installed:
@@ -145,7 +159,7 @@ index caa3bef..9b5027c 100644
  %post smb
  killall -USR1 gvfsd >&/dev/null || :
  %ifnarch s390 s390x
-@@ -291,56 +363,34 @@ killall -USR1 gvfsd >&/dev/null || :
+@@ -291,56 +371,34 @@ killall -USR1 gvfsd >&/dev/null || :
  %dir %{_datadir}/gvfs
  %dir %{_datadir}/gvfs/mounts
  %{_datadir}/gvfs/mounts/admin.mount
@@ -207,7 +221,7 @@ index caa3bef..9b5027c 100644
  
  %files client -f gvfs.lang
  %license COPYING COPYING.GPL3
-@@ -351,6 +401,44 @@ killall -USR1 gvfsd >&/dev/null || :
+@@ -351,6 +409,44 @@ killall -USR1 gvfsd >&/dev/null || :
  %{_libdir}/gio/modules/libgvfsdbus.so
  %{_mandir}/man7/gvfs.7*
  
@@ -252,7 +266,7 @@ index caa3bef..9b5027c 100644
  %files fuse
  %{_libexecdir}/gvfsd-fuse
  %{_mandir}/man1/gvfsd-fuse.1*
-@@ -361,6 +449,8 @@ killall -USR1 gvfsd >&/dev/null || :
+@@ -361,6 +457,8 @@ killall -USR1 gvfsd >&/dev/null || :
  %{_libexecdir}/gvfsd-smb-browse
  %{_datadir}/gvfs/mounts/smb-browse.mount
  %{_datadir}/gvfs/mounts/smb.mount
