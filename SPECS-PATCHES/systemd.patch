@@ -1,5 +1,5 @@
 diff --git OLD/systemd.spec NEW/systemd.spec
-index 0c56c7b..e8d492c 100644
+index 0c56c7b..39cd2b8 100644
 --- OLD/systemd.spec
 +++ NEW/systemd.spec
 @@ -98,7 +98,6 @@ Source1:        triggers.systemd
@@ -300,8 +300,8 @@ index 0c56c7b..e8d492c 100644
 +sed -i -e '/import\|loop\|image/ { s/.*/echo "&" >> .file-list-import/e; d; }' .file-list-main
 +sed -i -e '/image\|dissect/ { s/.*/echo "&" >> .file-list-import/e; d; }' .file-list-udev
 +sed -i -e '/container/ { s/.*/echo "&" >> .file-list-containerized/e; d; }' .file-list-main
-+sed -i -e '/confext\|sysext\|sysupdate\|extension/ { s/.*/echo "&" >> .file-list-atomic/e; d; }' .file-list-main
-+sed -i -e '/confext\|sysext/ { s/.*/echo "&" >> .file-list-atomic/e; d; }' .file-list-udev
++sed -i -e '/confext\|sysext\|extension\|updatectl/ { s/.*/echo "&" >> .file-list-atomic/e; d; }' .file-list-main
++sed -i -e '/confext\|sysext\|sysupdate/ { s/.*/echo "&" >> .file-list-atomic/e; d; }' .file-list-udev
 +sed -i -e '/mountfs\|mountwork\|nsresource/ { s/.*/echo "&" >> .file-list-rootless/e; d; }' .file-list-container
 +sed -i -e '/factory/ { s/.*/echo "&" >> .file-list-factory/e; d; }' .file-list-main
 +sed -i -e '/factory/ { s/.*/echo "&" >> .file-list-factory/e; d; }' .file-list-udev
