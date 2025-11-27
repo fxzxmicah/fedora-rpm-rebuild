@@ -6,7 +6,7 @@ on:
       - SPECS-PATCHES/**
   workflow_dispatch:
     inputs:
-      package:
+      packages:
         description: Perform operation of
         required: true
         type: string
@@ -31,7 +31,7 @@ jobs:
 
     - name: Get Packages
       run: |
-        case "${{ inputs.package }}" in
+        case "${{ inputs.packages }}" in
           "" )
             packages=$(git diff-tree --diff-filter=AM --no-commit-id --name-only -r HEAD -- SPECS-PATCHES | sed -E "s|.*/||; s/\.patch\$//" | xargs)
             ;;
@@ -40,7 +40,7 @@ jobs:
             ;;
           * )
             packages=""
-            for pkg in ${{ inputs.package }}; do
+            for pkg in ${{ inputs.packages }}; do
               if [[ -f "SPECS-PATCHES/${pkg}.patch" ]]; then
                 packages+="${pkg} "
               else
@@ -54,7 +54,7 @@ jobs:
           echo "::warning::No packages to build."
         else
           echo "::notice::Packages to build: ${packages}"
-          echo "packages=$(echo "${packages}" | xargs)" >> $GITHUB_ENV
+          echo "packages=$(echo "${packages}" | xargs)" >> ${GITHUB_ENV}
         fi
 
     - name: Rebuild SRPM
@@ -65,8 +65,7 @@ jobs:
         for pkg in ${packages}; do
           echo "Apply patch for ${pkg}"
           sed -i "s/[[:space:]]\+\$//" SPECS/${pkg}.spec
-          git apply --directory SPECS -C 1 -p 1 SPECS-PATCHES/${pkg}.patch
-          if [[ $? -ne 0 ]]; then
+          if ! git apply --directory SPECS -C 1 -p 1 SPECS-PATCHES/${pkg}.patch 2>/dev/null; then
             echo "::error::Patch applied failed for ${pkg}"
             exit 1
           else
