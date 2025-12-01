@@ -20,11 +20,12 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v4
 
-    - name: Cache Version
-      uses: actions/cache@v4
+    - name: Download Version Cache
+      uses: actions/download-artifact@v6
+      continue-on-error: true
       with:
+        name: cache-version-${{ github.ref_name }}
         path: VERSION
-        key: cache-version-${{ github.ref_name }}
 
     - name: Check Version
       run: |
@@ -54,6 +55,13 @@ jobs:
           echo "::notice::Packages to update: ${packages}"
           echo "packages=${packages}" >> ${GITHUB_ENV}
         fi
+
+    - name: Upload Version Cache
+      uses: actions/upload-artifact@v5
+      with:
+        name: cache-version-${{ github.ref_name }}
+        path: VERSION
+        overwrite: true
 
     - name: Trigger Build
       if: env.packages
