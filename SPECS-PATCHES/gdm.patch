@@ -1,5 +1,5 @@
 diff --git OLD/gdm.spec NEW/gdm.spec
-index c38c6fe..c277654 100644
+index e9974ef..2af1fb8 100644
 --- OLD/gdm.spec
 +++ NEW/gdm.spec
 @@ -5,13 +5,8 @@
@@ -25,7 +25,7 @@ index c38c6fe..c277654 100644
  
  BuildRequires:  dconf
  BuildRequires:  desktop-file-utils
-@@ -71,18 +65,14 @@ Requires: gnome-session-wayland-session
+@@ -71,13 +65,14 @@ Requires: gnome-session-wayland-session >= 49~beta
  Requires: gnome-settings-daemon >= 3.27.90
  Requires: gnome-shell
  Requires: iso-codes
@@ -38,15 +38,10 @@ index c38c6fe..c277654 100644
  Requires: systemd >= 186
  Requires: system-logos
 -Requires: python3-pam
--
--# Until the greeter gets dynamic user support, it can't
--# use a user bus
--Requires: /usr/bin/dbus-run-session
--
  
- Provides: gdm-libs%{?_isa} = %{epoch}:%{version}-%{release}
- 
-@@ -90,9 +80,7 @@ Provides: gdm-libs%{?_isa} = %{epoch}:%{version}-%{release}
+ %if %{with x11}
+ Requires: xorg-x11-xinit
+@@ -89,9 +84,7 @@ Provides: gdm-libs%{?_isa} = %{epoch}:%{version}-%{release}
  GDM, the GNOME Display Manager, handles authentication-related backend
  functionality for logging in a user and unlocking the user's session after
  it's been locked. GDM also provides functionality for initiating user-switching,
@@ -57,7 +52,7 @@ index c38c6fe..c277654 100644
  
  %package devel
  Summary: Development files for gdm
-@@ -184,13 +172,13 @@ ln -sf ../X11/xinit/Xsession %{buildroot}%{_sysconfdir}/gdm/
+@@ -183,13 +176,13 @@ ln -sf ../X11/xinit/Xsession %{buildroot}%{_sysconfdir}/gdm/
  %if %{with x11}
  %{_libexecdir}/gdm-x-session
  %endif
@@ -72,7 +67,7 @@ index c38c6fe..c277654 100644
  %dir %{_datadir}/gdm/greeter
  %dir %{_datadir}/gdm/greeter/applications
  %{_datadir}/gdm/greeter/applications/*
-@@ -201,7 +189,7 @@ ln -sf ../X11/xinit/Xsession %{buildroot}%{_sysconfdir}/gdm/
+@@ -200,7 +193,7 @@ ln -sf ../X11/xinit/Xsession %{buildroot}%{_sysconfdir}/gdm/
  %{_datadir}/polkit-1/rules.d/20-gdm.rules
  %{_libdir}/girepository-1.0/Gdm-1.0.typelib
  %{_libdir}/security/pam_gdm.so
@@ -81,7 +76,7 @@ index c38c6fe..c277654 100644
  %{_libexecdir}/gdm-auth-config-redhat
  %ghost %dir %{_localstatedir}/log/gdm
  %ghost %dir %{_localstatedir}/lib/gdm
-@@ -210,7 +198,6 @@ ln -sf ../X11/xinit/Xsession %{buildroot}%{_sysconfdir}/gdm/
+@@ -209,7 +202,6 @@ ln -sf ../X11/xinit/Xsession %{buildroot}%{_sysconfdir}/gdm/
  %config %{_sysconfdir}/pam.d/gdm-fingerprint
  %{_sysconfdir}/pam.d/gdm-launch-environment
  %{_unitdir}/gdm.service
