@@ -1,0 +1,71 @@
+diff --git OLD/policycoreutils.spec NEW/policycoreutils.spec
+index ca70bcc..d66d0c7 100644
+--- OLD/policycoreutils.spec
++++ NEW/policycoreutils.spec
+@@ -38,6 +38,7 @@ Source23: selinux-sandbox.zip
+ # $ git format-patch -N 3.9 -- policycoreutils python gui sandbox dbus semodule-utils restorecond
+ # $ for j in [0-9]*.patch; do printf "Patch%s: %s\n" ${j/-*/} $j; done
+ # Patch list start
++Patch0: https://gist.github.com/fxzxmic/33ac12a37234298dbd06c983edb49abc/raw/cfae10a6a361c769c0853503054e8a974dbe7775/selinux-policycoreutils-fixfiles.patch
+ # Patch list end
+ 
+ Obsoletes: policycoreutils < 2.0.61-2
+@@ -66,8 +67,8 @@ BuildRequires: (python3-wheel if python3-setuptools < 71)
+ BuildRequires: systemd
+ BuildRequires: git-core
+ BuildRequires: gnupg2
+-Requires: util-linux grep gawk diffutils sed
+-Requires: libsepol >= %{libsepolver} coreutils libselinux-utils >=  %{libselinuxver}
++# Requires: util-linux grep gawk diffutils sed coreutils
++Requires: libsepol >= %{libsepolver} libselinux-utils >=  %{libselinuxver}
+ Recommends: rpm
+ 
+ %description
+@@ -286,6 +287,25 @@ The policycoreutils-devel package contains the management tools use to develop p
+ %{_usr}/share/bash-completion/completions/sepolicy
+ 
+ 
++%package semodule-utils
++Summary: SELinux semodule utilities
++Requires: policycoreutils = %{version}-%{release}
++
++%description semodule-utils
++The policycoreutils-semoudle-utils package contains the semodule utilities
++to manage SELinux policy modules.
++
++%files semodule-utils
++%{_bindir}/semodule_expand
++%{_bindir}/semodule_link
++%{_bindir}/semodule_package
++%{_bindir}/semodule_unpackage
++%{_mandir}/man8/semodule_expand.8*
++%{_mandir}/man8/semodule_link.8*
++%{_mandir}/man8/semodule_unpackage.8*
++%{_mandir}/man8/semodule_package.8*
++
++
+ %package sandbox
+ Summary: SELinux sandbox utilities
+ Requires: python3-policycoreutils = %{version}-%{release}
+@@ -374,10 +394,6 @@ system-config-selinux is a utility for managing the SELinux environment
+ %{_sbindir}/sestatus
+ %endif
+ %{_bindir}/secon
+-%{_bindir}/semodule_expand
+-%{_bindir}/semodule_link
+-%{_bindir}/semodule_package
+-%{_bindir}/semodule_unpackage
+ %{_bindir}/sestatus
+ %{_libexecdir}/selinux/hll
+ %{_libexecdir}/selinux/selinux-autorelabel
+@@ -399,10 +415,6 @@ system-config-selinux is a utility for managing the SELinux environment
+ %{_mandir}/man1/secon.1*
+ %{_mandir}/man1/unsetfiles.1*
+ %{_mandir}/man8/genhomedircon.8*
+-%{_mandir}/man8/semodule_expand.8*
+-%{_mandir}/man8/semodule_link.8*
+-%{_mandir}/man8/semodule_unpackage.8*
+-%{_mandir}/man8/semodule_package.8*
+ %dir %{_datadir}/bash-completion
+ %{_datadir}/bash-completion/completions/setsebool
+ %{!?_licensedir:%global license %%doc}
