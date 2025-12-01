@@ -1,12 +1,12 @@
 diff --git OLD/policycoreutils.spec NEW/policycoreutils.spec
-index ca70bcc..d66d0c7 100644
+index ca70bcc..d4c27b4 100644
 --- OLD/policycoreutils.spec
 +++ NEW/policycoreutils.spec
 @@ -38,6 +38,7 @@ Source23: selinux-sandbox.zip
  # $ git format-patch -N 3.9 -- policycoreutils python gui sandbox dbus semodule-utils restorecond
  # $ for j in [0-9]*.patch; do printf "Patch%s: %s\n" ${j/-*/} $j; done
  # Patch list start
-+Patch0: https://gist.github.com/fxzxmic/33ac12a37234298dbd06c983edb49abc/raw/cfae10a6a361c769c0853503054e8a974dbe7775/selinux-policycoreutils-fixfiles.patch
++Patch0: https://gist.github.com/fxzxmic/33ac12a37234298dbd06c983edb49abc/raw/5bc3e915a87f97c904d9b88e36e9cf25f2f03c62/selinux-policycoreutils-fixfiles.patch
  # Patch list end
  
  Obsoletes: policycoreutils < 2.0.61-2
