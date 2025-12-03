@@ -1,0 +1,59 @@
+diff --git OLD/wireless-regdb.spec NEW/wireless-regdb.spec
+index 29cbf27..dbea58d 100644
+--- OLD/wireless-regdb.spec
++++ NEW/wireless-regdb.spec
+@@ -7,22 +7,26 @@ Summary:        Regulatory database for 802.11 wireless networking
+ 
+ License:        ISC
+ URL:            https://wireless.wiki.kernel.org/en/developers/regulatory/wireless-regdb
+-BuildArch:      noarch
++# BuildArch:      noarch
+ 
+-Requires:       udev, iw
++Requires:       udev
+ Requires:       systemd >= 190
+ 
+ BuildRequires:  make
+-BuildRequires:  systemd-devel
++BuildRequires:  gcc
++BuildRequires:  systemd-rpm-macros
++BuildRequires:  pkgconfig(libnl-3.0)
+ 
+ Provides:       crda = 3.18_2019.03.01-3
+ Obsoletes:      crda <= 3.18_2019.03.01-2
+ 
+ Source0:        http://www.kernel.org/pub/software/network/wireless-regdb/wireless-regdb-%{version}.tar.xz
+-Source1:        setregdomain
+-Source2:        setregdomain.1
++# Source1:        setregdomain
++# Source2:        setregdomain.1
+ Source3:        85-regulatory.rules
+ 
++Patch0:         https://gist.github.com/fxzxmic/078afc99689a75104cad7428f8c9e3ac/raw/307fc9b8d6301cffee80be14d4937a357694c37d/fedora-wireless-regdb-setregdomain.patch
++
+ 
+ %description
+ The wireless-regdb package provides the regulatory rules database
+@@ -35,15 +39,18 @@ with radio frequency regulatory rules around the world.
+ 
+ 
+ %build
+-: # Package installs a firmware-like, prebuilt binary from upstream...
++%make_build -C setregdomain
+ 
+ 
+ %install
+-make install DESTDIR=%{buildroot} MANDIR=%{_mandir} \
++%make_install DESTDIR=%{buildroot} MANDIR=%{_mandir} \
+ 	FIRMWARE_PATH=%{_firmwarepath}
+ 
+-install -D -pm 0755 %SOURCE1 %{buildroot}%{_sbindir}/setregdomain
+-install -D -pm 0644 %SOURCE2 %{buildroot}%{_mandir}/man1/setregdomain.1
++%make_install -C setregdomain DESTDIR=%{buildroot} MANDIR=%{_mandir} \
++	SBINDIR=%{_sbindir}
++
++# install -D -pm 0755 %SOURCE1 %{buildroot}%{_sbindir}/setregdomain
++# install -D -pm 0644 %SOURCE2 %{buildroot}%{_mandir}/man1/setregdomain.1
+ install -D -pm 0644 %SOURCE3 %{buildroot}%{_udevrulesdir}/85-regulatory.rules
+ 
+ rm -rf %{buildroot}/usr/lib/crda
