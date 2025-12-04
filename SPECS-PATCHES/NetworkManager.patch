@@ -1,23 +1,25 @@
 diff --git OLD/NetworkManager.spec NEW/NetworkManager.spec
-index e6509ca..7f2961f 100644
+index e6509ca..e55866d 100644
 --- OLD/NetworkManager.spec
 +++ NEW/NetworkManager.spec
 @@ -194,6 +194,7 @@ Requires(postun): systemd
  Requires: dbus >= %{dbus_version}
  Requires: glib2 >= %{glib2_version}
  Requires: %{name}-libnm%{?_isa} = %{epoch}:%{version}-%{release}
-+Requires: (%{name}-firewalld%{?_isa} = %{epoch}:%{version}-%{release} if firewalld)
++Requires: (%{name}-firewalld = %{epoch}:%{version}-%{release} if firewalld)
  
  Recommends: iputils
  
-@@ -323,6 +324,15 @@ Ethernet, Bridge, Bond, VLAN, Team, InfiniBand, Wi-Fi, mobile broadband
+@@ -323,6 +324,17 @@ Ethernet, Bridge, Bond, VLAN, Team, InfiniBand, Wi-Fi, mobile broadband
  services.
  
  
 +%package firewalld
 +Summary: NetworkManager firewalld rules
-+Requires: %{name}%{?_isa} = %{epoch}:%{version}-%{release}
++Requires: %{name} = %{epoch}:%{version}-%{release}
 +Requires: firewalld
++
++BuildArch: noarch
 +
 +%description firewalld
 +This package contains NetworkManager firewalld rules.
@@ -26,7 +28,7 @@ index e6509ca..7f2961f 100644
  %if %{with adsl}
  %package adsl
  Summary: ADSL device plugin for NetworkManager
-@@ -796,11 +806,14 @@ if [ -S /run/udev/control ]; then
+@@ -796,11 +808,14 @@ if [ -S /run/udev/control ]; then
      /usr/bin/udevadm control --reload-rules || :
      /usr/bin/udevadm trigger --subsystem-match=net || :
  fi
@@ -42,7 +44,7 @@ index e6509ca..7f2961f 100644
  %if %{with ifcfg_rh}
  %post initscripts-updown
  if [ -f %{_sbindir}/ifup -a ! -L %{_sbindir}/ifup ]; then
-@@ -847,11 +860,14 @@ fi
+@@ -847,11 +862,14 @@ fi
  %postun
  /usr/bin/udevadm control --reload-rules || :
  /usr/bin/udevadm trigger --subsystem-match=net || :
@@ -58,7 +60,7 @@ index e6509ca..7f2961f 100644
  %if %{with nm_cloud_setup}
  %postun cloud-setup
  %systemd_postun %{systemd_units_cloud_setup}
-@@ -919,7 +935,6 @@ fi
+@@ -919,7 +937,6 @@ fi
  %{_datadir}/dbus-1/system-services/org.freedesktop.nm_priv_helper.service
  %{_datadir}/polkit-1/actions/*.policy
  %{_prefix}/lib/udev/rules.d/*.rules
@@ -66,7 +68,7 @@ index e6509ca..7f2961f 100644
  # systemd stuff
  %{_unitdir}/NetworkManager.service
  %{_unitdir}/NetworkManager-wait-online.service
-@@ -936,6 +951,10 @@ fi
+@@ -936,6 +953,10 @@ fi
  %license COPYING.GFDL
  
  

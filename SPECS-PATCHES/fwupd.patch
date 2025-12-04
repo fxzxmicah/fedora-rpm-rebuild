@@ -1,5 +1,5 @@
 diff --git OLD/fwupd.spec NEW/fwupd.spec
-index f29bc64..7440f0b 100644
+index f29bc64..a0af771 100644
 --- OLD/fwupd.spec
 +++ NEW/fwupd.spec
 @@ -119,6 +119,8 @@ Requires: libxmlb%{?_isa} >= %{libxmlb_version}
@@ -11,23 +11,24 @@ index f29bc64..7440f0b 100644
  Obsoletes: dbxtool < 9
  Provides: dbxtool
  
-@@ -144,6 +146,15 @@ Recommends: %{name}-plugin-uefi-capsule-data
+@@ -144,6 +146,16 @@ Recommends: %{name}-plugin-uefi-capsule-data
  %description
  fwupd is a daemon to allow session software to update device firmware.
  
 +%package fish-completion
-+Summary: Fish completion for fwupdmgr
-+Requires: %{name}%{?_isa} = %{version}-%{release}
++Summary: Fish completion for %{name}
++Requires: %{name} = %{version}-%{release}
++Requires: fish
 +
 +BuildArch: noarch
 +
 +%description fish-completion
-+Fish completion for command fwupdmgr.
++Fish completion for command %{name}.
 +
  %package devel
  Summary: Development package for %{name}
  Requires: %{name}%{?_isa} = %{version}-%{release}
-@@ -285,7 +296,6 @@ systemctl --no-reload preset fwupd-refresh.timer &>/dev/null || :
+@@ -285,7 +297,6 @@ systemctl --no-reload preset fwupd-refresh.timer &>/dev/null || :
  %{_datadir}/dbus-1/system.d/org.freedesktop.fwupd.conf
  %{_datadir}/bash-completion/completions/fwupdmgr
  %{_datadir}/bash-completion/completions/fwupdtool
@@ -35,7 +36,7 @@ index f29bc64..7440f0b 100644
  %dir %{_datadir}/fwupd
  %dir %{_datadir}/fwupd/metainfo
  %{_datadir}/fwupd/metainfo/org.freedesktop.fwupd*.metainfo.xml
-@@ -328,6 +338,9 @@ systemctl --no-reload preset fwupd-refresh.timer &>/dev/null || :
+@@ -328,6 +339,9 @@ systemctl --no-reload preset fwupd-refresh.timer &>/dev/null || :
  %{_libdir}/fwupd-%{version}/libfwupd*.so
  %ghost %{_localstatedir}/lib/fwupd/gnupg
  

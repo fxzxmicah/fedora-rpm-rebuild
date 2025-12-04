@@ -1,0 +1,48 @@
+diff --git OLD/bubblewrap.spec NEW/bubblewrap.spec
+index 6dd61c4..cd90d5c 100644
+--- OLD/bubblewrap.spec
++++ NEW/bubblewrap.spec
+@@ -15,11 +15,23 @@ BuildRequires: pkgconfig(libcap)
+ BuildRequires: pkgconfig(libselinux)
+ BuildRequires: /usr/bin/xsltproc
+ 
++Requires: (%{name}-zsh-completion = %{version}-%{release} if zsh)
++
+ %description
+ Bubblewrap (/usr/bin/bwrap) is a core execution engine for unprivileged
+ containers that works as a setuid binary on kernels without
+ user namespaces.
+ 
++%package zsh-completion
++Summary: Zsh completion for %{name}
++Requires: %{name} = %{version}-%{release}
++Requires: zsh
++
++BuildArch: noarch
++
++%description zsh-completion
++Zsh completion for %{name}
++
+ %prep
+ %autosetup
+ 
+@@ -36,9 +48,6 @@ user namespaces.
+ %dir %{_datadir}/bash-completion
+ %dir %{_datadir}/bash-completion/completions
+ %{_datadir}/bash-completion/completions/bwrap
+-%dir %{_datadir}/zsh
+-%dir %{_datadir}/zsh/site-functions
+-%{_datadir}/zsh/site-functions/_bwrap
+ %if (0%{?rhel} != 0 && 0%{?rhel} <= 7)
+ %attr(0755,root,root) %caps(cap_sys_admin,cap_net_admin,cap_sys_chroot,cap_setuid,cap_setgid=ep) %{_bindir}/bwrap
+ %else
+@@ -46,6 +55,9 @@ user namespaces.
+ %endif
+ %{_mandir}/man1/bwrap.1*
+ 
++%files zsh-completion
++%{_datadir}/zsh/site-functions/_bwrap
++
+ %changelog
+ * Wed Jul 23 2025 Fedora Release Engineering <releng@fedoraproject.org> - 0.11.0-2
+ - Rebuilt for https://fedoraproject.org/wiki/Fedora_43_Mass_Rebuild

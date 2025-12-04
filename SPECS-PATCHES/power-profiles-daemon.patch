@@ -1,0 +1,41 @@
+diff --git OLD/power-profiles-daemon.spec NEW/power-profiles-daemon.spec
+index ceb16bb..d1f3d98 100644
+--- OLD/power-profiles-daemon.spec
++++ NEW/power-profiles-daemon.spec
+@@ -29,6 +29,8 @@ BuildRequires:  umockdev
+ BuildRequires:  python3dist(python-dbusmock)
+ BuildRequires:  python3dist(pygobject)
+ 
++Requires:       (%{name}-zsh-completion = %{version}-%{release} if zsh)
++
+ # This is an implementation of the power-profiles-daemon service
+ Provides:       ppd-service
+ Conflicts:      ppd-service
+@@ -36,6 +38,16 @@ Conflicts:      ppd-service
+ %description
+ %{summary}.
+ 
++%package zsh-completion
++Summary:        Zsh shell completion for %{name}
++Requires:       %{name} = %{version}-%{release}
++Requires:       zsh
++
++BuildArch:      noarch
++
++%description zsh-completion
++This package contains zsh shell completion for %{name}.
++
+ %package docs
+ Summary:        Documentation for %{name}
+ BuildArch:      noarch
+@@ -85,8 +97,9 @@ mkdir -p %{buildroot}/%{_localstatedir}/lib/power-profiles-daemon
+ %dir %{_localstatedir}/lib/power-profiles-daemon/
+ %{_mandir}/man1/powerprofilesctl.1.gz
+ %{bash_completions_dir}/powerprofilesctl
+-%{zsh_completions_dir}/_powerprofilesctl
+ 
++%files zsh-completion
++%{zsh_completions_dir}/*
+ 
+ %files docs
+ %dir %{_datadir}/gtk-doc/

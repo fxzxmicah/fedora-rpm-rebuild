@@ -1,0 +1,41 @@
+diff --git OLD/curl.spec NEW/curl.spec
+index 20d49b6..5b65873 100644
+--- OLD/curl.spec
++++ NEW/curl.spec
+@@ -138,6 +138,8 @@ BuildRequires: stunnel
+ # using an older version of libcurl could result in CURLE_UNKNOWN_OPTION
+ Requires: libcurl%{?_isa} >= %{version}-%{release}
+ 
++Requires: (%{name}-zsh-completion = %{version}-%{release} if zsh)
++
+ # Define OPENSSL_NO_ENGINE to avoid inclusion of <openssl/engine.h>
+ %if %{without openssl_engine_support}
+ %global _preprocessor_defines %{?_preprocessor_defines} -DOPENSSL_NO_ENGINE
+@@ -168,6 +170,16 @@ uploading, HTTP form based upload, proxies, cookies, user+password
+ authentication (Basic, Digest, NTLM, Negotiate, kerberos...), file transfer
+ resume, proxy tunneling and a busload of other useful tricks.
+ 
++%package zsh-completion
++Summary: Zsh completion scripts for %{name}
++Requires: %{name} = %{version}-%{release}
++Requires: zsh
++
++BuildArch: noarch
++
++%description zsh-completion
++Zsh completion scripts for %{name}
++
+ %package -n libcurl
+ Summary: A library for getting files from web servers
+ Requires: libnghttp2%{?_isa} >= %{libnghttp2_version}
+@@ -394,7 +406,9 @@ rm -f ${RPM_BUILD_ROOT}%{_mandir}/man1/wcurl.1*
+ %doc docs/TheArtOfHttpScripting.md
+ %{_bindir}/curl
+ %{_mandir}/man1/curl.1*
+-%{_datadir}/zsh
++
++%files zsh-completion
++%{_datadir}/zsh/site-functions/*
+ 
+ %files -n libcurl
+ %license COPYING

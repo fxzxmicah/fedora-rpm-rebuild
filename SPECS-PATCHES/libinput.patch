@@ -1,0 +1,50 @@
+diff --git OLD/libinput.spec NEW/libinput.spec
+index d14d769..0454c98 100644
+--- OLD/libinput.spec
++++ NEW/libinput.spec
+@@ -31,6 +31,8 @@ BuildRequires:  python3-rpm-macros
+ 
+ BuildRequires:  lua-devel
+ 
++Requires:       (%{name}-zsh-completion = %{version}-%{release} if zsh)
++
+ %description
+ libinput is a library that handles input devices for display servers and other
+ applications that need to directly deal with input devices.
+@@ -57,6 +59,16 @@ Requires:       python3-pyudev python3-libevdev
+ The %{name}-utils package contains tools to debug hardware and analyze
+ %{name}.
+ 
++%package        zsh-completion
++Summary:        Zsh shell completion for %{name}
++Requires:       %{name} = %{version}-%{release}
++Requires:       zsh
++
++BuildArch:      noarch
++
++%description    zsh-completion
++This package contains zsh shell completion for %{name}.
++
+ %package        test
+ Summary:        libinput integration test suite
+ Requires:       %{name}%{?_isa} = %{version}-%{release}
+@@ -103,9 +115,6 @@ intended to be run by users.
+ %{_mandir}/man1/libinput.1*
+ %dir %{_datadir}/libinput
+ %{_datadir}/libinput/*.quirks
+-%dir %{_datadir}/zsh
+-%dir %{_datadir}/zsh/site-functions
+-%{_datadir}/zsh/site-functions/*
+ %{_mandir}/man1/libinput-list-devices.1*
+ %{_mandir}/man1/libinput-debug-events.1*
+ 
+@@ -152,6 +161,9 @@ intended to be run by users.
+ %{_mandir}/man1/libinput-record.1*
+ %{_mandir}/man1/libinput-replay.1*
+ 
++%files zsh-completion
++%{_datadir}/zsh/site-functions/*
++
+ %files test
+ %{_libexecdir}/libinput/libinput-test
+ %{_libexecdir}/libinput/libinput-test-suite

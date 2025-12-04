@@ -1,0 +1,39 @@
+diff --git OLD/bluez.spec NEW/bluez.spec
+index b7e7e50..9885313 100644
+--- OLD/bluez.spec
++++ NEW/bluez.spec
+@@ -38,6 +38,8 @@ Requires(post): systemd
+ Requires(preun): systemd
+ Requires(postun): systemd
+ 
++Requires: (%{name}-zsh-completion = %{version}-%{release} if zsh)
++
+ %description
+ Utilities for use in Bluetooth applications:
+ 	- avinfo
+@@ -133,6 +135,16 @@ Requires: bluez-libs%{?_isa} = %{version}-%{release}
+ %description obexd
+ Object Exchange daemon for sharing files, contacts etc over bluetooth
+ 
++%package zsh-completion
++Summary: Zsh completion scripts for %{name}
++Requires: %{name} = %{version}-%{release}
++Requires: zsh
++
++BuildArch: noarch
++
++%description zsh-completion
++Zsh completion scripts for %{name}
++
+ %prep
+ %autosetup -p1
+ 
+@@ -258,6 +270,8 @@ install emulator/btvirt ${RPM_BUILD_ROOT}/%{_libexecdir}/bluetooth/
+ %{_datadir}/dbus-1/system-services/org.bluez.service
+ %{_unitdir}/bluetooth.service
+ %{_userunitdir}/mpris-proxy.service
++
++%files zsh-completion
+ %{_datadir}/zsh/site-functions/_bluetoothctl
+ 
+ %if %{with deprecated}

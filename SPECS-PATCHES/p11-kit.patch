@@ -1,0 +1,56 @@
+diff --git OLD/p11-kit.spec NEW/p11-kit.spec
+index 3dc3568..6f8c954 100644
+--- OLD/p11-kit.spec
++++ NEW/p11-kit.spec
+@@ -50,6 +50,8 @@ BuildRequires:  mingw64-libffi
+ BuildRequires:  mingw64-libtasn1
+ %endif
+ 
++Requires:       (%{name}-zsh-completion = %{version}-%{release} if zsh)
++
+ 
+ %description
+ p11-kit provides a way to load and enumerate PKCS#11 modules, as well
+@@ -100,6 +102,17 @@ export PKCS#11 modules through a Unix domain socket.  Note that this
+ feature is still experimental.
+ 
+ 
++%package zsh-completion
++Summary:        Zsh shell completion for %{name}
++Requires:       %{name} = %{version}-%{release}
++Requires:       zsh
++
++BuildArch:      noarch
++
++%description zsh-completion
++This package contains zsh shell completion for %{name}.
++
++
+ %if %{with mingw}
+ %package -n mingw32-%{name}
+ Summary:        MinGW Library for loading and sharing PKCS#11 modules
+@@ -202,7 +215,6 @@ fi
+ %{_mandir}/man8/p11-kit.8.gz
+ %{_mandir}/man5/pkcs11.conf.5.gz
+ %{_datadir}/bash-completion/completions/p11-kit
+-%{_datadir}/zsh/site-functions/_p11-kit
+ 
+ %files client
+ %{_libdir}/pkcs11/p11-kit-client.so
+@@ -221,13 +233,15 @@ fi
+ %{_datadir}/p11-kit/modules/p11-kit-trust.module
+ %{_libexecdir}/p11-kit/trust-extract-compat
+ %{_datadir}/bash-completion/completions/trust
+-%{_datadir}/zsh/site-functions/_trust
+ 
+ %files server
+ %{_libexecdir}/p11-kit/p11-kit-server
+ %{_userunitdir}/p11-kit-server.service
+ %{_userunitdir}/p11-kit-server.socket
+ 
++%files zsh-completion
++%{_datadir}/zsh/site-functions/*
++
+ %if %{with mingw}
+ %files -n mingw32-%{name}
+ %{!?_licensedir:%global license %%doc}
