@@ -1,5 +1,5 @@
 diff --git OLD/PackageKit.spec NEW/PackageKit.spec
-index bf8d562..c5ee8df 100644
+index bf8d562..df5ee60 100644
 --- OLD/PackageKit.spec
 +++ NEW/PackageKit.spec
 @@ -122,6 +122,13 @@ Requires: %{name}%{?_isa} = %{version}-%{release}
@@ -32,11 +32,12 @@ index bf8d562..c5ee8df 100644
  %ghost %verify(not md5 size mtime) %attr(0644,-,-) %{_localstatedir}/lib/PackageKit/transactions.db
  %{_datadir}/dbus-1/system.d/*
  %{_datadir}/dbus-1/system-services/*.service
-@@ -263,6 +268,11 @@ systemctl disable packagekit-offline-update.service > /dev/null 2>&1 || :
+@@ -263,6 +268,12 @@ systemctl disable packagekit-offline-update.service > /dev/null 2>&1 || :
  %config %{_sysconfdir}/cron.daily/packagekit-background.cron
  %config(noreplace) %{_sysconfdir}/sysconfig/packagekit-background
  
 +%files backend-test
++%dir %{_datadir}/PackageKit/helpers
 +%dir %{_datadir}/PackageKit/helpers/test_spawn
 +%{_datadir}/PackageKit/helpers/test_spawn/search-name.sh
 +%{_libdir}/packagekit-backend/libpk_backend_test_*.so
