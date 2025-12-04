@@ -1,0 +1,31 @@
+diff --git OLD/at-spi2-core.spec NEW/at-spi2-core.spec
+index d0c7267..8e23753 100644
+--- OLD/at-spi2-core.spec
++++ NEW/at-spi2-core.spec
+@@ -40,6 +40,16 @@ This version of at-spi is a major break from previous versions.
+ It has been completely rewritten to use D-Bus rather than
+ ORBIT / CORBA for its transport protocol.
+ 
++%package -n python3-at-spi2
++Summary: Python 3 GObject Introspection overrides for at-spi2
++Requires: %{name}%{?_isa} = %{version}-%{release}
++Requires: %{py3_dist pygobject}
++
++%description -n python3-at-spi2
++The python3-at-spi2 package provides GObject Introspection overrides
++for at-spi2, allowing Python applications to use the at-spi2 library
++for accessibility support.
++
+ %package devel
+ Summary: Development files and headers for at-spi2-core
+ Requires: %{name}%{?_isa} = %{version}-%{release}
+@@ -129,7 +139,8 @@ install -Dpm 0755 %{SOURCE1} %{buildroot}%{_sysconfdir}/xdg/Xwayland-session.d/0
+ %{_datadir}/dbus-1/accessibility-services/org.a11y.atspi.Registry.service
+ %{_datadir}/dbus-1/services/org.a11y.Bus.service
+ %{_userunitdir}/at-spi-dbus-bus.service
+-%dir %{python3_sitearch}/gi/overrides/
++
++%files -n python3-at-spi2
+ %{python3_sitearch}/gi/overrides/Atspi.py
+ %{python3_sitearch}/gi/overrides/__pycache__/Atspi.*
+ 

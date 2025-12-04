@@ -1,0 +1,56 @@
+diff --git OLD/ibus-libpinyin.spec NEW/ibus-libpinyin.spec
+index e54a438..763ac73 100644
+--- OLD/ibus-libpinyin.spec
++++ NEW/ibus-libpinyin.spec
+@@ -6,7 +6,7 @@ License:    GPL-3.0-or-later
+ URL:        https://github.com/libpinyin/ibus-libpinyin
+ Source0:    http://downloads.sourceforge.net/libpinyin/ibus-libpinyin/%{name}-%{version}.tar.gz
+ 
+-Requires:       python3-gobject
++Recommends:     %{name}-setup = %{version}-%{release}
+ Requires:       ibus >= 1.5.11
+ BuildRequires:  gcc-c++
+ BuildRequires:  gettext-devel
+@@ -32,6 +32,16 @@ Obsoletes: ibus-pinyin < 1.4.0-17
+ It includes a Chinese Pinyin input method and a Chinese ZhuYin (Bopomofo)
+ input method based on libpinyin for IBus.
+ 
++%package setup
++Summary: Setup program for ibus-libpinyin
++Requires: %{name} = %{version}-%{release}
++Requires: python3-gobject
++Requires: python3-ibus
++BuildArch: noarch
++
++%description setup
++This package provides the setup program for ibus-libpinyin.
++
+ %prep
+ %setup -q
+ 
+@@ -58,12 +68,8 @@ desktop-file-validate $RPM_BUILD_ROOT%{_datadir}/applications/ibus-setup-libbopo
+ %doc AUTHORS COPYING README
+ %{_datadir}/metainfo/*.appdata.xml
+ %{_datadir}/glib-2.0/schemas/*.gschema.xml
+-%{_datadir}/applications/ibus-setup-libpinyin.desktop
+-%{_datadir}/applications/ibus-setup-libbopomofo.desktop
+ %{_libexecdir}/ibus-engine-libpinyin
+-%{_libexecdir}/ibus-setup-libpinyin
+ %{_datadir}/ibus-libpinyin/icons
+-%{_datadir}/ibus-libpinyin/setup
+ %{_datadir}/ibus-libpinyin/base.lua
+ %{_datadir}/ibus-libpinyin/user.lua
+ %{_datadir}/ibus-libpinyin/network.txt
+@@ -74,6 +80,12 @@ desktop-file-validate $RPM_BUILD_ROOT%{_datadir}/applications/ibus-setup-libbopo
+ %{_datadir}/ibus/component/*
+ %{_datadir}/ibus-libpinyin/default.xml
+ 
++%files setup
++%{_datadir}/applications/ibus-setup-libpinyin.desktop
++%{_datadir}/applications/ibus-setup-libbopomofo.desktop
++%{_libexecdir}/ibus-setup-libpinyin
++%{_datadir}/ibus-libpinyin/setup
++
+ %changelog
+ * Fri Sep 19 2025 Python Maint <python-maint@redhat.com> - 1.16.5-2
+ - Rebuilt for Python 3.14.0rc3 bytecode
