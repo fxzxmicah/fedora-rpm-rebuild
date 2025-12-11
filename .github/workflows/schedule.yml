@@ -15,53 +15,54 @@ jobs:
 
     steps:
     - name: Install Dependencies
-      run: dnf install -y git-core gawk
+      run: dnf install -y git-core
 
     - name: Checkout Code
       uses: actions/checkout@v4
 
-    - name: Download Version Cache
-      uses: actions/download-artifact@v6
-      continue-on-error: true
-      with:
-        name: cache-version-${{ github.ref_name }}
-        path: VERSION
-
-    - name: Check Version
+    - name: Generate Version
       run: |
-        packages=""
-        for pkg in $(find SPECS-PATCHES -name '*.patch' -exec basename {} .patch \; | sort); do
+        touch Version
+        for pkg in $(find SPECS-PATCHES -name "*.patch" -exec basename {} .patch \; | sort); do
           ver=$(dnf repoquery --qf "%{Version}-%{Release}" ${pkg} --latest-limit=1 --repo=fedora-source --repo=updates-source 2>/dev/null)
           if [ -z "${ver}" ]; then
             echo "::warning::Not found ${pkg}"
           else
-            if grep -E "^${pkg} " VERSION 2>&1 >/dev/null; then
-              if [ $(grep -E "^${pkg} " VERSION | awk "{print \$2}") == "${ver}" ]; then
-                echo "No changes for ${pkg} (${ver})"
-              else
-                echo "::notice::Updating ${pkg} to ${ver}"
-                packages+="${pkg} "
-              fi
-            else
-              echo "::notice::Adding new package ${pkg} (${ver})"
-            fi
-            echo "${pkg} ${ver}" >> VERSION.new
+            echo "${pkg} ${ver}" >> Version
           fi
         done
-        mv VERSION.new VERSION
+
+    - name: Cache Version
+      uses: actions/cache@v4
+      id: cache
+      with:
+        key: cache-version-${{ github.ref_name }}-${{ hashFiles('Version') }}
+        restore-keys: cache-version-${{ github.ref_name }}
+        path: VERSION
+
+    - name: Compare Version
+      if: steps.cache.outputs.cache-hit != 'true'
+      run: |
+        packages=""
+        touch VERSION
+        while read -r pkg ver; do
+          row=$(grep -E "^${pkg} " VERSION || true)
+          if [ -n "${row}" ]; then
+            if [ $(echo "${row}" | awk "{print \$2}") != "${ver}" ]; then
+              echo "::notice::Updating ${pkg} to ${ver}"
+              packages+="${pkg} "
+            fi
+          else
+            echo "New package ${pkg} with version ${ver}"
+          fi
+        done < Version
+        mv Version VERSION
         if [ -z "${packages}" ]; then
           echo "::notice::No packages updated"
         else
           echo "::notice::Packages to update: ${packages}"
           echo "packages=${packages}" >> ${GITHUB_ENV}
         fi
-
-    - name: Upload Version Cache
-      uses: actions/upload-artifact@v5
-      with:
-        name: cache-version-${{ github.ref_name }}
-        path: VERSION
-        overwrite: true
 
     - name: Trigger Build
       if: env.packages
