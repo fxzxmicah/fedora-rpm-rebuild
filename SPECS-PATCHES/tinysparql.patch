@@ -1,5 +1,5 @@
 diff --git OLD/tinysparql.spec NEW/tinysparql.spec
-index 92881f7..001d23a 100644
+index f66023c..fe6bcdd 100644
 --- OLD/tinysparql.spec
 +++ NEW/tinysparql.spec
 @@ -4,6 +4,8 @@
@@ -31,19 +31,3 @@ index 92881f7..001d23a 100644
  %endif
    %{nil}
  
-@@ -151,7 +158,6 @@ This package contains the documentation for %{name}.
- %{_libdir}/libtinysparql-3.0.so.0*
- %{_libdir}/libtracker-sparql-3.0.so.0*
- %{_libdir}/tinysparql-3.0/
--%{_datadir}/gir-1.0/Tracker-3.0.gir
- 
- %files devel
- %license COPYING COPYING.LGPL
-@@ -162,6 +168,7 @@ This package contains the documentation for %{name}.
- %{_libdir}/pkgconfig/tracker-sparql-3.0.pc
- %{_datadir}/vala/vapi/tinysparql-3.0.deps
- %{_datadir}/vala/vapi/tinysparql-3.0.vapi
-+%{_datadir}/gir-1.0/Tracker-3.0.gir
- %{_datadir}/gir-1.0/Tsparql-3.0.gir
- %{_datadir}/vala/vapi/tracker-sparql-3.0.deps
- %{_datadir}/vala/vapi/tracker-sparql-3.0.vapi
