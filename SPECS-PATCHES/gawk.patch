@@ -1,0 +1,55 @@
+diff --git OLD/gawk.spec NEW/gawk.spec
+index bfa822c..702fc9a 100644
+--- OLD/gawk.spec
++++ NEW/gawk.spec
+@@ -148,6 +148,19 @@ text processing.
+ 
+ # === SUBPACKAGES =============================================================
+ 
++%package extras
++Summary:          Additional utilities and libraries for gawk
++Requires:         %{name}%{?_isa} = %{version}-%{release}
++
++%description extras
++This subpackage provides additional utilities and libraries for gawk, which are not
++part of the main gawk package. It contains:
++  - gawkbug utility for reporting bugs in gawk
++  - gawk extension libraries
++These additional components are not needed for the basic functionality of gawk.
++
++# ---------------
++
+ %package devel
+ Summary:          Header file for gawk extensions development
+ Requires:         %{name}%{?_isa} = %{version}-%{release}
+@@ -259,19 +272,24 @@ install -m 0644 -p awklib/eg/data/* %{buildroot}%{_docdir}/%{name}/eg/data/
+ #%files -f %{name}.lang
+ %files
+ %{_bindir}/*awk
+-%{_bindir}/gawkbug
+-%{_libdir}/*awk
+-%{_datadir}/*awk
+-%{_libexecdir}/*awk
+ %{_sysconfdir}/profile.d/gawk.*
+ 
+-%{_mandir}/man1/*
+-%{_mandir}/man3/*
++%{_mandir}/man1/*awk.1*
+ %{_infodir}/*awk*.info*
+ 
+ %doc NEWS README POSIX.STD README_d/README.multibyte
+ %license COPYING LICENSE.GPLv2 LICENSE.LGPLv2 LICENSE.BSD
+ 
++# ---------------
++
++%files extras
++%{_bindir}/gawkbug
++%{_libdir}/*awk
++%{_libexecdir}/*awk
++%{_datadir}/*awk
++%{_mandir}/man1/gawkbug.1*
++%{_mandir}/man3/*
++
+ # ---------------
+ %files -f %{name}.lang all-langpacks
+ # ---------------
