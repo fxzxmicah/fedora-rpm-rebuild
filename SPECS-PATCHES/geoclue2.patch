@@ -1,16 +1,16 @@
 diff --git OLD/geoclue2.spec NEW/geoclue2.spec
-index c7d16b3..2528d8e 100644
+index d7fb128..c91d0b5 100644
 --- OLD/geoclue2.spec
 +++ NEW/geoclue2.spec
-@@ -79,6 +79,7 @@ The %{name}-demos package contains demo applications that use %{name}.
+@@ -75,6 +75,7 @@ The %{name}-demos package contains demo applications that use %{name}.
  
  %conf
  %meson \
 +       -Dnmea-source=false \
         -Ddbus-srv-user=geoclue \
-        -Ddefault-wifi-url="https://api.beacondb.net/v1/geolocate" \
-        -Ddefault-wifi-submit-url="https://api.beacondb.net/v2/geosubmit" \
-@@ -115,18 +116,13 @@ exit 0
+        %{nil}
+ 
+@@ -108,18 +109,13 @@ exit 0
  %license COPYING
  %doc NEWS
  %config %{_sysconfdir}/geoclue/
@@ -26,10 +26,10 @@ index c7d16b3..2528d8e 100644
  %{_mandir}/man5/geoclue.5*
  %{_unitdir}/geoclue.service
 -%{_libexecdir}/geoclue-2.0/demos/agent
- %{_sysusersdir}/geoclue2.conf
+ %{_sysusersdir}/geoclue-sysusers.conf
  %attr(755,geoclue,geoclue) %dir /var/lib/geoclue
  
-@@ -153,7 +149,12 @@ exit 0
+@@ -146,7 +142,12 @@ exit 0
  %{_libdir}/libgeoclue-2.so
  
  %files demos
