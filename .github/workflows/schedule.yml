@@ -43,25 +43,25 @@ jobs:
     - name: Compare Version
       if: steps.cache.outputs.cache-hit != 'true'
       run: |
-        packages=""
+        packages=()
         touch VERSION
         while read -r pkg ver; do
           row=$(grep -E "^${pkg} " VERSION || true)
           if [ -n "${row}" ]; then
             if [ $(echo "${row}" | awk "{print \$2}") != "${ver}" ]; then
               echo "::notice::Updating ${pkg} to ${ver}"
-              packages+="${pkg} "
+              packages+=("${pkg}")
             fi
           else
             echo "New package ${pkg} with version ${ver}"
           fi
         done < Version
         mv Version VERSION
-        if [ -z "${packages}" ]; then
+        if [ ${#packages[@]} -eq 0 ]; then
           echo "::notice::No packages updated"
         else
-          echo "::notice::Packages to update: ${packages}"
-          echo "packages=${packages}" >> ${GITHUB_ENV}
+          echo "::notice::Packages to update: ${packages[@]}"
+          echo "packages=${packages[@]}" >> ${GITHUB_ENV}
         fi
 
     - name: Trigger Build
