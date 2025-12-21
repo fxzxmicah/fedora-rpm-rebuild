@@ -1,11 +1,18 @@
 diff --git OLD/PackageKit.spec NEW/PackageKit.spec
-index bf8d562..df5ee60 100644
+index 6a83790..4614b10 100644
 --- OLD/PackageKit.spec
 +++ NEW/PackageKit.spec
-@@ -122,6 +122,13 @@ Requires: %{name}%{?_isa} = %{version}-%{release}
+@@ -123,6 +123,20 @@ Requires: %{name}%{?_isa} = %{version}-%{release}
  %description cron
  Crontab and utilities for running PackageKit as a cron job.
  
++%package utils
++Summary: Command line utilities for PackageKit
++Requires: %{name}%{?_isa} = %{version}-%{release}
++
++%description utils
++Command line utilities for PackageKit.
++
 +%package backend-test
 +Summary: Backend test utilities for PackageKit
 +Requires: %{name}%{?_isa} = %{version}-%{release}
@@ -16,7 +23,16 @@ index bf8d562..df5ee60 100644
  %package devel
  Summary: Libraries and headers for PackageKit
  Requires: %{name}-glib-devel%{?_isa} = %{version}-%{release}
-@@ -228,7 +235,6 @@ systemctl disable packagekit-offline-update.service > /dev/null 2>&1 || :
+@@ -229,25 +243,17 @@ systemctl disable packagekit-offline-update.service > /dev/null 2>&1 || :
+ %dir %{_localstatedir}/cache/app-info/icons
+ %dir %{_localstatedir}/cache/app-info/xmls
+ %dir %{_localstatedir}/cache/PackageKit
+-%{_datadir}/bash-completion/completions/pkcon
+ %dir %{_libdir}/packagekit-backend
+ %config(noreplace) %{_sysconfdir}/PackageKit/PackageKit.conf
+ %config(noreplace) %{_sysconfdir}/PackageKit/Vendor.conf
+-%{_datadir}/man/man1/pkcon.1*
+-%{_datadir}/man/man1/pkmon.1*
  %{_datadir}/polkit-1/actions/*.policy
  %{_datadir}/polkit-1/rules.d/*
  %{_datadir}/PackageKit/pk-upgrade-distro.sh
@@ -24,18 +40,27 @@ index bf8d562..df5ee60 100644
  %{_metainfodir}/org.freedesktop.packagekit.metainfo.xml
  %{_libexecdir}/packagekitd
  %{_libexecdir}/packagekit-direct
-@@ -236,7 +242,6 @@ systemctl disable packagekit-offline-update.service > /dev/null 2>&1 || :
- %{_bindir}/pkcon
+-%{_bindir}/pkmon
+-%{_bindir}/pkcon
+-%{_bindir}/pkgctl
  %exclude %{_libdir}/libpackagekit*.so.*
  %{_libdir}/packagekit-backend/libpk_backend_dummy.so
 -%{_libdir}/packagekit-backend/libpk_backend_test_*.so
  %ghost %verify(not md5 size mtime) %attr(0644,-,-) %{_localstatedir}/lib/PackageKit/transactions.db
  %{_datadir}/dbus-1/system.d/*
  %{_datadir}/dbus-1/system-services/*.service
-@@ -263,6 +268,12 @@ systemctl disable packagekit-offline-update.service > /dev/null 2>&1 || :
+@@ -274,6 +280,20 @@ systemctl disable packagekit-offline-update.service > /dev/null 2>&1 || :
  %config %{_sysconfdir}/cron.daily/packagekit-background.cron
  %config(noreplace) %{_sysconfdir}/sysconfig/packagekit-background
  
++%files utils
++%{_bindir}/pkmon
++%{_bindir}/pkcon
++%{_bindir}/pkgctl
++%{_datadir}/man/man1/pkcon.1*
++%{_datadir}/man/man1/pkmon.1*
++%{_datadir}/bash-completion/completions/pkcon
++
 +%files backend-test
 +%dir %{_datadir}/PackageKit/helpers
 +%dir %{_datadir}/PackageKit/helpers/test_spawn
