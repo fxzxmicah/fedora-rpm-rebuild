@@ -1,5 +1,5 @@
 diff --git OLD/systemd.spec NEW/systemd.spec
-index 0c56c7b..7cb6f88 100644
+index 0c56c7b..4f70897 100644
 --- OLD/systemd.spec
 +++ NEW/systemd.spec
 @@ -98,7 +98,6 @@ Source1:        triggers.systemd
@@ -10,7 +10,15 @@ index 0c56c7b..7cb6f88 100644
  Source7:        sysctl.conf.README
  Source8:        systemd-journal-remote.xml
  Source9:        systemd-journal-gatewayd.xml
-@@ -293,10 +292,6 @@ Provides:       syslog
+@@ -274,7 +273,6 @@ Requires(post): grep
+ # systemd-machine-id-setup requires libssl
+ Requires(post): openssl-libs
+ Requires:       dbus >= 1.9.18
+-Requires:       systemd-pam%{_isa} = %{version}-%{release}
+ Requires(meta): (systemd-rpm-macros = %{version}-%{release} if rpm-build)
+ Requires:       systemd-libs%{_isa} = %{version}-%{release}
+ %{?fedora:Recommends:     systemd-networkd = %{version}-%{release}}
+@@ -293,10 +291,6 @@ Provides:       syslog
  Provides:       systemd-units = %{version}-%{release}
  Obsoletes:      system-setup-keyboard < 0.9
  Provides:       system-setup-keyboard = 0.9
@@ -21,7 +29,7 @@ index 0c56c7b..7cb6f88 100644
  %if 0%{?fedora}
  Conflicts:      fedora-release < 23-0.12
  %endif
-@@ -321,6 +316,16 @@ Provides:       systemd-tmpfiles = %{version}-%{release}
+@@ -321,6 +315,16 @@ Provides:       systemd-tmpfiles = %{version}-%{release}
  Conflicts:      systemd-standalone-shutdown
  Provides:       systemd-shutdown = %{version}-%{release}
  
@@ -38,7 +46,7 @@ index 0c56c7b..7cb6f88 100644
  %if "%{_sbindir}" == "%{_bindir}"
  # Compat symlinks for Requires in other packages.
  # We rely on filesystem to create the symlinks for us.
-@@ -329,9 +334,7 @@ Provides:       /usr/sbin/halt
+@@ -329,9 +333,7 @@ Provides:       /usr/sbin/halt
  Provides:       /usr/sbin/init
  Provides:       /usr/sbin/poweroff
  Provides:       /usr/sbin/reboot
@@ -48,7 +56,7 @@ index 0c56c7b..7cb6f88 100644
  %endif
  
  # Recommends to replace normal Requires deps for stuff that is dlopen()ed
-@@ -339,11 +342,6 @@ Recommends:     libxkbcommon.so.0%{?elf_suffix}
+@@ -339,11 +341,6 @@ Recommends:     libxkbcommon.so.0%{?elf_suffix}
  Recommends:     libidn2.so.0%{?elf_suffix}
  Recommends:     libidn2.so.0(IDN2_0.0.0)%{?elf_bits}
  Recommends:     libpcre2-8.so.0%{?elf_suffix}
@@ -60,7 +68,7 @@ index 0c56c7b..7cb6f88 100644
  Recommends:     libbpf.so.1%{?elf_suffix}
  Recommends:     libbpf.so.1(LIBBPF_0.4.0)%{?elf_bits}
  
-@@ -357,15 +355,6 @@ Recommends:     libelf.so.1(ELFUTILS_1.7)%{?elf_bits}
+@@ -357,15 +354,6 @@ Recommends:     libelf.so.1(ELFUTILS_1.7)%{?elf_bits}
  Recommends:     libcryptsetup.so.12%{?elf_suffix}
  Recommends:     libcryptsetup.so.12(CRYPTSETUP_2.4)%{?elf_bits}
  
@@ -76,7 +84,7 @@ index 0c56c7b..7cb6f88 100644
  Recommends:     libarchive.so.13%{?elf_suffix}
  
  %description
-@@ -374,8 +363,7 @@ of the system. It provides aggressive parallelization capabilities, uses socket
+@@ -374,8 +362,7 @@ of the system. It provides aggressive parallelization capabilities, uses socket
  and D-Bus activation for starting services, offers on-demand starting of
  daemons, keeps track of processes using Linux control groups, maintains mount
  and automount points, and implements an elaborate transactional dependency-based
@@ -86,7 +94,21 @@ index 0c56c7b..7cb6f88 100644
  utilities to control basic system configuration like the hostname, date, locale,
  maintain a list of logged-in users, system accounts, runtime directories and
  settings, and a logging daemons.
-@@ -437,7 +425,7 @@ This package contains the systemd-sysusers program.
+@@ -405,13 +392,6 @@ Conflicts:      systemd-libs < %{version}-%{release}
+ %description shared
+ Internal libraries used by various systemd binaries.
+ 
+-%package pam
+-Summary:        systemd PAM module
+-Requires:       systemd = %{version}-%{release}
+-
+-%description pam
+-Systemd PAM module registers the session with systemd-logind.
+-
+ %package rpm-macros
+ Summary:        Macros that define paths and scriptlets related to systemd
+ BuildArch:      noarch
+@@ -437,7 +417,7 @@ This package contains the systemd-sysusers program.
  %package devel
  Summary:        Development headers for systemd
  License:        LGPL-2.1-or-later AND MIT
@@ -95,7 +117,7 @@ index 0c56c7b..7cb6f88 100644
  Requires(meta): (systemd-rpm-macros = %{version}-%{release} if rpm-build)
  Provides:       libudev-devel = %{version}
  Provides:       libudev-devel%{_isa} = %{version}
-@@ -508,10 +496,6 @@ Obsoletes:      u2f-hidraw-policy < 1.0.2-40
+@@ -508,10 +488,6 @@ Obsoletes:      u2f-hidraw-policy < 1.0.2-40
  Conflicts:      systemd-standalone-repart
  Provides:       systemd-repart = %{version}-%{release}
  
@@ -106,7 +128,7 @@ index 0c56c7b..7cb6f88 100644
  %if "%{_sbindir}" == "%{_bindir}"
  # Compat symlinks for Requires in other packages.
  # We rely on filesystem to create the symlinks for us.
-@@ -526,9 +510,6 @@ virtual machines, but not in containers.
+@@ -526,9 +502,6 @@ virtual machines, but not in containers.
  
  This package also provides systemd-timesyncd, a network time protocol daemon.
  
@@ -116,7 +138,7 @@ index 0c56c7b..7cb6f88 100644
  %package ukify
  Summary:        Tool to build Unified Kernel Images
  Requires:       systemd = %{noarch_requires_version}
-@@ -601,28 +582,150 @@ This package contains the signed version.
+@@ -601,28 +574,150 @@ This package contains the signed version.
  %endif
  %endif
  
@@ -270,17 +292,17 @@ index 0c56c7b..7cb6f88 100644
 +Summary:        Systemd storage target mode
 +Requires:       systemd = %{version}-%{release}
 +License:        LGPL-2.1-or-later
-+
-+%description storagetm
-+Systemd storage target mode.
  
 -This package contains systemd-nspawn, systemd-vmspawn, machinectl,
 -systemd-machined, and systemd-importd.
++%description storagetm
++Systemd storage target mode.
++
 +This package contains systemd-storagetm.
  
  %package journal-remote
  # Name is the same as in Debian
-@@ -687,6 +790,16 @@ BuildArch:      noarch
+@@ -687,6 +782,16 @@ BuildArch:      noarch
  A set of drop-in files for systemd units to enable action from systemd-oomd,
  a userspace out-of-memory (OOM) killer.
  
@@ -297,7 +319,7 @@ index 0c56c7b..7cb6f88 100644
  %package tests
  Summary:       Internal unit tests for systemd
  Requires:      systemd%{_isa} = %{version}-%{release}
-@@ -794,8 +907,8 @@ VMLINUX_H_PATH=$(%python3 -c '%find_vmlinux_h')
+@@ -794,8 +899,8 @@ VMLINUX_H_PATH=$(%python3 -c '%find_vmlinux_h')
  CONFIGURE_OPTS=(
          -Dmode=release
          -Dslow-tests=true
@@ -308,7 +330,7 @@ index 0c56c7b..7cb6f88 100644
          -Dntp-servers='0.%{ntpvendor}.pool.ntp.org 1.%{ntpvendor}.pool.ntp.org 2.%{ntpvendor}.pool.ntp.org 3.%{ntpvendor}.pool.ntp.org'
          -Ddns-servers=
          -Dservice-watchdog=
-@@ -978,9 +1091,6 @@ touch %{buildroot}/etc/systemd/coredump.conf \
+@@ -978,9 +1083,6 @@ touch %{buildroot}/etc/systemd/coredump.conf \
        %{buildroot}/etc/udev/udev.conf \
        %{buildroot}/etc/udev/iocost.conf
  
@@ -318,11 +340,12 @@ index 0c56c7b..7cb6f88 100644
  # /etc/sysctl.conf compat
  install -Dm0644 %{SOURCE7} %{buildroot}/etc/sysctl.conf
  ln -s ../sysctl.conf %{buildroot}/etc/sysctl.d/99-sysctl.conf
-@@ -1140,6 +1250,40 @@ python3 %{SOURCE2} %buildroot %{!?want_bootloader:--no-bootloader}
+@@ -1140,6 +1242,43 @@ python3 %{SOURCE2} %buildroot %{!?want_bootloader:--no-bootloader}
  BRP_PESIGN_FILES=/usr/lib/systemd/boot/efi/systemd-boot%{efi_arch}.efi BRP_PESIGN_PACKAGES=systemd-boot /usr/lib/rpm/brp-suse.d/brp-99-pesign
  %endif
  
 +# Split out the units
++sed -i -e '/systemd\./ { s/.*/echo "&" >> .file-list-main/e; d; }' .file-list-pam
 +sed -i -e '/nspawn/ { s/.*/echo "&" >> .file-list-nspawn/e; d; }' .file-list-container
 +sed -i -e '/vmspawn/ { s/.*/echo "&" >> .file-list-vmspawn/e; d; }' .file-list-container
 +sed -i -e '/import\|pull\|export\|dissect\|ddi/ { s/.*/echo "&" >> .file-list-import/e; d; }' .file-list-container
@@ -338,6 +361,7 @@ index 0c56c7b..7cb6f88 100644
 +sed -i -e '/breakpoint\|debug/ { s/.*/echo "&" >> .file-list-debug/e; d; }' .file-list-udev
 +sed -i -e '/pcr/ { s/.*/echo "&" >> .file-list-pcr/e; d; }' .file-list-udev
 +sed -i -e '/ssh/ { s/.*/echo "&" >> .file-list-ssh/e; d; }' .file-list-main
++sed -i -e '/systemd_home/ { s/.*/echo "&" >> .file-list-home/e; d; }' .file-list-pam
 +sed -i -e '/home/ { s/.*/echo "&" >> .file-list-home/e; d; }' .file-list-main
 +sed -i -e '/home/ { s/.*/echo "&" >> .file-list-home/e; d; }' .file-list-udev
 +sed -i -e '/portable/ { s/.*/echo "&" >> .file-list-portable/e; d; }' .file-list-main
@@ -349,6 +373,7 @@ index 0c56c7b..7cb6f88 100644
 +sed -i -e '/resolve/ { s/.*/echo "&" >> .file-list-resolve/e; d; }' .file-list-libs
 +sed -i -e '/network-generator/ { s/.*/echo "&" >> .file-list-networkd/e; d; }' .file-list-udev
 +sed -i -e '/fstab\|tpm\|battery\|bluetooth\|printer\|smartcard\|modprobe\|wait\|ntp\|kernel\|emergency\|rescue\|getty\|sigpwr\|usb-gadget\|time-sync\|time-set\|validatefs/ { s/.*/echo "&" >> .file-list-udev/e; d; }' .file-list-main
++sed -i -e '/systemd_loadkey/ { s/.*/echo "&" >> .file-list-udev/e; d; }' .file-list-pam
 +sed -i -e '/stub\|sbsign\|sysfail/ { s/.*/echo "&" >> .file-list-boot/e; d; }' .file-list-main
 +sed -i -e '/bootctl\|systemd-boot\|systemd\/boot/ { s/.*/echo "&" >> .file-list-boot/e; d; }' .file-list-udev
 +sed -i -e '/pkgconfig/ { s/.*/echo "&" >> .file-list-devel/e; d; }' .file-list-main
@@ -359,7 +384,7 @@ index 0c56c7b..7cb6f88 100644
  %check
  %if %{with tests}
  meson test -C %{_vpath_builddir} -t 6 --print-errorlogs
-@@ -1265,33 +1409,12 @@ systemctl --no-reload preset systemd-journald-audit.socket &>/dev/null || :
+@@ -1265,33 +1404,12 @@ systemctl --no-reload preset systemd-journald-audit.socket &>/dev/null || :
                          systemd-hibernate-clear.service
                          systemd-hibernate-resume.service
                          systemd-hibernate.service
@@ -393,7 +418,7 @@ index 0c56c7b..7cb6f88 100644
                          systemd-pstore.service
                          systemd-quotacheck-root.service
                          systemd-quotacheck@.service
-@@ -1324,6 +1447,26 @@ systemctl --no-reload preset systemd-journald-audit.socket &>/dev/null || :
+@@ -1324,6 +1442,26 @@ systemctl --no-reload preset systemd-journald-audit.socket &>/dev/null || :
                           }
                         }
  
@@ -420,7 +445,7 @@ index 0c56c7b..7cb6f88 100644
  %post udev
  # Move old stuff around in /var/lib
  mv %{_localstatedir}/lib/random-seed %{_localstatedir}/lib/systemd/random-seed &>/dev/null
-@@ -1356,7 +1499,25 @@ grep -q -E '^KEYMAP="?fi-latin[19]"?' /etc/vconsole.conf 2>/dev/null &&
+@@ -1356,7 +1494,25 @@ grep -q -E '^KEYMAP="?fi-latin[19]"?' /etc/vconsole.conf 2>/dev/null &&
  %posttrans udev
  # Restart some services.
  # Others are either oneshot services, or sockets, and restarting them causes issues (#1378974)
@@ -447,7 +472,7 @@ index 0c56c7b..7cb6f88 100644
  
  %global journal_remote_units_restart systemd-journal-gatewayd.service systemd-journal-remote.service systemd-journal-upload.service
  %global journal_remote_units_norestart systemd-journal-gatewayd.socket systemd-journal-remote.socket
-@@ -1479,21 +1640,16 @@ fi
+@@ -1479,21 +1635,16 @@ fi
  %license LICENSE.GPL2
  %license LICENSES/MIT.txt
  %ghost %dir %attr(0755,-,-) /etc/systemd/system/basic.target.wants
@@ -469,7 +494,16 @@ index 0c56c7b..7cb6f88 100644
  %ghost %dir %attr(0755,-,-) /var/lib/rpm-state/systemd
  
  %files libs -f .file-list-libs
-@@ -1514,6 +1670,9 @@ fi
+@@ -1503,8 +1654,6 @@ fi
+ %license LICENSE.LGPL2.1
+ %license LICENSES/MIT.txt
+ 
+-%files pam -f .file-list-pam
+-
+ %files rpm-macros -f .file-list-rpm-macros
+ 
+ %files sysusers -f .file-list-sysusers
+@@ -1514,6 +1663,9 @@ fi
  %files devel -f .file-list-devel
  
  %files udev -f .file-list-udev
@@ -479,7 +513,7 @@ index 0c56c7b..7cb6f88 100644
  
  %files ukify -f .file-list-ukify
  %if 0%{?want_bootloader}
-@@ -1524,9 +1683,37 @@ fi
+@@ -1524,9 +1676,37 @@ fi
  %endif
  %endif
  
@@ -518,7 +552,7 @@ index 0c56c7b..7cb6f88 100644
  %files journal-remote -f .file-list-remote
  
  %files networkd -f .file-list-networkd
-@@ -1535,6 +1722,8 @@ fi
+@@ -1535,6 +1715,8 @@ fi
  
  %files oomd-defaults -f .file-list-oomd-defaults
  
