@@ -1,5 +1,5 @@
 diff --git OLD/ibus.spec NEW/ibus.spec
-index 0db24df..30c3000 100644
+index 0db24df..4929491 100644
 --- OLD/ibus.spec
 +++ NEW/ibus.spec
 @@ -1,19 +1,9 @@
@@ -64,8 +64,11 @@ index 0db24df..30c3000 100644
  %if 0%{?fedora}
  Requires:      (%{name}-panel%{?_isa}  = %{version}-%{release} if %ibus_panel_condition)
  %endif
-@@ -131,10 +112,6 @@ Requires:       iso-codes
- Requires:       dconf
+@@ -128,17 +109,9 @@ Requires:      (%{name}-xinit          = %{version}-%{release} if %ibus_xinit_co
+ %endif
+ 
+ Requires:       iso-codes
+-Requires:       dconf
  # rpmlint asks to delete librsvg2
  #Requires:       librsvg2
 -# Owner of %%python3_sitearch/gi/overrides
@@ -73,9 +76,13 @@ index 0db24df..30c3000 100644
 -# https://bugzilla.redhat.com/show_bug.cgi?id=1161871
 -%{?__python3:Requires: %{__python3}}
  
- Requires:               desktop-file-utils
- Requires(post):         desktop-file-utils
-@@ -152,6 +129,16 @@ Requires(postun):       %{_sbindir}/alternatives
+-Requires:               desktop-file-utils
+-Requires(post):         desktop-file-utils
+-Requires(postun):       desktop-file-utils
+ Requires:               dconf
+ Requires(postun):       dconf
+ Requires(posttrans):    dconf
+@@ -152,6 +125,16 @@ Requires(postun):       %{_sbindir}/alternatives
  %description
  IBus means Intelligent Input Bus. It is an input framework for Linux OS.
  
@@ -92,7 +99,7 @@ index 0db24df..30c3000 100644
  %package libs
  Summary:        IBus libraries
  
-@@ -204,8 +191,8 @@ This package contains IBus IM module for GTK4
+@@ -204,8 +187,8 @@ This package contains IBus IM module for GTK4
  %package setup
  Summary:        IBus setup utility
  Requires:       %{name} = %{version}-%{release}
@@ -102,7 +109,7 @@ index 0db24df..30c3000 100644
  BuildRequires:  gobject-introspection-devel
  BuildRequires:  python3-gobject-devel
  BuildRequires:  make
-@@ -214,38 +201,6 @@ BuildArch:      noarch
+@@ -214,38 +197,6 @@ BuildArch:      noarch
  %description setup
  This is a setup utility for IBus.
  
@@ -141,7 +148,7 @@ index 0db24df..30c3000 100644
  %package wayland
  Summary:        IBus IM module for Wayland
  Requires:       %{name}-libs%{?_isa}   = %{version}-%{release}
-@@ -328,8 +283,8 @@ the functionality of the installed %{name} package.
+@@ -328,8 +279,8 @@ the functionality of the installed %{name} package.
  
  
  %prep
@@ -152,7 +159,7 @@ index 0db24df..30c3000 100644
  if test x"$SAVED_SUM" != x"$MY_SUM" ; then
      abort
  fi
-@@ -375,11 +330,7 @@ fi
+@@ -375,11 +326,7 @@ fi
      --enable-gtk-doc \
      --enable-surrounding-text \
      --with-python=python3 \
@@ -164,7 +171,7 @@ index 0db24df..30c3000 100644
      --with-python-overrides-dir=%{python3_sitearch}/gi/overrides \
      --enable-wayland \
      --enable-introspection \
-@@ -417,18 +368,14 @@ done
+@@ -417,18 +364,14 @@ done
  # install xinput config file
  install -pm 644 -D %{SOURCE2} $RPM_BUILD_ROOT%{_xinputconf}
  
@@ -185,7 +192,15 @@ index 0db24df..30c3000 100644
  #echo "X-GNOME-Autostart-enabled=false" >> $RPM_BUILD_ROOT%%{_sysconfdir}/xdg/autostart/ibus.desktop
  
  mkdir -p $RPM_BUILD_ROOT%{_libdir}/ibus
-@@ -540,12 +487,14 @@ dconf update || :
+@@ -521,7 +464,6 @@ dconf update || :
+ %{_datadir}/ibus/dicts
+ %dir %{_datadir}/ibus/engine
+ %{_datadir}/ibus/keymaps
+-%{_datadir}/icons/hicolor/*/apps/*
+ %{_datadir}/man/man1/ibus.1.gz
+ %{_datadir}/man/man1/ibus-daemon.1.gz
+ %{_datadir}/man/man7/ibus-emoji.7.gz
+@@ -540,12 +482,14 @@ dconf update || :
  %dir %{_prefix}/lib/systemd/user/gnome-session.target.wants
  %{_prefix}/lib/systemd/user/gnome-session.target.wants/*.service
  %{_prefix}/lib/systemd/user/org.freedesktop.IBus.session.*.service
@@ -205,8 +220,12 @@ index 0db24df..30c3000 100644
  
  %files libs
  %{_libdir}/libibus-*%{ibus_api_version}.so.*
-@@ -570,25 +519,10 @@ dconf update || :
- # gtk-update-icon-cache is executed in the main package only one time.
+@@ -566,29 +510,13 @@ dconf update || :
+ %{_libdir}/gtk-4.0/%{gtk4_binary_version}/immodules/libim-ibus.so
+ %endif
+ 
+-# The setup package won't include icon files so that
+-# gtk-update-icon-cache is executed in the main package only one time.
  %files setup
  %{_bindir}/ibus-setup
 -%if %with_python2
@@ -215,6 +234,7 @@ index 0db24df..30c3000 100644
  %{_datadir}/applications/org.freedesktop.IBus.Setup.desktop
 -%endif
  %{_datadir}/ibus/setup
++%{_datadir}/icons/hicolor/*/apps/*
  %{_datadir}/man/man1/ibus-setup.1.gz
  
 -%if %with_python2
