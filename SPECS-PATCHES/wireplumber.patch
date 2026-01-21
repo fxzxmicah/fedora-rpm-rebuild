@@ -1,5 +1,5 @@
 diff --git OLD/wireplumber.spec NEW/wireplumber.spec
-index 17eca6d..303493c 100644
+index 480cd95..54315a2 100644
 --- OLD/wireplumber.spec
 +++ NEW/wireplumber.spec
 @@ -32,9 +32,27 @@ BuildRequires:  systemd-rpm-macros
@@ -43,11 +43,12 @@ index 17eca6d..303493c 100644
  %prep
  %autosetup -p1
  
-@@ -111,10 +123,12 @@ fi
+@@ -111,11 +123,13 @@ fi
  %dir %{_sysconfdir}/wireplumber/main.lua.d
  %dir %{_sysconfdir}/wireplumber/policy.lua.d
  %{_datadir}/wireplumber/
 -%{_datadir}/zsh/site-functions/_wpctl
+ %{_datadir}/bash-completion/completions/wpctl
  %{_userunitdir}/wireplumber.service
  %{_userunitdir}/wireplumber@.service
  
