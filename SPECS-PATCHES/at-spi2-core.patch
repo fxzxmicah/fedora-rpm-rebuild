@@ -1,5 +1,5 @@
 diff --git OLD/at-spi2-core.spec NEW/at-spi2-core.spec
-index d0c7267..8e23753 100644
+index d0c7267..37af960 100644
 --- OLD/at-spi2-core.spec
 +++ NEW/at-spi2-core.spec
 @@ -40,6 +40,16 @@ This version of at-spi is a major break from previous versions.
@@ -19,7 +19,32 @@ index d0c7267..8e23753 100644
  %package devel
  Summary: Development files and headers for at-spi2-core
  Requires: %{name}%{?_isa} = %{version}-%{release}
-@@ -129,7 +139,8 @@ install -Dpm 0755 %{SOURCE1} %{buildroot}%{_sysconfdir}/xdg/Xwayland-session.d/0
+@@ -83,9 +93,6 @@ This version of at-spi is a major break from previous versions.
+ It has been completely rewritten to use D-Bus rather than
+ ORBIT / CORBA for its transport protocol.
+ 
+-This package includes a gtk-module that bridges ATK to the new
+-D-Bus based at-spi.
+-
+ %package -n at-spi2-atk-devel
+ Summary: A GTK+ module that bridges ATK to D-Bus at-spi
+ Requires: at-spi2-atk%{?_isa} = %{version}-%{release}
+@@ -98,7 +105,13 @@ library.
+ %autosetup -p1
+ 
+ %build
+-%meson -Ddocs=true -Ddefault_bus=dbus-broker -Ddbus_daemon=/usr/bin/dbus-daemon -Ddbus_broker=/usr/bin/dbus-broker-launch
++%meson \
++    -Ddocs=true \
++    -Ddefault_bus=dbus-broker \
++    -Ddbus_daemon=/usr/bin/dbus-daemon \
++    -Ddbus_broker=/usr/bin/dbus-broker-launch \
++    -Dgtk2_atk_adaptor=false \
++    %{nil}
+ %meson_build
+ 
+ %install
+@@ -129,7 +142,8 @@ install -Dpm 0755 %{SOURCE1} %{buildroot}%{_sysconfdir}/xdg/Xwayland-session.d/0
  %{_datadir}/dbus-1/accessibility-services/org.a11y.atspi.Registry.service
  %{_datadir}/dbus-1/services/org.a11y.Bus.service
  %{_userunitdir}/at-spi-dbus-bus.service
@@ -28,4 +53,14 @@ index d0c7267..8e23753 100644
 +%files -n python3-at-spi2
  %{python3_sitearch}/gi/overrides/Atspi.py
  %{python3_sitearch}/gi/overrides/__pycache__/Atspi.*
+ 
+@@ -157,9 +171,6 @@ install -Dpm 0755 %{SOURCE1} %{buildroot}%{_sysconfdir}/xdg/Xwayland-session.d/0
+ 
+ %files -n at-spi2-atk
+ %license COPYING
+-%dir %{_libdir}/gtk-2.0
+-%dir %{_libdir}/gtk-2.0/modules
+-%{_libdir}/gtk-2.0/modules/libatk-bridge.so
+ %{_libdir}/gnome-settings-daemon-3.0/gtk-modules/at-spi2-atk.desktop
+ %{_libdir}/libatk-bridge-2.0.so.*
  
