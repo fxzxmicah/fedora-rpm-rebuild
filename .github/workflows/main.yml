@@ -11,6 +11,9 @@ on:
         required: true
         type: string
 
+permissions:
+  issues: write
+
 jobs:
   job:
     runs-on: ubuntu-latest
