@@ -108,9 +108,9 @@ jobs:
             title: 'Failed to rebuild some packages',
             body: `The following packages failed to rebuild:
 
-            ${failure.map(pkg => `- ${pkg}`).join('\n')}
+          ${failure.map(pkg => `- ${pkg}`).join('\n')}
 
-            Please check and update the patches.`,
+          Please check and update the patches.`,
             labels: ['ci'],
             assignees: [context.repo.owner],
           });
