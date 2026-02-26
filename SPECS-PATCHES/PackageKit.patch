@@ -1,8 +1,19 @@
 diff --git OLD/PackageKit.spec NEW/PackageKit.spec
-index 6a83790..4614b10 100644
+index 4effe7f..bbd2596 100644
 --- OLD/PackageKit.spec
 +++ NEW/PackageKit.spec
-@@ -123,6 +123,20 @@ Requires: %{name}%{?_isa} = %{version}-%{release}
+@@ -3,8 +3,8 @@
+ %global libdnf5_version 5.2.17.0
+ 
+ # For https://fedoraproject.org/wiki/Changes/PackageKit-DNF5
+-%bcond dnf5_default %[0%{?fedora} >= 44 || 0%{?rhel} >= 11]
+-%bcond dnf4 %[(0%{?rhel} && 0%{?rhel} < 11) || (0%{?fedora} && 0%{?fedora} < 44)]
++%bcond dnf5_default %[0%{?fedora} >= 43 || 0%{?rhel} >= 11]
++%bcond dnf4 %[(0%{?rhel} && 0%{?rhel} < 11) || (0%{?fedora} && 0%{?fedora} < 43)]
+ 
+ Summary:   Package management service
+ Name:      PackageKit
+@@ -176,6 +176,20 @@ Requires: %{name}%{?_isa} = %{version}-%{release}
  %description cron
  Crontab and utilities for running PackageKit as a cron job.
  
@@ -23,14 +34,16 @@ index 6a83790..4614b10 100644
  %package devel
  Summary: Libraries and headers for PackageKit
  Requires: %{name}-glib-devel%{?_isa} = %{version}-%{release}
-@@ -229,25 +243,17 @@ systemctl disable packagekit-offline-update.service > /dev/null 2>&1 || :
- %dir %{_localstatedir}/cache/app-info/icons
+@@ -294,27 +308,17 @@ systemctl disable packagekit-offline-update.service > /dev/null 2>&1 || :
  %dir %{_localstatedir}/cache/app-info/xmls
+ %endif
  %dir %{_localstatedir}/cache/PackageKit
 -%{_datadir}/bash-completion/completions/pkcon
+-%{_datadir}/bash-completion/completions/pkgcli
  %dir %{_libdir}/packagekit-backend
  %config(noreplace) %{_sysconfdir}/PackageKit/PackageKit.conf
  %config(noreplace) %{_sysconfdir}/PackageKit/Vendor.conf
+-%{_datadir}/man/man1/pkgcli.1*
 -%{_datadir}/man/man1/pkcon.1*
 -%{_datadir}/man/man1/pkmon.1*
  %{_datadir}/polkit-1/actions/*.policy
@@ -40,26 +53,28 @@ index 6a83790..4614b10 100644
  %{_metainfodir}/org.freedesktop.packagekit.metainfo.xml
  %{_libexecdir}/packagekitd
  %{_libexecdir}/packagekit-direct
+-%{_bindir}/pkgcli
 -%{_bindir}/pkmon
 -%{_bindir}/pkcon
--%{_bindir}/pkgctl
  %exclude %{_libdir}/libpackagekit*.so.*
  %{_libdir}/packagekit-backend/libpk_backend_dummy.so
 -%{_libdir}/packagekit-backend/libpk_backend_test_*.so
  %ghost %verify(not md5 size mtime) %attr(0644,-,-) %{_localstatedir}/lib/PackageKit/transactions.db
  %{_datadir}/dbus-1/system.d/*
  %{_datadir}/dbus-1/system-services/*.service
-@@ -274,6 +280,20 @@ systemctl disable packagekit-offline-update.service > /dev/null 2>&1 || :
+@@ -357,6 +361,22 @@ systemctl disable packagekit-offline-update.service > /dev/null 2>&1 || :
  %config %{_sysconfdir}/cron.daily/packagekit-background.cron
  %config(noreplace) %{_sysconfdir}/sysconfig/packagekit-background
  
 +%files utils
++%{_bindir}/pkgcli
 +%{_bindir}/pkmon
 +%{_bindir}/pkcon
-+%{_bindir}/pkgctl
++%{_datadir}/man/man1/pkgcli.1*
 +%{_datadir}/man/man1/pkcon.1*
 +%{_datadir}/man/man1/pkmon.1*
 +%{_datadir}/bash-completion/completions/pkcon
++%{_datadir}/bash-completion/completions/pkgcli
 +
 +%files backend-test
 +%dir %{_datadir}/PackageKit/helpers
