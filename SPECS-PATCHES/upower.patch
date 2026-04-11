@@ -1,5 +1,5 @@
 diff --git OLD/upower.spec NEW/upower.spec
-index 87a9f4c..73b7d87 100644
+index c436890..bdc09dc 100644
 --- OLD/upower.spec
 +++ NEW/upower.spec
 @@ -26,10 +26,22 @@ BuildRequires:  systemd
@@ -25,10 +25,10 @@ index 87a9f4c..73b7d87 100644
  %package libs
  Summary: Client libraries for UPower
  Requires: gobject-introspection
-@@ -111,7 +123,9 @@ mv $RPM_BUILD_ROOT%{_libexecdir}/upower $RPM_BUILD_ROOT%{_libexecdir}/installed-
- %{_datadir}/dbus-1/system-services/*.service
+@@ -112,7 +124,9 @@ mv $RPM_BUILD_ROOT%{_libexecdir}/upower $RPM_BUILD_ROOT%{_libexecdir}/installed-
  %{_unitdir}/*.service
  %{_datadir}/polkit-1/actions/org.freedesktop.upower.policy
+ %{_datadir}/polkit-1/rules.d/org.freedesktop.upower.rules
 -%{_datadir}/zsh/*
 +
 +%files zsh-completion
