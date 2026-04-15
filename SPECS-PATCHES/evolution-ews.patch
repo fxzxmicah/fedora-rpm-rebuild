@@ -1,0 +1,20 @@
+diff --git OLD/evolution-ews.spec NEW/evolution-ews.spec
+index 7ff7eb2..2d1a6c7 100644
+--- OLD/evolution-ews.spec
++++ NEW/evolution-ews.spec
+@@ -45,7 +45,6 @@ versions 2007 and later, through its Exchange Web Services (EWS) interface.
+ 
+ %package core
+ Summary: Core files for %{name}
+-Requires: %{name}-langpacks = %{version}-%{release}
+ Requires: evolution-data-server >= %{eds_evo_version}
+ Requires: libmspack >= %{libmspack_version}
+ 
+@@ -57,7 +56,6 @@ without bringing in the evolution package.
+ %package langpacks
+ Summary: Translations for %{name}
+ BuildArch: noarch
+-Requires: %{name}-core = %{version}-%{release}
+ 
+ %description langpacks
+ This package contains translations for %{name}.
