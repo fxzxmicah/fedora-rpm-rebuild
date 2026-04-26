@@ -1,5 +1,5 @@
 diff --git OLD/libvncserver.spec NEW/libvncserver.spec
-index a1b8729..cb20c51 100644
+index a1b8729..bafa1e2 100644
 --- OLD/libvncserver.spec
 +++ NEW/libvncserver.spec
 @@ -12,10 +12,11 @@ Source0:    https://github.com/LibVNC/libvncserver/archive/LibVNCServer-%{versio
@@ -14,7 +14,7 @@ index a1b8729..cb20c51 100644
 +# Patch11: 0002-libvncserver-Add-channel-security-handlers.patch
 +# Patch13: 0003-Install-examples_in_datadir.patch
 +# Patch14: 0004-libvncclient-fix-memory-leak-in-CompressClipData.patch
-+Patch10: https://github.com/LibVNC/libvncserver/compare/5b068d1ed8a9a662a49f60992f94da95460a6051%5E...009008e2f4d5a54dd71f422070df3af7b3dbc931.patch
++Patch10: https://github.com/LibVNC/libvncserver/compare/5b068d1ed8a9a662a49f60992f94da95460a6051^...009008e2f4d5a54dd71f422070df3af7b3dbc931.patch#/%{name}-git-head.patch
  
  ## downstream patches
  Patch102: libvncserver-LibVNCServer-0.9.13-system-crypto-policy.patch
@@ -36,7 +36,13 @@ index a1b8729..cb20c51 100644
  # libvncserver-config deps
  Requires:   coreutils
  # /usr/include/rfb/rfbproto.h:#include <zlib.h>
-@@ -122,11 +131,15 @@ done
+@@ -118,15 +127,21 @@ done
+ %install
+ %cmake_install
+ 
++mkdir -p %{buildroot}%{_datadir}/libvncserver
++cp -a examples %{buildroot}%{_datadir}/libvncserver/
+ 
  %files
  %license COPYING
  %doc AUTHORS ChangeLog NEWS* README* CONTRIBUTING.md HISTORY.md SECURITY.md
