@@ -1,19 +1,8 @@
 diff --git OLD/PackageKit.spec NEW/PackageKit.spec
-index 4effe7f..bbd2596 100644
+index b9e1caf..c6620f9 100644
 --- OLD/PackageKit.spec
 +++ NEW/PackageKit.spec
-@@ -3,8 +3,8 @@
- %global libdnf5_version 5.2.17.0
- 
- # For https://fedoraproject.org/wiki/Changes/PackageKit-DNF5
--%bcond dnf5_default %[0%{?fedora} >= 44 || 0%{?rhel} >= 11]
--%bcond dnf4 %[(0%{?rhel} && 0%{?rhel} < 11) || (0%{?fedora} && 0%{?fedora} < 44)]
-+%bcond dnf5_default %[0%{?fedora} >= 43 || 0%{?rhel} >= 11]
-+%bcond dnf4 %[(0%{?rhel} && 0%{?rhel} < 11) || (0%{?fedora} && 0%{?fedora} < 43)]
- 
- Summary:   Package management service
- Name:      PackageKit
-@@ -176,6 +176,20 @@ Requires: %{name}%{?_isa} = %{version}-%{release}
+@@ -178,6 +178,20 @@ Requires: %{name}%{?_isa} = %{version}-%{release}
  %description cron
  Crontab and utilities for running PackageKit as a cron job.
  
@@ -34,7 +23,7 @@ index 4effe7f..bbd2596 100644
  %package devel
  Summary: Libraries and headers for PackageKit
  Requires: %{name}-glib-devel%{?_isa} = %{version}-%{release}
-@@ -294,27 +308,17 @@ systemctl disable packagekit-offline-update.service > /dev/null 2>&1 || :
+@@ -296,27 +310,17 @@ systemctl disable packagekit-offline-update.service > /dev/null 2>&1 || :
  %dir %{_localstatedir}/cache/app-info/xmls
  %endif
  %dir %{_localstatedir}/cache/PackageKit
@@ -62,7 +51,7 @@ index 4effe7f..bbd2596 100644
  %ghost %verify(not md5 size mtime) %attr(0644,-,-) %{_localstatedir}/lib/PackageKit/transactions.db
  %{_datadir}/dbus-1/system.d/*
  %{_datadir}/dbus-1/system-services/*.service
-@@ -357,6 +361,22 @@ systemctl disable packagekit-offline-update.service > /dev/null 2>&1 || :
+@@ -359,6 +363,22 @@ systemctl disable packagekit-offline-update.service > /dev/null 2>&1 || :
  %config %{_sysconfdir}/cron.daily/packagekit-background.cron
  %config(noreplace) %{_sysconfdir}/sysconfig/packagekit-background
  

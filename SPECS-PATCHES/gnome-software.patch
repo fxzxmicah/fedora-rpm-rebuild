@@ -1,5 +1,5 @@
 diff --git OLD/gnome-software.spec NEW/gnome-software.spec
-index 3eb95da..afc999d 100644
+index 90caad9..e64fc6a 100644
 --- OLD/gnome-software.spec
 +++ NEW/gnome-software.spec
 @@ -11,12 +11,12 @@
@@ -17,5 +17,5 @@ index 3eb95da..afc999d 100644
 +# Disable DKMS/akmods support for all builds
 +%bcond dkms 0
  
- %bcond packagekit 1
- %bcond dnf5 0
+ %bcond packagekit 0
+ %bcond dnf5 1

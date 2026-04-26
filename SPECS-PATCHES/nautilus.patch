@@ -1,8 +1,8 @@
 diff --git OLD/nautilus.spec NEW/nautilus.spec
-index 70bcf61..4a657fa 100644
+index 39a82bc..160deb8 100644
 --- OLD/nautilus.spec
 +++ NEW/nautilus.spec
-@@ -18,8 +18,6 @@ Summary:        File manager for GNOME
+@@ -17,8 +17,6 @@ Summary:        File manager for GNOME
  License:        GPL-3.0-or-later AND CC0-1.0
  URL:            https://apps.gnome.org/Nautilus/
  Source0:        https://download.gnome.org/sources/%{name}/%{major_version}/%{name}-%{tarball_version}.tar.xz
@@ -11,7 +11,7 @@ index 70bcf61..4a657fa 100644
  
  BuildRequires:  desktop-file-utils
  BuildRequires:  gcc
-@@ -129,8 +127,6 @@ desktop-file-validate $RPM_BUILD_ROOT%{_datadir}/applications/*.desktop
+@@ -140,8 +138,6 @@ desktop-file-validate $RPM_BUILD_ROOT%{_datadir}/applications/*.desktop
  %{_mandir}/man1/nautilus-autorun-software.1*
  %{_datadir}/glib-2.0/schemas/org.gnome.nautilus.gschema.xml
  %{_datadir}/nautilus/
@@ -20,7 +20,7 @@ index 70bcf61..4a657fa 100644
  %{_metainfodir}/org.gnome.Nautilus.metainfo.xml
  
  %files extensions
-@@ -139,6 +135,8 @@ desktop-file-validate $RPM_BUILD_ROOT%{_datadir}/applications/*.desktop
+@@ -150,6 +146,8 @@ desktop-file-validate $RPM_BUILD_ROOT%{_datadir}/applications/*.desktop
  %{_libdir}/girepository-1.0/Nautilus-4.1.typelib
  %dir %{_libdir}/nautilus
  %dir %{_libdir}/nautilus/extensions-4

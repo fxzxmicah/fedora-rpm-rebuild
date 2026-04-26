@@ -1,5 +1,5 @@
 diff --git OLD/kmod.spec NEW/kmod.spec
-index f91d5b1..2515225 100644
+index a41c634..75493ea 100644
 --- OLD/kmod.spec
 +++ NEW/kmod.spec
 @@ -84,6 +84,9 @@ BuildRequires:  make automake libtool

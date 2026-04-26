@@ -1,5 +1,5 @@
 diff --git OLD/gnome-keyring.spec NEW/gnome-keyring.spec
-index 5466390..00c4916 100644
+index af6f1dd..1ce9956 100644
 --- OLD/gnome-keyring.spec
 +++ NEW/gnome-keyring.spec
 @@ -2,7 +2,8 @@
@@ -11,8 +11,8 @@ index 5466390..00c4916 100644
 +%bcond ssh_agent 0
  
  Name:           gnome-keyring
- Version:        48.0
-@@ -53,7 +54,7 @@ Requires: /usr/bin/ssh-add
+ Version:        50.0
+@@ -51,7 +52,7 @@ Requires: /usr/bin/ssh-add
  Requires: /usr/bin/ssh-agent
  %endif
  # for /usr/libexec/gcr-ssh-askpass
@@ -21,7 +21,7 @@ index 5466390..00c4916 100644
  
  %description
  The gnome-keyring session daemon manages passwords and other types of
-@@ -61,6 +62,16 @@ secrets for the user, storing them encrypted with a main password.
+@@ -59,6 +60,16 @@ secrets for the user, storing them encrypted with a main password.
  Applications can use the gnome-keyring library to integrate with the keyring.
  
  
@@ -38,7 +38,7 @@ index 5466390..00c4916 100644
  %package pam
  Summary: Pam module for unlocking keyrings
  License: LGPL-2.1-or-later
-@@ -106,9 +117,6 @@ automatically unlock the "login" keyring when the user logs in.
+@@ -104,9 +115,6 @@ automatically unlock the "login" keyring when the user logs in.
  %doc NEWS README
  %license COPYING COPYING.LIB
  # LGPL
@@ -48,7 +48,7 @@ index 5466390..00c4916 100644
  %dir %{_libdir}/pkcs11
  %{_libdir}/pkcs11/*.so
  # GPL
-@@ -129,6 +137,11 @@ automatically unlock the "login" keyring when the user logs in.
+@@ -127,6 +135,11 @@ automatically unlock the "login" keyring when the user logs in.
  %{_userunitdir}/gnome-keyring-daemon.service
  %{_userunitdir}/gnome-keyring-daemon.socket
  

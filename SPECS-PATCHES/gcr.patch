@@ -1,5 +1,5 @@
 diff --git OLD/gcr.spec NEW/gcr.spec
-index bc2e4ea..9248a83 100644
+index cdb24fa..96737f2 100644
 --- OLD/gcr.spec
 +++ NEW/gcr.spec
 @@ -2,6 +2,9 @@
@@ -11,7 +11,7 @@ index bc2e4ea..9248a83 100644
 +
  Name:           gcr
  Version:        4.4.0.1
- Release:        2%{?dist}
+ Release:        %autorelease
 @@ -14,6 +17,7 @@ Summary:        A library for bits of crypto UI and parsing
  License:        LGPL-2.1-or-later AND FSFULLRWD AND (LGPL-3.0-or-later OR CC-BY-SA-3.0) AND (MPL-1.1 OR GPL-2.0-or-later OR LGPL-2.1-or-later) AND GCR-docs
  URL:            https://gitlab.gnome.org/GNOME/gcr
@@ -40,7 +40,7 @@ index bc2e4ea..9248a83 100644
  
  %description
  gcr is a library for displaying certificates, and crypto UI, accessing
-@@ -76,29 +83,50 @@ developing applications that use %{name}.
+@@ -80,29 +87,50 @@ developing applications that use %{name}.
  %autosetup -p1
  
  %build

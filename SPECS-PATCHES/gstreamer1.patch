@@ -1,5 +1,5 @@
 diff --git OLD/gstreamer1.spec NEW/gstreamer1.spec
-index 873e668..8a90778 100644
+index 7d784ba..717cdd2 100644
 --- OLD/gstreamer1.spec
 +++ NEW/gstreamer1.spec
 @@ -66,12 +66,21 @@ types or processing capabilities can be added simply by installing new

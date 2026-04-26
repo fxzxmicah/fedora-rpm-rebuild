@@ -1,8 +1,8 @@
 diff --git OLD/bluez.spec NEW/bluez.spec
-index b7e7e50..9885313 100644
+index 5c57cda..ff7a378 100644
 --- OLD/bluez.spec
 +++ NEW/bluez.spec
-@@ -38,6 +38,8 @@ Requires(post): systemd
+@@ -44,6 +44,8 @@ Requires(post): systemd
  Requires(preun): systemd
  Requires(postun): systemd
  
@@ -11,7 +11,7 @@ index b7e7e50..9885313 100644
  %description
  Utilities for use in Bluetooth applications:
  	- avinfo
-@@ -133,6 +135,16 @@ Requires: bluez-libs%{?_isa} = %{version}-%{release}
+@@ -139,6 +141,16 @@ Requires: bluez-libs%{?_isa} = %{version}-%{release}
  %description obexd
  Object Exchange daemon for sharing files, contacts etc over bluetooth
  
@@ -28,7 +28,7 @@ index b7e7e50..9885313 100644
  %prep
  %autosetup -p1
  
-@@ -258,6 +270,8 @@ install emulator/btvirt ${RPM_BUILD_ROOT}/%{_libexecdir}/bluetooth/
+@@ -265,6 +277,8 @@ install emulator/btvirt ${RPM_BUILD_ROOT}/%{_libexecdir}/bluetooth/
  %{_datadir}/dbus-1/system-services/org.bluez.service
  %{_unitdir}/bluetooth.service
  %{_userunitdir}/mpris-proxy.service

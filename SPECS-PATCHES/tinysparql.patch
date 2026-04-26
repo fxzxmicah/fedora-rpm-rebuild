@@ -1,5 +1,5 @@
 diff --git OLD/tinysparql.spec NEW/tinysparql.spec
-index f66023c..fe6bcdd 100644
+index 339ea71..13bad72 100644
 --- OLD/tinysparql.spec
 +++ NEW/tinysparql.spec
 @@ -4,6 +4,8 @@

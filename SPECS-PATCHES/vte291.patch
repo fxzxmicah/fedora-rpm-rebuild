@@ -1,5 +1,5 @@
 diff --git OLD/vte291.spec NEW/vte291.spec
-index d6435fd..0269f3f 100644
+index a2cd33b..ba283db 100644
 --- OLD/vte291.spec
 +++ NEW/vte291.spec
 @@ -24,7 +24,7 @@ Release:        %autorelease
@@ -10,7 +10,7 @@ index d6435fd..0269f3f 100644
 +License:        GPL-3.0-or-later AND LGPL-3.0-or-later AND MIT AND X11
  
  URL:            https://wiki.gnome.org/Apps/Terminal/VTE
- Source0:        https://download.gnome.org/sources/vte/0.82/vte-%{version}.tar.xz
+ Source0:        https://download.gnome.org/sources/vte/0.84/vte-%{version}.tar.xz
 @@ -64,7 +64,7 @@ Requires:       libicu%{?_isa} >= %{icu_uc_version}
  Requires:       pango >= %{pango_version}
  Requires:       pcre2%{?_isa} >= %{pcre2_version}

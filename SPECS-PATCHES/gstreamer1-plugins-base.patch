@@ -1,5 +1,5 @@
 diff --git OLD/gstreamer1-plugins-base.spec NEW/gstreamer1-plugins-base.spec
-index f05a5e4..769a89b 100644
+index eafca42..5b1669c 100644
 --- OLD/gstreamer1-plugins-base.spec
 +++ NEW/gstreamer1-plugins-base.spec
 @@ -1,5 +1,6 @@

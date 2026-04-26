@@ -1,8 +1,8 @@
 diff --git OLD/wpa_supplicant.spec NEW/wpa_supplicant.spec
-index 71953b7..99695d1 100644
+index 243440c..927118b 100644
 --- OLD/wpa_supplicant.spec
 +++ NEW/wpa_supplicant.spec
-@@ -65,7 +65,6 @@ BuildRequires: gcc
+@@ -67,7 +67,6 @@ BuildRequires: gcc
  %if 0%{?fedora} >= 41
  BuildRequires: openssl-devel-engine
  %endif
@@ -10,7 +10,7 @@ index 71953b7..99695d1 100644
  Requires(post): systemd
  Requires(preun): systemd
  Requires(postun): systemd
-@@ -98,6 +97,12 @@ Graphical User Interface for wpa_supplicant written using QT
+@@ -100,6 +99,12 @@ Graphical User Interface for wpa_supplicant written using QT
  %endif
  
  
@@ -23,16 +23,7 @@ index 71953b7..99695d1 100644
  %prep
  %autosetup -p1 -n %{name}-%{version}
  
-@@ -143,7 +148,7 @@ install -m 0755 wpa_supplicant/wpa_cli %{buildroot}/%{_sbindir}
- install -m 0755 wpa_supplicant/wpa_supplicant %{buildroot}/%{_sbindir}
- install -m 0755 wpa_supplicant/eapol_test %{buildroot}/%{_sbindir}
- install -D -m 0644 wpa_supplicant/dbus/dbus-wpa_supplicant.conf \
--  %{buildroot}/%{_sysconfdir}/dbus-1/system.d/wpa_supplicant.conf
-+  %{buildroot}/%{_datadir}/dbus-1/system.d/wpa_supplicant.conf
- install -D -m 0644 wpa_supplicant/dbus/fi.w1.wpa_supplicant1.service \
-   %{buildroot}/%{_datadir}/dbus-1/system-services/fi.w1.wpa_supplicant1.service
- 
-@@ -158,10 +163,13 @@ install -d %{buildroot}%{_mandir}/man{5,8}
+@@ -160,10 +165,13 @@ install -d %{buildroot}%{_mandir}/man{5,8}
  install -m 0644 wpa_supplicant/doc/docbook/*.8 %{buildroot}%{_mandir}/man8
  install -m 0644 wpa_supplicant/doc/docbook/*.5 %{buildroot}%{_mandir}/man5
  
@@ -48,7 +39,7 @@ index 71953b7..99695d1 100644
  
  
  %post
-@@ -171,16 +179,6 @@ chmod -R 0644 wpa_supplicant/examples/*.py
+@@ -173,16 +181,6 @@ chmod -R 0644 wpa_supplicant/examples/*.py
  %preun
  %systemd_preun wpa_supplicant.service
  
@@ -65,16 +56,7 @@ index 71953b7..99695d1 100644
  
  %files
  %config(noreplace) %{_sysconfdir}/wpa_supplicant/wpa_supplicant.conf
-@@ -188,7 +186,7 @@ chmod -R 0644 wpa_supplicant/examples/*.py
- %dir %{_sysconfdir}/logrotate.d
- %config(noreplace) %{_sysconfdir}/logrotate.d/wpa_supplicant
- %{_unitdir}/wpa_supplicant.service
--%{_sysconfdir}/dbus-1/system.d/wpa_supplicant.conf
-+%{_datadir}/dbus-1/system.d/wpa_supplicant.conf
- %{_datadir}/dbus-1/system-services/fi.w1.wpa_supplicant1.service
- %{_sbindir}/wpa_passphrase
- %{_sbindir}/wpa_supplicant
-@@ -206,8 +204,6 @@ chmod -R 0644 wpa_supplicant/examples/*.py
+@@ -208,8 +206,6 @@ chmod -R 0644 wpa_supplicant/examples/*.py
  %doc wpa_supplicant/ChangeLog
  %doc wpa_supplicant/eap_testing.txt
  %doc wpa_supplicant/todo.txt
@@ -83,7 +65,7 @@ index 71953b7..99695d1 100644
  %license COPYING
  
  
-@@ -218,6 +214,11 @@ chmod -R 0644 wpa_supplicant/examples/*.py
+@@ -220,6 +216,11 @@ chmod -R 0644 wpa_supplicant/examples/*.py
  %endif
  
  
@@ -93,5 +75,5 @@ index 71953b7..99695d1 100644
 +
 +
  %changelog
- * Fri Jul 25 2025 Fedora Release Engineering <releng@fedoraproject.org> - 1:2.11-7
- - Rebuilt for https://fedoraproject.org/wiki/Fedora_43_Mass_Rebuild
+ * Thu Feb 12 2026 Beniamino Galvani <bgalvani@redhat.com> - 1:2.11-10
+ - Fix loading multiple certificates from the ca_cert blob (#2439303)

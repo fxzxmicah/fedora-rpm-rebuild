@@ -1,5 +1,5 @@
 diff --git OLD/libinput.spec NEW/libinput.spec
-index d14d769..0454c98 100644
+index 52c7ac1..2a6f893 100644
 --- OLD/libinput.spec
 +++ NEW/libinput.spec
 @@ -31,6 +31,8 @@ BuildRequires:  python3-rpm-macros

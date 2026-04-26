@@ -1,8 +1,8 @@
 diff --git OLD/NetworkManager.spec NEW/NetworkManager.spec
-index e6509ca..e55866d 100644
+index 2bb459e..bcee091 100644
 --- OLD/NetworkManager.spec
 +++ NEW/NetworkManager.spec
-@@ -194,6 +194,7 @@ Requires(postun): systemd
+@@ -185,6 +185,7 @@ Requires(postun): systemd
  Requires: dbus >= %{dbus_version}
  Requires: glib2 >= %{glib2_version}
  Requires: %{name}-libnm%{?_isa} = %{epoch}:%{version}-%{release}
@@ -10,7 +10,7 @@ index e6509ca..e55866d 100644
  
  Recommends: iputils
  
-@@ -323,6 +324,17 @@ Ethernet, Bridge, Bond, VLAN, Team, InfiniBand, Wi-Fi, mobile broadband
+@@ -314,6 +315,17 @@ Ethernet, Bridge, Bond, VLAN, Team, InfiniBand, Wi-Fi, mobile broadband
  services.
  
  
@@ -28,7 +28,7 @@ index e6509ca..e55866d 100644
  %if %{with adsl}
  %package adsl
  Summary: ADSL device plugin for NetworkManager
-@@ -796,11 +808,14 @@ if [ -S /run/udev/control ]; then
+@@ -789,11 +801,14 @@ if [ -S /run/udev/control ]; then
      /usr/bin/udevadm control --reload-rules || :
      /usr/bin/udevadm trigger --subsystem-match=net || :
  fi
@@ -44,7 +44,7 @@ index e6509ca..e55866d 100644
  %if %{with ifcfg_rh}
  %post initscripts-updown
  if [ -f %{_sbindir}/ifup -a ! -L %{_sbindir}/ifup ]; then
-@@ -847,11 +862,14 @@ fi
+@@ -840,11 +855,14 @@ fi
  %postun
  /usr/bin/udevadm control --reload-rules || :
  /usr/bin/udevadm trigger --subsystem-match=net || :
@@ -60,15 +60,15 @@ index e6509ca..e55866d 100644
  %if %{with nm_cloud_setup}
  %postun cloud-setup
  %systemd_postun %{systemd_units_cloud_setup}
-@@ -919,7 +937,6 @@ fi
- %{_datadir}/dbus-1/system-services/org.freedesktop.nm_priv_helper.service
- %{_datadir}/polkit-1/actions/*.policy
+@@ -916,7 +934,6 @@ fi
+ %{_datadir}/polkit-1/rules.d/org.freedesktop.NetworkManager.rules
+ %endif
  %{_prefix}/lib/udev/rules.d/*.rules
 -%{_prefix}/lib/firewalld/zones/nm-shared.xml
  # systemd stuff
  %{_unitdir}/NetworkManager.service
  %{_unitdir}/NetworkManager-wait-online.service
-@@ -936,6 +953,10 @@ fi
+@@ -933,6 +950,10 @@ fi
  %license COPYING.GFDL
  
  

@@ -1,14 +1,14 @@
 diff --git OLD/gnupg2.spec NEW/gnupg2.spec
-index 530cf95..ffeca06 100644
+index 7832d4d..fda1662 100644
 --- OLD/gnupg2.spec
 +++ NEW/gnupg2.spec
 @@ -1,4 +1,5 @@
  %bcond_with bootstrap
 +%bcond_with ldap
  
- %global split_min_version 2.4.8-2
+ %global split_min_version 2.4.9-4.fc42.1
  
-@@ -60,7 +61,9 @@ BuildRequires: libassuan-devel >= 2.5.0
+@@ -65,7 +66,9 @@ BuildRequires: libassuan-devel >= 2.5.0
  BuildRequires: libgcrypt-devel >= 1.9.1
  BuildRequires: libgpg-error-devel >= 1.46
  BuildRequires: libksba-devel >= 1.6.3
@@ -18,7 +18,7 @@ index 530cf95..ffeca06 100644
  BuildRequires: pcsc-lite-libs
  BuildRequires: ncurses-devel
  BuildRequires: npth-devel
-@@ -80,11 +83,11 @@ BuildRequires: swtpm
+@@ -85,11 +88,11 @@ BuildRequires: swtpm
  Requires: libgcrypt >= 1.9.1
  Requires: libgpg-error >= 1.46
  
@@ -34,7 +34,7 @@ index 530cf95..ffeca06 100644
  
  Recommends: pinentry
  
-@@ -250,7 +253,13 @@ sed -i -e 's/"libpcsclite\.so"/"%{pcsclib}"/' scd/scdaemon.c
+@@ -257,7 +260,13 @@ sed -i -e 's/"libpcsclite\.so"/"%{pcsclib}"/' scd/scdaemon.c
    --enable-g13 \
    --disable-ccid-driver \
    --with-tss=intel \
@@ -49,7 +49,7 @@ index 530cf95..ffeca06 100644
  
  # need scratch gpg database for tests
  mkdir -p $HOME/.gnupg
-@@ -275,6 +284,8 @@ echo "setenv GPG_TTY \`tty\`" > %{buildroot}%{_sysconfdir}/profile.d/gnupg2.csh
+@@ -281,6 +290,8 @@ install -p %{SOURCE3} %{SOURCE4} %{buildroot}%{_sysconfdir}/profile.d
  install -m644 -p AUTHORS NEWS THANKS TODO \
    %{buildroot}%{_pkgdocdir}
  
@@ -58,7 +58,7 @@ index 530cf95..ffeca06 100644
  # compat symlinks
  ln -sf gpg %{buildroot}%{_bindir}/gpg2
  ln -sf gpgv %{buildroot}%{_bindir}/gpgv2
-@@ -340,13 +351,14 @@ make -k check
+@@ -346,13 +357,14 @@ make -k check
  %{_mandir}/man?/gnupg.*
  %{_mandir}/man?/gnupg2.*
  %{_pkgdocdir}/

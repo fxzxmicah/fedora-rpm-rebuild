@@ -1,5 +1,5 @@
 diff --git OLD/libldac.spec NEW/libldac.spec
-index 328b102..2f30bd8 100644
+index f3684f5..559eb6d 100644
 --- OLD/libldac.spec
 +++ NEW/libldac.spec
 @@ -53,10 +53,10 @@ developing applications that use %{name}.

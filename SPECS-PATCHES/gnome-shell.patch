@@ -1,8 +1,8 @@
 diff --git OLD/gnome-shell.spec NEW/gnome-shell.spec
-index bf5eea2..95bf18a 100644
+index 76bae7b..c34db85 100644
 --- OLD/gnome-shell.spec
 +++ NEW/gnome-shell.spec
-@@ -189,6 +189,14 @@ BuildArch: noarch
+@@ -180,6 +180,14 @@ BuildArch: noarch
  %description common
  %{summary}
  
@@ -17,7 +17,7 @@ index bf5eea2..95bf18a 100644
  %prep
  %autosetup -S git -n %{name}-%{tarball_version}
  
-@@ -233,6 +241,7 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/org.gnome.Shell.Porta
+@@ -224,6 +232,7 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/org.gnome.Shell.Porta
  %{_datadir}/gnome-control-center/keybindings/50-gnome-shell-screenshots.xml
  %{_datadir}/gnome-control-center/keybindings/50-gnome-shell-system.xml
  %{_datadir}/gnome-shell/
@@ -25,7 +25,7 @@ index bf5eea2..95bf18a 100644
  %{_datadir}/dbus-1/services/org.gnome.ScreenSaver.service
  %{_datadir}/dbus-1/services/org.gnome.Shell.CalendarServer.service
  %{_datadir}/dbus-1/services/org.gnome.Shell.Extensions.service
-@@ -273,5 +282,8 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/org.gnome.Shell.Porta
+@@ -264,5 +273,8 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/org.gnome.Shell.Porta
  %files common
  %{_datadir}/glib-2.0/schemas/*.xml
  

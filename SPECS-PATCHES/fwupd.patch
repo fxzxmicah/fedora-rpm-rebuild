@@ -1,8 +1,8 @@
 diff --git OLD/fwupd.spec NEW/fwupd.spec
-index f29bc64..a0af771 100644
+index 2437a65..187be4d 100644
 --- OLD/fwupd.spec
 +++ NEW/fwupd.spec
-@@ -119,6 +119,8 @@ Requires: libxmlb%{?_isa} >= %{libxmlb_version}
+@@ -110,6 +110,8 @@ Requires: libxmlb%{?_isa} >= %{libxmlb_version}
  Requires: libusb1%{?_isa} >= %{libusb_version}
  Requires: shared-mime-info
  
@@ -11,10 +11,19 @@ index f29bc64..a0af771 100644
  Obsoletes: dbxtool < 9
  Provides: dbxtool
  
-@@ -144,6 +146,16 @@ Recommends: %{name}-plugin-uefi-capsule-data
+@@ -135,6 +137,25 @@ Recommends: %{name}-plugin-uefi-capsule-data
  %description
  fwupd is a daemon to allow session software to update device firmware.
  
++%package utils
++Summary: Utils for %{name}
++Requires: %{name} = %{version}-%{release}
++
++BuildArch: noarch
++
++%description utils
++Utils for %{name}.
++
 +%package fish-completion
 +Summary: Fish completion for %{name}
 +Requires: %{name} = %{version}-%{release}
@@ -28,7 +37,26 @@ index f29bc64..a0af771 100644
  %package devel
  Summary: Development package for %{name}
  Requires: %{name}%{?_isa} = %{version}-%{release}
-@@ -285,7 +297,6 @@ systemctl --no-reload preset fwupd-refresh.timer &>/dev/null || :
+@@ -236,6 +257,8 @@ mkdir -p --mode=0700 $RPM_BUILD_ROOT%{_localstatedir}/lib/fwupd
+ # workaround for https://bugzilla.redhat.com/show_bug.cgi?id=1757948
+ mkdir -p $RPM_BUILD_ROOT%{_localstatedir}/cache/fwupd
+ 
++mv $RPM_BUILD_ROOT%{_sysconfdir}/fwupd/remotes.d/* %{_datadir}/fwupd/remotes.d/
++
+ %find_lang %{name}
+ 
+ %post
+@@ -269,9 +292,6 @@ systemctl --no-reload preset fwupd-refresh.timer &>/dev/null || :
+ %dir %{_sysconfdir}/fwupd/bios-settings.d
+ %{_sysconfdir}/fwupd/bios-settings.d/README.md
+ %dir %{_sysconfdir}/fwupd/remotes.d
+-%config(noreplace)%{_sysconfdir}/fwupd/remotes.d/lvfs.conf
+-%config(noreplace)%{_sysconfdir}/fwupd/remotes.d/lvfs-testing.conf
+-%config(noreplace)%{_sysconfdir}/fwupd/remotes.d/vendor-directory.conf
+ %config(noreplace)%{_sysconfdir}/pki/fwupd
+ %{_sysconfdir}/pki/fwupd-metadata
+ %if 0%{?have_msr}
+@@ -281,14 +301,11 @@ systemctl --no-reload preset fwupd-refresh.timer &>/dev/null || :
  %{_datadir}/dbus-1/system.d/org.freedesktop.fwupd.conf
  %{_datadir}/bash-completion/completions/fwupdmgr
  %{_datadir}/bash-completion/completions/fwupdtool
@@ -36,10 +64,35 @@ index f29bc64..a0af771 100644
  %dir %{_datadir}/fwupd
  %dir %{_datadir}/fwupd/metainfo
  %{_datadir}/fwupd/metainfo/org.freedesktop.fwupd*.metainfo.xml
-@@ -328,6 +339,9 @@ systemctl --no-reload preset fwupd-refresh.timer &>/dev/null || :
+ %dir %{_datadir}/fwupd/remotes.d
+-%dir %{_datadir}/fwupd/remotes.d/vendor
+-%dir %{_datadir}/fwupd/remotes.d/vendor/firmware
+-%{_datadir}/fwupd/remotes.d/vendor/firmware/README.md
++%{_datadir}/fwupd/remotes.d/**
+ %{_datadir}/dbus-1/interfaces/org.freedesktop.fwupd.xml
+ %{_datadir}/polkit-1/actions/org.freedesktop.fwupd.policy
+ %{_datadir}/polkit-1/rules.d/org.freedesktop.fwupd.rules
+@@ -302,10 +319,6 @@ systemctl --no-reload preset fwupd-refresh.timer &>/dev/null || :
+ %{_mandir}/man8/*
+ %{_datadir}/metainfo/org.freedesktop.fwupd.metainfo.xml
+ %{_datadir}/icons/hicolor/*/apps/org.freedesktop.fwupd.*
+-%{_datadir}/fwupd/firmware_packager.py
+-%{_datadir}/fwupd/simple_client.py
+-%{_datadir}/fwupd/add_capsule_header.py
+-%{_datadir}/fwupd/install_dell_bios_exe.py
+ %{_unitdir}/fwupd.service
+ %{_unitdir}/fwupd-refresh.service
+ %{_unitdir}/fwupd-refresh.timer
+@@ -323,6 +336,15 @@ systemctl --no-reload preset fwupd-refresh.timer &>/dev/null || :
+ %dir %{_libdir}/fwupd-%{version}
  %{_libdir}/fwupd-%{version}/libfwupd*.so
- %ghost %{_localstatedir}/lib/fwupd/gnupg
  
++%files utils
++%{_datadir}/fwupd/firmware_packager.py
++%{_datadir}/fwupd/simple_client.py
++%{_datadir}/fwupd/add_capsule_header.py
++%{_datadir}/fwupd/install_dell_bios_exe.py
++
 +%files fish-completion
 +%{_datadir}/fish/vendor_completions.d/fwupdmgr.fish
 +

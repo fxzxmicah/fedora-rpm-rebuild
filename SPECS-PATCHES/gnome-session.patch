@@ -1,8 +1,8 @@
 diff --git OLD/gnome-session.spec NEW/gnome-session.spec
-index 1c209b5..8644bb0 100644
+index c524be0..091b749 100644
 --- OLD/gnome-session.spec
 +++ NEW/gnome-session.spec
-@@ -62,7 +62,6 @@ the other core GNOME components and handles logout and saving the session.
+@@ -49,7 +49,6 @@ the other core GNOME components and handles logout and saving the session.
  %package wayland-session
  Summary: Desktop file for wayland based gnome session
  Requires: %{name}%{?_isa} = %{version}-%{release}

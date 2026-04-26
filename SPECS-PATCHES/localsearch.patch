@@ -1,8 +1,8 @@
 diff --git OLD/localsearch.spec NEW/localsearch.spec
-index 2108175..8e9df7d 100644
+index a8193d2..7e219fa 100644
 --- OLD/localsearch.spec
 +++ NEW/localsearch.spec
-@@ -8,9 +8,11 @@
+@@ -11,9 +11,11 @@
  %endif
  
  %global with_enca 1
@@ -14,19 +14,19 @@ index 2108175..8e9df7d 100644
 +%global with_totem_pl_parser 0
 +%global with_xps 0
  
- %if 0%{?rhel} || 0%{?flatpak}
+ %if 0%{?rhel}
  %global with_enca 0
-@@ -68,7 +70,9 @@ BuildRequires:  pkgconfig(libcue)
+@@ -70,7 +72,9 @@ BuildRequires:  pkgconfig(libcue)
  %endif
  BuildRequires:  pkgconfig(libexif)
  BuildRequires:  pkgconfig(libgsf-1)
 +%if 0%{?with_xps}
  BuildRequires:  pkgconfig(libgxps)
 +%endif
- BuildRequires:  pkgconfig(libiptcdata)
  BuildRequires:  pkgconfig(libjpeg)
  BuildRequires:  pkgconfig(libpng)
-@@ -82,7 +86,9 @@ BuildRequires:  pkgconfig(totem-plparser)
+ BuildRequires:  pkgconfig(libseccomp)
+@@ -84,7 +88,9 @@ BuildRequires:  pkgconfig(totem-plparser)
  BuildRequires:  pkgconfig(tinysparql-3.0) >= %{tinysparql_version}
  BuildRequires:  pkgconfig(vorbisfile)
  %if !0%{?flatpak}
@@ -36,7 +36,7 @@ index 2108175..8e9df7d 100644
  BuildRequires:  pkgconfig(libnm)
  BuildRequires:  pkgconfig(upower-glib)
  %endif
-@@ -100,6 +106,14 @@ tag/metadata database and search tool.
+@@ -102,6 +108,14 @@ tag/metadata database and search tool.
  This package contains various miners and metadata extractors for tinysparql.
  
  
@@ -51,7 +51,7 @@ index 2108175..8e9df7d 100644
  %prep
  %autosetup -p1 -n %{name}-%{tarball_version}
  
-@@ -124,6 +138,12 @@ This package contains various miners and metadata extractors for tinysparql.
+@@ -126,6 +140,12 @@ This package contains various miners and metadata extractors for tinysparql.
  %endif
  %if ! 0%{?with_totem_pl_parser}
    -Dplaylist=disabled \
@@ -64,7 +64,7 @@ index 2108175..8e9df7d 100644
  %endif
    %{nil}
  
-@@ -161,6 +181,7 @@ ln -sr %{buildroot}%{_datadir}/dbus-1/services/%{domain_ontology}.Tracker3.Miner
+@@ -154,6 +174,7 @@ This package contains various miners and metadata extractors for tinysparql.
  %config(noreplace) %{_sysconfdir}/xdg/autostart/localsearch-3.desktop
  %{_bindir}/localsearch
  %{_libdir}/localsearch-3.0/
@@ -72,8 +72,8 @@ index 2108175..8e9df7d 100644
  %{_libexecdir}/localsearch-3
  %{_libexecdir}/localsearch-control-3
  %{_libexecdir}/localsearch-extractor-3
-@@ -192,6 +213,9 @@ ln -sr %{buildroot}%{_datadir}/dbus-1/services/%{domain_ontology}.Tracker3.Miner
- %{_bindir}/%{name}-flatpak-fixup.sh
+@@ -182,6 +203,9 @@ This package contains various miners and metadata extractors for tinysparql.
+ %{_userunitdir}/localsearch*.service
  %endif
  
 +%files test

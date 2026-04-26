@@ -1,5 +1,5 @@
 diff --git OLD/evolution-ews.spec NEW/evolution-ews.spec
-index 7ff7eb2..2d1a6c7 100644
+index a84e99c..f6bbbe5 100644
 --- OLD/evolution-ews.spec
 +++ NEW/evolution-ews.spec
 @@ -45,7 +45,6 @@ versions 2007 and later, through its Exchange Web Services (EWS) interface.

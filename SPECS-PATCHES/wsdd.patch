@@ -1,5 +1,5 @@
 diff --git OLD/wsdd.spec NEW/wsdd.spec
-index a470f50..39f8c7e 100644
+index f75cc33..d199f87 100644
 --- OLD/wsdd.spec
 +++ NEW/wsdd.spec
 @@ -10,6 +10,7 @@ Patch:          Modify-systemd-service-for-Fedora.patch
@@ -46,4 +46,4 @@ index a470f50..39f8c7e 100644
 +%{_usr}/lib/firewalld/services/wsdd-http.xml
  
  %changelog
- * Fri Jul 25 2025 Fedora Release Engineering <releng@fedoraproject.org> - 0.8-5
+ * Sat Jan 17 2026 Fedora Release Engineering <releng@fedoraproject.org> - 0.8-6

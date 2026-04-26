@@ -1,9 +1,9 @@
 diff --git OLD/gdm.spec NEW/gdm.spec
-index e9974ef..2af1fb8 100644
+index bd036d1..5aec58d 100644
 --- OLD/gdm.spec
 +++ NEW/gdm.spec
 @@ -5,13 +5,8 @@
- %global major_version %%(echo %{version} | cut -d '.' -f1)
+ %global major_version %%(echo %{version} | cut -d '.' -f1 | cut -d '~' -f1)
  %global tarball_version %%(echo %{version} | tr '~' '.')
  
 -# This controls support for launching X11 desktops.
@@ -25,7 +25,7 @@ index e9974ef..2af1fb8 100644
  
  BuildRequires:  dconf
  BuildRequires:  desktop-file-utils
-@@ -71,13 +65,14 @@ Requires: gnome-session-wayland-session >= 49~beta
+@@ -71,13 +65,14 @@ Requires: gnome-session-wayland-session >= 50~alpha
  Requires: gnome-settings-daemon >= 3.27.90
  Requires: gnome-shell
  Requires: iso-codes
@@ -52,13 +52,12 @@ index e9974ef..2af1fb8 100644
  
  %package devel
  Summary: Development files for gdm
-@@ -183,13 +176,13 @@ ln -sf ../X11/xinit/Xsession %{buildroot}%{_sysconfdir}/gdm/
+@@ -175,12 +168,12 @@ ln -sf ../X11/xinit/Xsession %{buildroot}%{_sysconfdir}/gdm/
  %if %{with x11}
  %{_libexecdir}/gdm-x-session
  %endif
 -%{_libexecdir}/gdm-headless-login-session
  %{_sbindir}/gdm
- %{_bindir}/gdmflexiserver
  %{_bindir}/gdm-config
  %dir %{_datadir}/dconf
  %dir %{_datadir}/dconf/profile
@@ -66,9 +65,9 @@ index e9974ef..2af1fb8 100644
 +%dir %{_datadir}/gdm
  %dir %{_datadir}/gdm/greeter
  %dir %{_datadir}/gdm/greeter/applications
- %{_datadir}/gdm/greeter/applications/*
-@@ -200,7 +193,7 @@ ln -sf ../X11/xinit/Xsession %{buildroot}%{_sysconfdir}/gdm/
- %{_datadir}/polkit-1/rules.d/20-gdm.rules
+ %dir %{_datadir}/gdm/greeter/wayland-sessions
+@@ -194,7 +187,7 @@ ln -sf ../X11/xinit/Xsession %{buildroot}%{_sysconfdir}/gdm/
+ %{_datadir}/polkit-1/actions/org.gnome.displaymanager.policy
  %{_libdir}/girepository-1.0/Gdm-1.0.typelib
  %{_libdir}/security/pam_gdm.so
 -%{_libdir}/libgdm.so.1{,.*}
@@ -76,8 +75,8 @@ index e9974ef..2af1fb8 100644
  %{_libexecdir}/gdm-auth-config-redhat
  %ghost %dir %{_localstatedir}/log/gdm
  %ghost %dir %{_localstatedir}/lib/gdm
-@@ -209,7 +202,6 @@ ln -sf ../X11/xinit/Xsession %{buildroot}%{_sysconfdir}/gdm/
- %config %{_sysconfdir}/pam.d/gdm-fingerprint
+@@ -204,7 +197,6 @@ ln -sf ../X11/xinit/Xsession %{buildroot}%{_sysconfdir}/gdm/
+ %config %{_sysconfdir}/pam.d/gdm-switchable-auth
  %{_sysconfdir}/pam.d/gdm-launch-environment
  %{_unitdir}/gdm.service
 -%{_unitdir}/gnome-headless-session@.service

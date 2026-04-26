@@ -1,5 +1,5 @@
 diff --git OLD/icu.spec NEW/icu.spec
-index 72c5c87..f16df1b 100644
+index c649d38..0fbe87b 100644
 --- OLD/icu.spec
 +++ NEW/icu.spec
 @@ -127,6 +127,8 @@ chmod +x $RPM_BUILD_ROOT%{_libdir}/*.so.*

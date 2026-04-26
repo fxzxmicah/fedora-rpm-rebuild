@@ -1,5 +1,5 @@
 diff --git OLD/gawk.spec NEW/gawk.spec
-index bfa822c..702fc9a 100644
+index e230f55..ac3cdfc 100644
 --- OLD/gawk.spec
 +++ NEW/gawk.spec
 @@ -148,6 +148,19 @@ text processing.

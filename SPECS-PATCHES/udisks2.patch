@@ -1,8 +1,33 @@
 diff --git OLD/udisks2.spec NEW/udisks2.spec
-index d086c17..297b284 100644
+index ba5e5b9..fb47069 100644
 --- OLD/udisks2.spec
 +++ NEW/udisks2.spec
-@@ -105,6 +105,7 @@ Recommends: ntfs-3g
+@@ -59,15 +59,15 @@ BuildRequires: libblockdev-smart-devel  >= %{libblockdev_version}
+ BuildRequires: libmount-devel
+ BuildRequires: libuuid-devel
+ 
+-Requires: libblockdev        >= %{libblockdev_version}
+-Requires: libblockdev-part   >= %{libblockdev_version}
+-Requires: libblockdev-loop   >= %{libblockdev_version}
+-Requires: libblockdev-swap   >= %{libblockdev_version}
+-Requires: libblockdev-mdraid >= %{libblockdev_version}
+-Requires: libblockdev-fs     >= %{libblockdev_version}
+-Requires: libblockdev-crypto >= %{libblockdev_version}
+-Requires: libblockdev-nvme   >= %{libblockdev_version}
+-Requires: libblockdev-smart  >= %{libblockdev_version}
++Requires:   libblockdev        >= %{libblockdev_version}
++Requires:   libblockdev-part   >= %{libblockdev_version}
++Requires:   libblockdev-loop   >= %{libblockdev_version}
++Requires:   libblockdev-swap   >= %{libblockdev_version}
++Recommends: libblockdev-mdraid >= %{libblockdev_version}
++Requires:   libblockdev-fs     >= %{libblockdev_version}
++Recommends: libblockdev-crypto >= %{libblockdev_version}
++Requires:   libblockdev-nvme   >= %{libblockdev_version}
++Requires:   libblockdev-smart  >= %{libblockdev_version}
+ 
+ Requires: lib%{name}%{?_isa} = %{version}-%{release}
+ 
+@@ -109,6 +109,7 @@ Recommends: ntfs-3g
  Recommends: btrfs-progs
  %endif
  
@@ -10,7 +35,7 @@ index d086c17..297b284 100644
  
  # For /proc/self/mountinfo, only available in 2.6.26 or higher
  Conflicts: kernel < 2.6.26
-@@ -191,6 +192,16 @@ Obsoletes: storaged-lsm < %{version}-%{release}
+@@ -195,6 +196,16 @@ Obsoletes: storaged-lsm < %{version}-%{release}
  This package contains module for LSM configuration.
  %endif
  
@@ -27,7 +52,7 @@ index d086c17..297b284 100644
  %prep
  %autosetup -p1 -n udisks-%{version}
  rm -f src/tests/dbus-tests/config_h.py
-@@ -265,7 +276,6 @@ fi
+@@ -270,7 +281,6 @@ fi
  
  %{_datadir}/dbus-1/system.d/org.freedesktop.UDisks2.conf
  %{_datadir}/bash-completion/completions/udisksctl
@@ -35,7 +60,7 @@ index d086c17..297b284 100644
  %{_tmpfilesdir}/%{name}.conf
  %{_unitdir}/udisks2.service
  %{_udevrulesdir}/80-udisks2.rules
-@@ -339,6 +349,9 @@ fi
+@@ -344,6 +354,9 @@ fi
  %attr(0600,root,root) %{_sysconfdir}/udisks2/modules.conf.d/udisks2_lsm.conf
  %endif
  
@@ -43,5 +68,5 @@ index d086c17..297b284 100644
 +%{_datadir}/zsh/site-functions/*
 +
  %changelog
- * Thu Nov 06 2025 Tomas Bzatek <tbzatek@redhat.com> - 2.11.0-1
- - Version 2.11.0
+ * Wed Apr 01 2026 Tomas Bzatek <tbzatek@redhat.com> - 2.11.1-2
+ - Use 'sys_tz' exfat mount option by default (#2403452)

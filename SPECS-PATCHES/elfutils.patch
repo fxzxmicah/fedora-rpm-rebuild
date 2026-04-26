@@ -1,8 +1,8 @@
 diff --git OLD/elfutils.spec NEW/elfutils.spec
-index cbd3bf3..388135f 100644
+index adbb9f1..49337a8 100644
 --- OLD/elfutils.spec
 +++ NEW/elfutils.spec
-@@ -116,7 +116,7 @@ Provides: elfutils-libs%{depsuffix} = %{version}-%{release}
+@@ -113,7 +113,7 @@ Provides: elfutils-libs%{depsuffix} = %{version}-%{release}
  %endif
  Requires: elfutils-libelf%{depsuffix} = %{version}-%{release}
  %if %{provide_yama_scope}
@@ -11,7 +11,7 @@ index cbd3bf3..388135f 100644
  %endif
  %if 0%{?rhel} >= 8 || 0%{?fedora} >= 20
  Recommends: elfutils-debuginfod-client%{depsuffix} = %{version}-%{release}
-@@ -228,11 +228,12 @@ BuildArch: noarch
+@@ -225,11 +225,12 @@ BuildArch: noarch
  # also is available inside the container. So if we have weak dependencies
  # use Recommends (sadly Recommends(post) doesn't exist). This works because
  # in all cases that really matter systemd will already be installed. #1599083

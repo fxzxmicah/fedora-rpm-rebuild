@@ -1,5 +1,5 @@
 diff --git OLD/at-spi2-core.spec NEW/at-spi2-core.spec
-index d0c7267..37af960 100644
+index 27cdc8c..05819b9 100644
 --- OLD/at-spi2-core.spec
 +++ NEW/at-spi2-core.spec
 @@ -40,6 +40,16 @@ This version of at-spi is a major break from previous versions.

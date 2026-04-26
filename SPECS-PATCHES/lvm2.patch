@@ -1,8 +1,8 @@
 diff --git OLD/lvm2.spec NEW/lvm2.spec
-index 3a7b69f..e0308d1 100644
+index 2daeec7..4b68d6c 100644
 --- OLD/lvm2.spec
 +++ NEW/lvm2.spec
-@@ -89,7 +89,7 @@ Requires: %{name}-libs = %{?epoch}:%{version}-%{release}
+@@ -91,7 +91,7 @@ Requires: %{name}-libs = %{?epoch}:%{version}-%{release}
  Requires(post): (system-release >= %{system_release_version} if system-release)
  %endif
  Requires: bash >= %{bash_version}
@@ -11,7 +11,7 @@ index 3a7b69f..e0308d1 100644
  Requires(preun): systemd-units >= %{systemd_version}
  Requires(postun): systemd-units >= %{systemd_version}
  Requires: module-init-tools
-@@ -222,12 +222,6 @@ systemctl start lvm2-lvmpolld.socket >/dev/null 2>&1 || :
+@@ -224,12 +224,6 @@ systemctl start lvm2-lvmpolld.socket >/dev/null 2>&1 || :
  %systemd_postun_with_restart lvm2-lvmpolld.service
  %endif
  

@@ -1,5 +1,5 @@
 diff --git OLD/evolution-data-server.spec NEW/evolution-data-server.spec
-index 1882f52..e07012e 100644
+index c823a88..0e9d7e8 100644
 --- OLD/evolution-data-server.spec
 +++ NEW/evolution-data-server.spec
 @@ -1,17 +1,15 @@
@@ -98,7 +98,7 @@ index 1882f52..e07012e 100644
  	-DINCLUDE_INSTALL_DIR:PATH=%{_includedir} \
  	-DLIB_INSTALL_DIR:PATH=%{_libdir} \
  	-DSYSCONF_INSTALL_DIR:PATH=%{_sysconfdir} \
-@@ -428,13 +433,17 @@ find $RPM_BUILD_ROOT -name '*.so.*' -exec chmod +x {} \;
+@@ -427,13 +432,17 @@ find $RPM_BUILD_ROOT -name '*.so.*' -exec chmod +x {} \;
  %{credential_modules_dir}/module-credentials-goa.so
  %{ebook_backends_dir}/libebookbackendcarddav.so
  %{ebook_backends_dir}/libebookbackendfile.so

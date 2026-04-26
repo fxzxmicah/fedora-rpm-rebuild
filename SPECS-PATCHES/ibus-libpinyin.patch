@@ -1,5 +1,5 @@
 diff --git OLD/ibus-libpinyin.spec NEW/ibus-libpinyin.spec
-index e54a438..763ac73 100644
+index aed4d3a..5e79d95 100644
 --- OLD/ibus-libpinyin.spec
 +++ NEW/ibus-libpinyin.spec
 @@ -6,7 +6,7 @@ License:    GPL-3.0-or-later
@@ -52,5 +52,5 @@ index e54a438..763ac73 100644
 +%{_datadir}/ibus-libpinyin/setup
 +
  %changelog
- * Fri Sep 19 2025 Python Maint <python-maint@redhat.com> - 1.16.5-2
- - Rebuilt for Python 3.14.0rc3 bytecode
+ * Fri Jan 16 2026 Fedora Release Engineering <releng@fedoraproject.org> - 1.16.5-3
+ - Rebuilt for https://fedoraproject.org/wiki/Fedora_44_Mass_Rebuild

@@ -1,5 +1,5 @@
 diff --git OLD/rpm.spec NEW/rpm.spec
-index 9c708b1..e3a5390 100644
+index 8d8ea3a..ef2184d 100644
 --- OLD/rpm.spec
 +++ NEW/rpm.spec
 @@ -430,7 +430,7 @@ fi

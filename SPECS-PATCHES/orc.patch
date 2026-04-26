@@ -1,5 +1,5 @@
 diff --git OLD/orc.spec NEW/orc.spec
-index 01936fc..9bd376d 100644
+index 8fe7301..9aecdbe 100644
 --- OLD/orc.spec
 +++ NEW/orc.spec
 @@ -69,8 +69,6 @@ rm -rf %{buildroot}/%{_libdir}/orc

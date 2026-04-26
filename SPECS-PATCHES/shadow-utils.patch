@@ -1,8 +1,8 @@
 diff --git OLD/shadow-utils.spec NEW/shadow-utils.spec
-index 34baef4..b4bd617 100644
+index ec8df78..a4d4484 100644
 --- OLD/shadow-utils.spec
 +++ NEW/shadow-utils.spec
-@@ -64,7 +64,6 @@ Obsoletes: passwd <= 0.80-19
+@@ -78,7 +78,6 @@ Obsoletes: passwd <= 0.80-19
  # Compat symlinks for Requires in other packages.
  # We rely on filesystem to create the symlinks for us.
  Requires: filesystem(unmerged-sbin-symlinks)
@@ -10,7 +10,7 @@ index 34baef4..b4bd617 100644
  Provides: /usr/sbin/useradd
  Provides: /usr/sbin/userdel
  Provides: /usr/sbin/usermod
-@@ -138,13 +137,6 @@ install -p -c -m 0600 %{SOURCE2} $RPM_BUILD_ROOT%{_sysconfdir}/default/useradd
+@@ -155,13 +154,6 @@ install -p -c -m 0600 %{SOURCE2} $RPM_BUILD_ROOT%{_sysconfdir}/default/useradd
  install -d -m 755 $RPM_BUILD_ROOT%{_pam_confdir}
  install -m 644 %{SOURCE7} $RPM_BUILD_ROOT%{_pam_confdir}/passwd
  
@@ -24,7 +24,7 @@ index 34baef4..b4bd617 100644
  %if "%{_sbindir}" == "%{_bindir}"
  # The installation script doesn't actually use the configured paths :(
  mv -v $RPM_BUILD_ROOT/usr/sbin/* $RPM_BUILD_ROOT%{_bindir}/
-@@ -159,6 +151,8 @@ rm $RPM_BUILD_ROOT%{_bindir}/su
+@@ -176,6 +168,8 @@ rm $RPM_BUILD_ROOT%{_bindir}/su
  rm $RPM_BUILD_ROOT%{_bindir}/faillog
  rm $RPM_BUILD_ROOT%{_sbindir}/logoutd
  rm $RPM_BUILD_ROOT%{_sbindir}/nologin
@@ -33,7 +33,7 @@ index 34baef4..b4bd617 100644
  rm $RPM_BUILD_ROOT%{_mandir}/man1/chfn.*
  rm $RPM_BUILD_ROOT%{_mandir}/*/man1/chfn.*
  rm $RPM_BUILD_ROOT%{_mandir}/man1/chsh.*
-@@ -181,6 +175,10 @@ rm $RPM_BUILD_ROOT%{_mandir}/man5/faillog.*
+@@ -198,6 +192,10 @@ rm $RPM_BUILD_ROOT%{_mandir}/man5/faillog.*
  rm $RPM_BUILD_ROOT%{_mandir}/*/man5/faillog.*
  rm $RPM_BUILD_ROOT%{_mandir}/man8/faillog.*
  rm $RPM_BUILD_ROOT%{_mandir}/*/man8/faillog.*
@@ -44,7 +44,7 @@ index 34baef4..b4bd617 100644
  
  # Remove PAM service files we don't use.
  rm $RPM_BUILD_ROOT%{_pam_confdir}/chfn
-@@ -223,7 +221,6 @@ rm -f $RPM_BUILD_ROOT/%{_libdir}/libsubid.a
+@@ -240,7 +238,6 @@ rm -f $RPM_BUILD_ROOT/%{_libdir}/libsubid.a
  %attr(0755,root,root) %caps(cap_setgid=ep) %{_bindir}/newgidmap
  %attr(0755,root,root) %caps(cap_setuid=ep) %{_bindir}/newuidmap
  %attr(4755,root,root) %{_bindir}/passwd
@@ -52,7 +52,7 @@ index 34baef4..b4bd617 100644
  %attr(0755,root,root)   %{_sbindir}/user*
  %attr(0755,root,root)   %{_sbindir}/group*
  %{_sbindir}/grpck
-@@ -232,8 +229,6 @@ rm -f $RPM_BUILD_ROOT/%{_libdir}/libsubid.a
+@@ -249,8 +246,6 @@ rm -f $RPM_BUILD_ROOT/%{_libdir}/libsubid.a
  %{_sbindir}/chpasswd
  %{_sbindir}/chgpasswd
  %{_sbindir}/newusers
@@ -61,7 +61,7 @@ index 34baef4..b4bd617 100644
  %{_mandir}/man1/chage.1*
  %{_mandir}/man1/gpasswd.1*
  %{_mandir}/man1/sg.1*
-@@ -247,7 +242,6 @@ rm -f $RPM_BUILD_ROOT/%{_libdir}/libsubid.a
+@@ -264,7 +259,6 @@ rm -f $RPM_BUILD_ROOT/%{_libdir}/libsubid.a
  %{_mandir}/man5/gshadow.5*
  %{_mandir}/man5/subuid.5*
  %{_mandir}/man5/subgid.5*
@@ -69,7 +69,7 @@ index 34baef4..b4bd617 100644
  %{_mandir}/man8/group*.8*
  %{_mandir}/man8/user*.8*
  %{_mandir}/man8/pwck.8*
-@@ -256,8 +250,6 @@ rm -f $RPM_BUILD_ROOT/%{_libdir}/libsubid.a
+@@ -273,8 +267,6 @@ rm -f $RPM_BUILD_ROOT/%{_libdir}/libsubid.a
  %{_mandir}/man8/chgpasswd.8*
  %{_mandir}/man8/newusers.8*
  %{_mandir}/man8/*conv.8*

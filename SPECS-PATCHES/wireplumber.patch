@@ -1,5 +1,5 @@
 diff --git OLD/wireplumber.spec NEW/wireplumber.spec
-index 480cd95..54315a2 100644
+index 6cbc47e..0ba9d0e 100644
 --- OLD/wireplumber.spec
 +++ NEW/wireplumber.spec
 @@ -32,9 +32,27 @@ BuildRequires:  systemd-rpm-macros

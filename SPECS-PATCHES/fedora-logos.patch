@@ -1,5 +1,5 @@
 diff --git OLD/fedora-logos.spec NEW/fedora-logos.spec
-index 937a1df..8a47c55 100644
+index 8e495d3..ca71f34 100644
 --- OLD/fedora-logos.spec
 +++ NEW/fedora-logos.spec
 @@ -70,6 +70,45 @@ redistribution of this package and its contents.
@@ -100,7 +100,7 @@ index 937a1df..8a47c55 100644
  
  %files httpd
  %license COPYING
-@@ -391,6 +400,38 @@ hardlink -vv %{buildroot}/usr
+@@ -391,6 +400,39 @@ hardlink -vv %{buildroot}/usr
  %{_datadir}/pixmaps/system-logo-white_classic.png
  %{_datadir}/plymouth/themes/charge/*_classic*
  
@@ -136,6 +136,7 @@ index 937a1df..8a47c55 100644
 +%dir %{_kde4_appsdir}/ksplash/Themes/Leonidas/
 +%dir %{_kde4_appsdir}/ksplash/Themes/Leonidas/2048x1536
 +%endif
++
  
  
  %changelog
