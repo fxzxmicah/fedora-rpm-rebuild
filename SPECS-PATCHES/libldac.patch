@@ -1,7 +1,34 @@
 diff --git OLD/libldac.spec NEW/libldac.spec
-index f3684f5..559eb6d 100644
+index f3684f5..3544d2d 100644
 --- OLD/libldac.spec
 +++ NEW/libldac.spec
+@@ -16,7 +16,7 @@ Source0:        %{url}/releases/download/v%{version}/%{archivename}-%{version}.t
+ # Upstream source throws error in a big-endian arch, see #1677491
+ ExcludeArch:    s390x
+ 
+-BuildRequires:  cmake3
++BuildRequires:  cmake
+ BuildRequires:  gcc
+ 
+ %package        devel
+@@ -36,14 +36,14 @@ developing applications that use %{name}.
+ %autosetup -n %{archivename}
+ 
+ %build
+-%cmake3 \
++%cmake \
+     -DLDAC_SOFT_FLOAT=OFF \
+     -DINSTALL_LIBDIR=%{_libdir}
+ 
+-%cmake3_build
++%cmake_build
+ 
+ %install
+-%cmake3_install
++%cmake_install
+ 
+ %ldconfig_scriptlets
+ 
 @@ -53,10 +53,10 @@ developing applications that use %{name}.
  %{_libdir}/libldacBT_abr.so.%{sonamebase}.*
  %{_libdir}/libldacBT_enc.so.%{sonamebase}

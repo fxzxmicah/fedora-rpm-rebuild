@@ -1,8 +1,24 @@
 diff --git OLD/libvncserver.spec NEW/libvncserver.spec
-index a1b8729..5b58d9b 100644
+index a1b8729..cb20c51 100644
 --- OLD/libvncserver.spec
 +++ NEW/libvncserver.spec
-@@ -70,9 +70,17 @@ a frame-buffer via the Remote Frame Buffer protocol) easy.
+@@ -12,10 +12,11 @@ Source0:    https://github.com/LibVNC/libvncserver/archive/LibVNCServer-%{versio
+ 
+ ## TLS security type enablement patches
+ # https://github.com/LibVNC/libvncserver/pull/234
+-Patch10: 0001-libvncserver-Add-API-to-add-custom-I-O-entry-points.patch
+-Patch11: 0002-libvncserver-Add-channel-security-handlers.patch
+-Patch13: 0003-Install-examples_in_datadir.patch
+-Patch14: 0004-libvncclient-fix-memory-leak-in-CompressClipData.patch
++# Patch10: 0001-libvncserver-Add-API-to-add-custom-I-O-entry-points.patch
++# Patch11: 0002-libvncserver-Add-channel-security-handlers.patch
++# Patch13: 0003-Install-examples_in_datadir.patch
++# Patch14: 0004-libvncclient-fix-memory-leak-in-CompressClipData.patch
++Patch10: https://github.com/LibVNC/libvncserver/compare/5b068d1ed8a9a662a49f60992f94da95460a6051%5E...009008e2f4d5a54dd71f422070df3af7b3dbc931.patch
+ 
+ ## downstream patches
+ Patch102: libvncserver-LibVNCServer-0.9.13-system-crypto-policy.patch
+@@ -70,9 +71,17 @@ a frame-buffer via the Remote Frame Buffer protocol) easy.
  It hides the programmer from the tedious task of managing clients and
  compression schemata.
  
@@ -20,7 +36,7 @@ index a1b8729..5b58d9b 100644
  # libvncserver-config deps
  Requires:   coreutils
  # /usr/include/rfb/rfbproto.h:#include <zlib.h>
-@@ -122,11 +130,15 @@ done
+@@ -122,11 +131,15 @@ done
  %files
  %license COPYING
  %doc AUTHORS ChangeLog NEWS* README* CONTRIBUTING.md HISTORY.md SECURITY.md

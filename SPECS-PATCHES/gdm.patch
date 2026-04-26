@@ -1,5 +1,5 @@
 diff --git OLD/gdm.spec NEW/gdm.spec
-index bd036d1..5aec58d 100644
+index bd036d1..e2286f1 100644
 --- OLD/gdm.spec
 +++ NEW/gdm.spec
 @@ -5,13 +5,8 @@
@@ -75,11 +75,3 @@ index bd036d1..5aec58d 100644
  %{_libexecdir}/gdm-auth-config-redhat
  %ghost %dir %{_localstatedir}/log/gdm
  %ghost %dir %{_localstatedir}/lib/gdm
-@@ -204,7 +197,6 @@ ln -sf ../X11/xinit/Xsession %{buildroot}%{_sysconfdir}/gdm/
- %config %{_sysconfdir}/pam.d/gdm-switchable-auth
- %{_sysconfdir}/pam.d/gdm-launch-environment
- %{_unitdir}/gdm.service
--%{_unitdir}/gnome-headless-session@.service
- %dir %{_userunitdir}/gnome-session@gnome-login.target.d/
- %{_userunitdir}/gnome-session@gnome-login.target.d/gnome-login.session.conf
- %{_sysusersdir}/%{name}.conf
