@@ -1,0 +1,21 @@
+diff --git OLD/libgpg-error.spec NEW/libgpg-error.spec
+index 5f2e553..06baadb 100644
+--- OLD/libgpg-error.spec
++++ NEW/libgpg-error.spec
+@@ -59,6 +59,7 @@ sed -i -e 's|sys_lib_dlsearch_path_spec="/lib /usr/lib|sys_lib_dlsearch_path_spe
+ %make_install
+ rm -f $RPM_BUILD_ROOT%{_libdir}/*.la
+ rm -f $RPM_BUILD_ROOT%{_infodir}/dir
++rm -f $RPM_BUILD_ROOT%{_datadir}/libgpg-error
+ 
+ %find_lang %{name}
+ 
+@@ -69,7 +70,7 @@ make check
+ 
+ %files -f %{name}.lang
+ %license COPYING COPYING.LIB
+-%doc AUTHORS README NEWS
++%doc AUTHORS README NEWS doc/errorref.txt
+ %{_bindir}/gpg-error
+ %{_libdir}/libgpg-error.so.0*
+ %{_datadir}/libgpg-error

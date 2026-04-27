@@ -1,5 +1,5 @@
 diff --git OLD/filesystem.spec NEW/filesystem.spec
-index 015b29f..804f5bb 100644
+index 015b29f..8439e1a 100644
 --- OLD/filesystem.spec
 +++ NEW/filesystem.spec
 @@ -22,9 +22,6 @@ Requires(pre): setup
@@ -54,7 +54,7 @@ index 015b29f..804f5bb 100644
 +        boot dev \
 +        etc/{X11,xdg/autostart,skel,sysconfig,keys/ima,pki,bash_completion.d,default,rwtab.d} \
 +        home mnt root run tmp \
-+        usr/{bin,games,include,%{_lib}/games,lib/{debug/{.dwz,usr},games,locale,modules,sysimage,systemd/{system,user},swidtag,sysusers.d,tmpfiles.d},libexec,local/{bin,etc,games,lib,%{_lib},src,share/{applications,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x},info},libexec,include},share/{appdata,applications,backgrounds,bash-completion/{completions,helpers},desktop-directories,dict,doc,empty,games,gnome,help,icons,ima,info,licenses,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x,0p,1p,3p},metainfo,misc,pixmaps,sounds,themes,X11,wayland-sessions},src,src/kernels,src/debug} \
++        usr/{bin,games,include,%{_lib}/games,lib/{debug/{.dwz,usr},games,locale,modules,sysimage,systemd/{system,user},swidtag,sysusers.d,tmpfiles.d},libexec,local/{bin,etc,games,lib,%{_lib},src,share/{applications,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x},info},libexec,include},share/{applications,backgrounds,bash-completion/{completions,helpers},desktop-directories,dict,doc,empty,games,gnome,help,icons,ima,info,licenses,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x,0p,1p,3p},metainfo,misc,pixmaps,sounds,themes,X11,wayland-sessions},src,src/kernels,src/debug} \
 +        var/{adm,empty,lib/{games,misc,rpm-state},local,log,preserve,spool/{mail,lpd},tmp,db,cache,games,opt}
  )
  for i in "${Paths[@]}"; do
@@ -282,7 +282,7 @@ index 015b29f..804f5bb 100644
  /usr/libexec
  %dir /usr/local
  %if %{with merged_sbin}
-@@ -508,16 +546,11 @@ end
+@@ -508,16 +546,10 @@ end
  %endif
  /usr/local/etc
  /usr/local/bin
@@ -293,13 +293,13 @@ index 015b29f..804f5bb 100644
 -/usr/local/src
  %dir /usr/share
 -/usr/share/aclocal
- /usr/share/appdata
+-/usr/share/appdata
  /usr/share/applications
 -/usr/share/augeas
  /usr/share/backgrounds
  %dir /usr/share/bash-completion
  /usr/share/bash-completion/completions
-@@ -526,54 +559,41 @@ end
+@@ -526,54 +558,41 @@ end
  /usr/share/dict
  /usr/share/doc
  %attr(555,root,root) %dir /usr/share/empty

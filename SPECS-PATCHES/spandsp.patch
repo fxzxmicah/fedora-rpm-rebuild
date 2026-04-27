@@ -1,0 +1,20 @@
+diff --git OLD/spandsp.spec NEW/spandsp.spec
+index 533dccd..af11af2 100644
+--- OLD/spandsp.spec
++++ NEW/spandsp.spec
+@@ -61,7 +61,6 @@ find doc/api -type f | xargs touch -r configure
+ %install
+ %make_install
+ rm -vf %{buildroot}%{_libdir}/*.la
+-mkdir -p %{buildroot}%{_datadir}/%{name}
+ 
+ %ldconfig_scriptlets
+ 
+@@ -69,7 +68,6 @@ mkdir -p %{buildroot}%{_datadir}/%{name}
+ %license COPYING
+ %doc DueDiligence ChangeLog AUTHORS NEWS README
+ %{_libdir}/lib%{name}.so.*
+-%{_datadir}/%{name}/
+ 
+ %files devel
+ %{_includedir}/%{name}.h

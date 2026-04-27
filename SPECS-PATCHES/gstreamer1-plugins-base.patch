@@ -1,5 +1,5 @@
 diff --git OLD/gstreamer1-plugins-base.spec NEW/gstreamer1-plugins-base.spec
-index eafca42..5b1669c 100644
+index eafca42..b8cc808 100644
 --- OLD/gstreamer1-plugins-base.spec
 +++ NEW/gstreamer1-plugins-base.spec
 @@ -1,5 +1,6 @@
@@ -11,3 +11,23 @@ index eafca42..5b1669c 100644
  
  %global         majorminor      1.0
  
+@@ -149,8 +150,8 @@ for the GStreamer Base Plugins library.
+ #
+ # See http://www.freedesktop.org/software/appstream/docs/ for more details.
+ #
+-mkdir -p $RPM_BUILD_ROOT%{_datadir}/appdata
+-cat > $RPM_BUILD_ROOT%{_datadir}/appdata/gstreamer-base.appdata.xml <<EOF
++mkdir -p $RPM_BUILD_ROOT%{_datadir}/metainfo
++cat > $RPM_BUILD_ROOT%{_datadir}/metainfo/gstreamer-base.appdata.xml <<EOF
+ <?xml version="1.0" encoding="UTF-8"?>
+ <!-- Copyright 2013 Richard Hughes <richard@hughsie.com> -->
+ <component type="codec">
+@@ -234,7 +235,7 @@ chrpath --delete $RPM_BUILD_ROOT%{_bindir}/gst-play-1.0
+ %files -f gst-plugins-base-%{majorminor}.lang
+ %license COPYING
+ %doc README.md README.static-linking RELEASE
+-%{_datadir}/appdata/*.appdata.xml
++%{_datadir}/metainfo/*.appdata.xml
+ %{_libdir}/libgstallocators-%{majorminor}.so.*
+ %{_libdir}/libgstaudio-%{majorminor}.so.*
+ %{_libdir}/libgstfft-%{majorminor}.so.*
