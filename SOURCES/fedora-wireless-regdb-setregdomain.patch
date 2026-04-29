@@ -1,0 +1,534 @@
+diff --git a/setregdomain/Makefile b/setregdomain/Makefile
+new file mode 100644
+index 0000000..cc090be
+--- /dev/null
++++ b/setregdomain/Makefile
+@@ -0,0 +1,33 @@
++CC ?= cc
++PKG_CONFIG ?= pkg-config
++PREFIX ?= /usr
++MANDIR ?= $(PREFIX)/share/man
++SBINDIR ?= $(PREFIX)/sbin
++CFLAGS ?= -O2 -Wall -Wextra
++LDFLAGS ?=
++
++NL_CFLAGS := $(shell $(PKG_CONFIG) --cflags libnl-3.0 libnl-genl-3.0)
++NL_LIBS := $(shell $(PKG_CONFIG) --libs libnl-3.0 libnl-genl-3.0)
++
++CFLAGS += $(NL_CFLAGS)
++LDLIBS += $(NL_LIBS)
++
++BINARY := setregdomain
++SOURCES := setregdomain.c
++OBJECTS := $(SOURCES:.c=.o)
++
++.PHONY: all clean install
++
++all: $(BINARY)
++
++$(BINARY): $(OBJECTS)
++	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS)
++
++clean:
++	rm -f $(OBJECTS) $(BINARY)
++
++install: $(BINARY)
++	install -m 755 -d $(DESTDIR)/$(SBINDIR)
++	install -m 755 -t $(DESTDIR)/$(SBINDIR)/ $(BINARY)
++	install -m 755 -d $(DESTDIR)/$(MANDIR)/man1
++	install -m 644 -t $(DESTDIR)/$(MANDIR)/man1/ setregdomain.1
+diff --git a/setregdomain/setregdomain.1 b/setregdomain/setregdomain.1
+new file mode 100644
+index 0000000..af82c0b
+--- /dev/null
++++ b/setregdomain/setregdomain.1
+@@ -0,0 +1,46 @@
++.\" Copyright 2009 Red Hat, Inc.
++.TH setregdomain 1 2025-12-03 "CRDA" "User Commands"
++.SH NAME
++setregdomain \- set regulatory domain based on country code
++.SH SYNOPSIS
++.B setregdomain
++.SH DESCRIPTION
++setregdomain sets the regulatory domain for your system; it takes no
++arguments and is normally triggered by system scripts (eg, udev) rather
++than manually by an administrator.  The tool is a native nl80211 client
++and communicates directly with the kernel, so no external helper
++programs such as
++.BR iw (1)
++are required.
++
++The regulatory domain is represented by an ISO / IEC 3166-1 alpha2
++country code.  By default, setregdomain attempts to determine
++the appropriate country code by examining the target of the
++.IR /etc/localtime
++symbolic link.  That information is used to look-up the matching
++country code in the
++.IR /usr/share/zoneinfo/zone.tab
++file.
++
++The country code look-up may fail.  This could be due to faulty
++or incomplete information in the
++.IR /usr/share/zoneinfo/zone.tab
++file, or the use of an actual file rather than a symlink for
++.IR /etc/localtime
++, among other possibilities.  In those cases the system
++administrator should define a COUNTRY environment variable in the
++.IR /etc/sysconfig/regdomain
++file.  This value will be used as the country code and the country
++code look-up will be skipped.
++.PP
++All informational and error messages are emitted to the system log via
++the
++.B wireless
++syslog tag.  When run manually an additional copy is printed to the
++terminal for convenience.
++.SH "FILES"
++.BR /etc/sysconfig/regdomain
++.BR /etc/localtime
++.BR /usr/share/zoneinfo/zone.tab
++.SH "SEE ALSO"
++.BR iw (1)
+diff --git a/setregdomain/setregdomain.c b/setregdomain/setregdomain.c
+new file mode 100644
+index 0000000..40016bd
+--- /dev/null
++++ b/setregdomain/setregdomain.c
+@@ -0,0 +1,437 @@
++/*
++ * Copyright 2009-2014 Red Hat, Inc.
++ *
++ * Permission to use, copy, modify, and/or distribute this software for any
++ * purpose with or without fee is hereby granted, provided that the above
++ * copyright notice and this permission notice appear in all copies.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
++ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
++ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
++ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
++ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
++ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR
++ * IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
++ */
++
++#define _GNU_SOURCE
++
++#include <ctype.h>
++#include <errno.h>
++#include <limits.h>
++#include <stdarg.h>
++#include <stdbool.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <strings.h>
++#include <syslog.h>
++#include <unistd.h>
++
++#include <linux/nl80211.h>
++#include <netlink/errno.h>
++#include <netlink/genl/ctrl.h>
++#include <netlink/genl/genl.h>
++#include <netlink/netlink.h>
++#include <netlink/msg.h>
++
++#define REGDOMAIN_FILE "/etc/sysconfig/regdomain"
++#define LOCALTIME_PATH "/etc/localtime"
++#define ZONEINFO_PREFIX "/usr/share/zoneinfo/"
++#define ZONE_TAB_FILE "/usr/share/zoneinfo/zone.tab"
++#define LOGGER_TAG "wireless"
++#define COUNTRY_LEN 2
++
++static void log_error(const char *fmt, ...);
++static void log_info(const char *fmt, ...);
++static char *trim(char *s);
++static void strip_quotes(char *s);
++static void strip_inline_comment(char *s);
++static void uppercase_inplace(char *s);
++static bool valid_country_code(const char *s);
++static bool store_country_code(char *dest, size_t len, const char *src);
++static bool load_country_from_config(char *country, size_t len);
++static bool resolve_timezone(char *zone_name, size_t len);
++static bool lookup_country_by_zone(const char *zone_name, char *country, size_t len);
++static bool determine_country_from_timezone(char *country, size_t len);
++static bool determine_country(char *country, size_t len);
++static int set_regulatory_domain(const char *country);
++
++int main(void)
++{
++    char country[COUNTRY_LEN + 1] = {0};
++    int status = EXIT_FAILURE;
++
++    openlog(LOGGER_TAG, LOG_PID | LOG_CONS, LOG_DAEMON);
++
++    if (!determine_country(country, sizeof(country)))
++        goto out;
++
++    if (set_regulatory_domain(country) != 0)
++        goto out;
++
++    status = EXIT_SUCCESS;
++
++out:
++    closelog();
++    return status;
++}
++
++static void vlog_and_stderr(int priority, const char *fmt, va_list ap)
++{
++    va_list ap_copy;
++    va_copy(ap_copy, ap);
++    vsyslog(priority, fmt, ap);
++
++    FILE *stream = priority >= LOG_ERR ? stderr : stdout;
++    vfprintf(stream, fmt, ap_copy);
++    fputc('\n', stream);
++    va_end(ap_copy);
++}
++
++static void log_error(const char *fmt, ...)
++{
++    va_list ap;
++    va_start(ap, fmt);
++    vlog_and_stderr(LOG_ERR, fmt, ap);
++    va_end(ap);
++}
++
++static void log_info(const char *fmt, ...)
++{
++    va_list ap;
++    va_start(ap, fmt);
++    vlog_and_stderr(LOG_INFO, fmt, ap);
++    va_end(ap);
++}
++
++static char *trim(char *s)
++{
++    if (!s)
++        return s;
++
++    while (isspace((unsigned char)*s))
++        s++;
++
++    if (*s == '\0')
++        return s;
++
++    char *end = s + strlen(s) - 1;
++    while (end > s && isspace((unsigned char)*end)) {
++        *end = '\0';
++        end--;
++    }
++
++    return s;
++}
++
++static void strip_quotes(char *s)
++{
++    size_t len;
++
++    if (!s)
++        return;
++
++    len = strlen(s);
++    if (len < 2)
++        return;
++
++    if ((s[0] == '"' && s[len - 1] == '"') || (s[0] == '\'' && s[len - 1] == '\'')) {
++        memmove(s, s + 1, len - 2);
++        s[len - 2] = '\0';
++    }
++}
++
++static void strip_inline_comment(char *s)
++{
++    bool in_single = false;
++    bool in_double = false;
++
++    if (!s)
++        return;
++
++    for (char *p = s; *p; ++p) {
++        if (*p == '\'' && !in_double) {
++            in_single = !in_single;
++            continue;
++        }
++        if (*p == '"' && !in_single) {
++            in_double = !in_double;
++            continue;
++        }
++        if (*p == '#' && !in_single && !in_double) {
++            if (p == s || isspace((unsigned char)*(p - 1))) {
++                *p = '\0';
++                break;
++            }
++        }
++    }
++}
++
++static void uppercase_inplace(char *s)
++{
++    if (!s)
++        return;
++
++    for (; *s; ++s)
++        *s = (char)toupper((unsigned char)*s);
++}
++
++static bool valid_country_code(const char *s)
++{
++    size_t len;
++
++    if (!s)
++        return false;
++
++    len = strlen(s);
++    if (len != COUNTRY_LEN)
++        return false;
++
++    for (size_t i = 0; i < len; i++) {
++        if (!isalnum((unsigned char)s[i]))
++            return false;
++    }
++
++    return true;
++}
++
++static bool store_country_code(char *dest, size_t len, const char *src)
++{
++    size_t src_len;
++
++    if (!dest || !src)
++        return false;
++
++    src_len = strlen(src);
++    if (src_len == 0 || src_len >= len)
++        return false;
++
++    memcpy(dest, src, src_len + 1);
++    return true;
++}
++
++static bool load_country_from_config(char *country, size_t len)
++{
++    FILE *fp;
++    char *line = NULL;
++    size_t cap = 0;
++    bool found = false;
++    char last_value[COUNTRY_LEN + 1] = {0};
++
++    fp = fopen(REGDOMAIN_FILE, "r");
++    if (!fp)
++        return false;
++
++    while (getline(&line, &cap, fp) != -1) {
++        char *work = trim(line);
++        char *key;
++        char *value;
++        char *eq;
++
++        strip_inline_comment(work);
++        if (*work == '\0' || *work == '#')
++            continue;
++
++        if (strncasecmp(work, "export", 6) == 0 && isspace((unsigned char)work[6]))
++            work = trim(work + 6);
++
++        eq = strchr(work, '=');
++        if (!eq)
++            continue;
++
++        *eq = '\0';
++        key = trim(work);
++        value = trim(eq + 1);
++        strip_inline_comment(value);
++        value = trim(value);
++        strip_quotes(value);
++
++        if (strcasecmp(key, "COUNTRY") != 0)
++            continue;
++
++        if (*value == '\0')
++            continue;
++
++        uppercase_inplace(value);
++        if (!valid_country_code(value)) {
++            log_error("COUNTRY value '%s' in %s is invalid", value, REGDOMAIN_FILE);
++            continue;
++        }
++
++        if (!store_country_code(last_value, sizeof(last_value), value)) {
++            log_error("COUNTRY value '%s' exceeds buffer", value);
++            continue;
++        }
++        found = true;
++    }
++
++    if (found) {
++        store_country_code(country, len, last_value);
++        log_info("Loaded country %s from config %s", country, REGDOMAIN_FILE);
++    }
++
++    free(line);
++    fclose(fp);
++    return found;
++}
++
++static bool resolve_timezone(char *zone_name, size_t len)
++{
++    char resolved[PATH_MAX];
++    size_t prefix_len = strlen(ZONEINFO_PREFIX);
++
++    if (!realpath(LOCALTIME_PATH, resolved))
++        return false;
++
++    if (strncmp(resolved, ZONEINFO_PREFIX, prefix_len) != 0)
++        return false;
++
++    if (resolved[prefix_len] == '\0')
++        return false;
++
++    if (strlen(resolved + prefix_len) >= len) {
++        errno = ENAMETOOLONG;
++        return false;
++    }
++
++    snprintf(zone_name, len, "%s", resolved + prefix_len);
++    return true;
++}
++
++static bool lookup_country_by_zone(const char *zone_name, char *country, size_t len)
++{
++    FILE *fp = fopen(ZONE_TAB_FILE, "r");
++    char *line = NULL;
++    size_t cap = 0;
++    bool found = false;
++
++    if (!fp)
++        return false;
++
++    while (!found && getline(&line, &cap, fp) != -1) {
++        char *cursor;
++        char *cc;
++        char *coordinates;
++        char *zone;
++
++        cursor = trim(line);
++        if (*cursor == '\0' || *cursor == '#')
++            continue;
++
++        cc = strtok(cursor, " \t");
++        coordinates = strtok(NULL, " \t");
++        zone = strtok(NULL, " \t\r\n");
++
++        if (!cc || !coordinates || !zone)
++            continue;
++
++        if (strcmp(zone, zone_name) != 0)
++            continue;
++
++        uppercase_inplace(cc);
++
++        if (!store_country_code(country, len, cc))
++            continue;
++
++        found = true;
++    }
++
++    free(line);
++    fclose(fp);
++    return found;
++}
++
++static bool determine_country_from_timezone(char *country, size_t len)
++{
++    char zone[PATH_MAX] = {0};
++
++    if (!resolve_timezone(zone, sizeof(zone))) {
++        log_error("Timezone information not found");
++        return false;
++    }
++
++    if (!lookup_country_by_zone(zone, country, len)) {
++        log_error("Could not determine country from timezone %s", zone);
++        return false;
++    }
++
++    if (!valid_country_code(country)) {
++        log_error("Determined country code '%s' is invalid", country);
++        return false;
++    }
++
++    log_info("Determined country %s from timezone %s", country, zone);
++    return true;
++}
++
++static bool determine_country(char *country, size_t len)
++{
++    if (load_country_from_config(country, len))
++        return true;
++
++    return determine_country_from_timezone(country, len);
++}
++
++static int set_regulatory_domain(const char *country)
++{
++    struct nl_sock *sock = NULL;
++    struct nl_msg *msg = NULL;
++    int nl80211_id;
++    int ret = -1;
++
++    sock = nl_socket_alloc();
++    if (!sock) {
++        log_error("Failed to allocate netlink socket");
++        goto out;
++    }
++
++    if (genl_connect(sock)) {
++        log_error("Failed to connect to generic netlink: %s", strerror(errno));
++        goto out;
++    }
++
++    nl80211_id = genl_ctrl_resolve(sock, "nl80211");
++    if (nl80211_id < 0) {
++        log_error("Could not resolve nl80211 id: %s", nl_geterror(nl80211_id));
++        goto out;
++    }
++
++    msg = nlmsg_alloc();
++    if (!msg) {
++        log_error("Failed to allocate netlink message");
++        goto out;
++    }
++
++    if (!genlmsg_put(msg, 0, 0, nl80211_id, 0, 0, NL80211_CMD_REQ_SET_REG, 0)) {
++        log_error("Failed to setup netlink message");
++        goto out;
++    }
++
++    ret = nla_put_string(msg, NL80211_ATTR_REG_ALPHA2, country);
++    if (ret < 0) {
++        log_error("Failed to append regulatory domain attribute");
++        goto out;
++    }
++
++    ret = nl_send_auto(sock, msg);
++    if (ret < 0) {
++        log_error("Failed to send netlink message: %s", nl_geterror(ret));
++        goto out;
++    }
++
++    ret = nl_wait_for_ack(sock);
++    if (ret < 0) {
++        log_error("nl80211 ack error: %s", nl_geterror(ret));
++        goto out;
++    }
++
++    ret = 0;
++
++out:
++    if (msg)
++        nlmsg_free(msg);
++    if (sock)
++        nl_socket_free(sock);
++    return ret;
++}

@@ -1,0 +1,1609 @@
+diff --git a/policycoreutils/.gitignore b/policycoreutils/.gitignore
+index 33e7414c..b8551bc2 100644
+--- a/policycoreutils/.gitignore
++++ b/policycoreutils/.gitignore
+@@ -10,4 +10,5 @@ setfiles/restorecon_xattr
+ setfiles/setfiles
+ setsebool/setsebool
+ unsetfiles/unsetfiles
++fixfiles/fixfiles
+ hll/pp/pp
+diff --git a/policycoreutils/Makefile b/policycoreutils/Makefile
+index 9186a9ef..102d1bb7 100644
+--- a/policycoreutils/Makefile
++++ b/policycoreutils/Makefile
+@@ -1,4 +1,4 @@
+-SUBDIRS = setfiles load_policy newrole run_init secon sestatus semodule setsebool scripts po man hll unsetfiles
++SUBDIRS = setfiles load_policy newrole run_init secon sestatus semodule setsebool fixfiles po man hll unsetfiles
+ 
+ PKG_CONFIG ?= pkg-config
+ 
+diff --git a/policycoreutils/fixfiles/Makefile b/policycoreutils/fixfiles/Makefile
+new file mode 100644
+index 00000000..4055c50e
+--- /dev/null
++++ b/policycoreutils/fixfiles/Makefile
+@@ -0,0 +1,41 @@
++# Installation directories.
++LINGUAS ?=
++PREFIX ?= /usr
++SBINDIR ?= $(PREFIX)/sbin
++MANDIR ?= $(PREFIX)/share/man
++
++CFLAGS ?= -g -Werror -Wall -W
++override CFLAGS += -I../../libselinux/include -I../../libsemanage/include -I../setfiles
++override LDFLAGS += -L../../libselinux/src
++override LDLIBS += $(LIBSELINUX_LDLIBS) -lpthread
++
++override LDFLAGS += -L../../libsemanage/src
++override LDLIBS += $(LIBSEMANAGE_LDLIBS)
++
++OBJS := fixfiles.o ff_restore.o
++
++all: fixfiles
++
++ff_restore.o: ../setfiles/restore.c
++	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
++
++fixfiles: $(OBJS)
++	$(CC) $(LDFLAGS) $^ -o $@ $(LDLIBS)
++
++install: all
++	[ -d $(DESTDIR)$(MANDIR)/man8 ] || mkdir -p $(DESTDIR)$(MANDIR)/man8
++	-mkdir -p $(DESTDIR)$(SBINDIR)
++	install -m 755 fixfiles $(DESTDIR)$(SBINDIR)
++	install -m 644 fixfiles.8 $(DESTDIR)$(MANDIR)/man8/
++	for lang in $(LINGUAS) ; do \
++		if [ -e $${lang} ] ; then \
++			[ -d $(DESTDIR)$(MANDIR)/$${lang}/man8 ] || mkdir -p $(DESTDIR)$(MANDIR)/$${lang}/man8 ; \
++			install -m 644 $${lang}/*.8 $(DESTDIR)$(MANDIR)/$${lang}/man8/ ; \
++		fi ; \
++	done
++
++clean:
++	rm -f fixfiles $(OBJS)
++
++relabel: install
++	$(DESTDIR)$(SBINDIR)/fixfiles check
+diff --git a/policycoreutils/fixfiles/fixfiles.8 b/policycoreutils/fixfiles/fixfiles.8
+new file mode 100644
+index 00000000..ba76446b
+--- /dev/null
++++ b/policycoreutils/fixfiles/fixfiles.8
+@@ -0,0 +1,114 @@
++.TH "fixfiles" "8" "2002031409" "" ""
++.SH "NAME"
++fixfiles \- fix file SELinux security contexts.
++
++.SH "SYNOPSIS"
++.na
++
++.B fixfiles
++.I [\-v] [\-F] [-M] [\-f] [\-T nthreads] relabel
++
++.B fixfiles
++.I [\-v] [\-F] [\-T nthreads] { check | restore | verify } dir/file ...
++
++.B fixfiles
++.I [\-v] [\-F] [\-B | \-N time ] [\-T nthreads] { check | restore | verify }
++
++.B fixfiles
++.I [\-v] [\-F] [\-T nthreads] \-R rpmpackagename[,rpmpackagename...] { check | restore | verify }
++
++.B fixfiles
++.I [\-v] [\-F] [\-T nthreads] \-C PREVIOUS_FILECONTEXT  { check | restore | verify }
++
++.B fixfiles
++.I [-F] [-M] [-B] [\-T nthreads] onboot
++
++.ad
++
++.SH "DESCRIPTION"
++This manual page describes the
++.BR fixfiles
++utility.
++.P
++This script is primarily used to correct the security context
++database (extended attributes) on filesystems.
++.P
++It can also be run at any time to relabel when adding support for
++new policy, or  just check whether the file contexts are all
++as you expect.  By default it will relabel all mounted ext2, ext3, ext4, gfs2, xfs,
++jfs and btrfs file systems as long as they do not have a security context mount
++option.  You can use the \-R flag to use rpmpackages as an alternative.
++The file /etc/selinux/fixfiles_exclude_dirs can contain a list of directories
++excluded from relabeling.
++.P
++.B fixfiles onboot
++will setup the machine to relabel on the next reboot.
++
++.SH "OPTIONS"
++.TP
++.B \-B
++If specified with onboot, this fixfiles will record the current date in the /.autorelabel file, so that it can be used later to speed up labeling. If used with restore, the restore will only affect files that were modified today.
++.TP
++.B \-F
++Force reset of context to match file_context for customizable files
++
++.TP
++.B \-f
++Clear /tmp directory with out prompt for removal.
++
++.TP
++.B \-R rpmpackagename[,rpmpackagename...]
++Use the rpm database to discover all files within the specified packages and restore the file contexts.
++.TP
++.B \-C PREVIOUS_FILECONTEXT
++Run a diff on  the PREVIOUS_FILECONTEXT file to the currently installed one, and restore the context of all affected files.
++
++.TP
++.B \-N time
++Only act on files created after the specified date.  Date must be specified in
++"YYYY\-MM\-DD HH:MM" format.  Date field will be passed to find \-\-newermt command.
++
++.TP
++.B \-M
++Bind mount filesystems before relabeling them, this allows fixing the context of files or directories that have been mounted over.
++
++.TP
++.B -v
++Modify verbosity from progress to verbose. (Run restorecon with \-v instead of \-p)
++
++.TP
++.B \-T nthreads
++Use parallel relabeling, see
++.B setfiles(8)
++
++.SH "ARGUMENTS"
++One of:
++.TP
++.B check | verify
++print any incorrect file context labels, showing old and new context, but do not change them.
++.TP
++.B restore
++change any incorrect file context labels.
++.TP
++.B relabel
++Prompt for removal of contents of /tmp directory and then change any incorrect file context labels to match the install file_contexts file.
++.TP
++.B [[dir/file] ... ]
++List of files or directories trees that you wish to check file context on.
++
++.SH EXAMPLE
++.nf
++Relabel the whole filesystem, except paths listed in /etc/selinux/fixfiles_exclude_dirs
++# fixfiles relabel
++Schedule the machine to relabel on the next boot and force relabeling of customizable types
++# fixfiles -F onboot
++Check labeling of all files from the samba package (while not changing any labels)
++# fixfiles -R samba check
++
++.SH "AUTHOR"
++This man page was written by Richard Hally <rhally@mindspring.com>.
++The script  was written by Dan Walsh <dwalsh@redhat.com>
++
++.SH "SEE ALSO"
++.BR setfiles (8),
++.BR restorecon (8)
+diff --git a/policycoreutils/fixfiles/fixfiles.c b/policycoreutils/fixfiles/fixfiles.c
+new file mode 100644
+index 00000000..33fcc1d4
+--- /dev/null
++++ b/policycoreutils/fixfiles/fixfiles.c
+@@ -0,0 +1,1416 @@
++#define _GNU_SOURCE
++#include <ctype.h>
++#include <dirent.h>
++#include <errno.h>
++#include <fts.h>
++#include <glob.h>
++#include <limits.h>
++#include <mntent.h>
++#include <stdbool.h>
++#include <stdarg.h>
++#include <sched.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/mount.h>
++#include <sys/stat.h>
++#include <sys/sysinfo.h>
++#include <sys/types.h>
++#include <sys/utsname.h>
++#include <sys/wait.h>
++#include <time.h>
++#include <unistd.h>
++
++#include <selinux/context.h>
++#include <selinux/restorecon.h>
++#include <selinux/selinux.h>
++#include <semanage/handle.h>
++
++#include "restore.h"
++
++struct string_list {
++	char **items;
++	size_t len;
++	size_t cap;
++};
++
++static void string_list_init(struct string_list *list);
++static void string_list_append(struct string_list *list, const char *item);
++static bool string_list_contains(const struct string_list *list,
++				       const char *item);
++static void string_list_sort_unique(struct string_list *list);
++static void string_list_free(struct string_list *list);
++
++struct time_filter {
++	bool active;
++	time_t when;
++	char original[64];
++};
++
++enum command_type {
++	CMD_RESTORE,
++	CMD_CHECK,
++	CMD_VERIFY,
++	CMD_RELABEL,
++	CMD_ONBOOT
++};
++
++enum restore_mode {
++	MODE_DEFAULT = 0,
++	MODE_FILEPATH,
++	MODE_RPM,
++	MODE_PREFC
++};
++
++struct fixfiles_config {
++	enum command_type command;
++	enum restore_mode mode;
++	bool mode_locked;
++	bool verbose;
++	bool force;
++	bool bind_mounts;
++	bool full_relabel;
++	bool skip_prompt;
++	size_t nthreads;
++	struct time_filter tfilter;
++	char *prefc_path;
++	struct string_list rpm_packages;
++	struct string_list file_paths;
++	struct string_list excludes;
++	struct string_list mounts_rw;
++	struct string_list mounts_ro;
++	char *selinux_type;
++	char *fc_path;
++};
++
++static struct restore_opts r_opts;
++static const char *program_name = "fixfiles";
++
++static void usage(const char *progname) __attribute__((noreturn));
++static void parse_arguments(int argc, char **argv,
++			 struct fixfiles_config *cfg);
++static void determine_file_contexts(struct fixfiles_config *cfg);
++static void load_exclude_dirs(struct fixfiles_config *cfg);
++static void load_mount_lists(struct fixfiles_config *cfg);
++static void validate_config(const struct fixfiles_config *cfg);
++static void apply_time_filter(struct fixfiles_config *cfg,
++			      const char *timestr);
++static void apply_boot_time_filter(struct fixfiles_config *cfg);
++static void set_restore_mode(struct fixfiles_config *cfg,
++			    enum restore_mode mode);
++static void cleanup_post_relabel(void);
++static void regenerate_homedir_contexts(void);
++static void ensure_private_mount_namespace(void);
++
++static void die(const char *fmt, ...)
++{
++	va_list ap;
++	va_start(ap, fmt);
++	vfprintf(stderr, fmt, ap);
++	va_end(ap);
++	fputc('\n', stderr);
++	exit(EXIT_FAILURE);
++}
++
++static char *xstrdup(const char *s)
++{
++	if (!s)
++		s = "";
++	char *dup = strdup(s);
++	if (!dup)
++		die("Out of memory");
++	return dup;
++}
++
++static char *trim(char *s)
++{
++	if (!s)
++		return s;
++	while (*s && isspace((unsigned char)*s))
++		++s;
++	char *end = s + strlen(s);
++	while (end > s && isspace((unsigned char)end[-1]))
++		*--end = '\0';
++	return s;
++}
++
++static void string_list_init(struct string_list *list)
++{
++	list->items = NULL;
++	list->len = 0;
++	list->cap = 0;
++}
++
++static void string_list_reserve(struct string_list *list, size_t need)
++{
++	if (need <= list->cap)
++		return;
++	size_t new_cap = list->cap ? list->cap : 8;
++	while (new_cap < need)
++		new_cap *= 2;
++	char **tmp = realloc(list->items, new_cap * sizeof(char *));
++	if (!tmp)
++		die("Out of memory");
++	list->items = tmp;
++	list->cap = new_cap;
++}
++
++static void string_list_append(struct string_list *list, const char *item)
++{
++	if (!item || !*item)
++		return;
++	string_list_reserve(list, list->len + 1);
++	list->items[list->len++] = xstrdup(item);
++}
++
++static bool string_list_contains(const struct string_list *list,
++				       const char *item)
++{
++	if (!list || !item)
++		return false;
++	for (size_t i = 0; i < list->len; ++i) {
++		if (strcmp(list->items[i], item) == 0)
++			return true;
++	}
++	return false;
++}
++
++static int cmp_strings(const void *a, const void *b)
++{
++	const char *const *sa = a;
++	const char *const *sb = b;
++	return strcmp(*sa, *sb);
++}
++
++static void string_list_sort_unique(struct string_list *list)
++{
++	if (!list || list->len < 2)
++		return;
++	qsort(list->items, list->len, sizeof(char *), cmp_strings);
++	size_t out = 1;
++	for (size_t i = 1; i < list->len; ++i) {
++		if (strcmp(list->items[i], list->items[out - 1]) == 0) {
++			free(list->items[i]);
++			continue;
++		}
++		list->items[out++] = list->items[i];
++	}
++	list->len = out;
++}
++
++static void string_list_free(struct string_list *list)
++{
++	if (!list)
++		return;
++	for (size_t i = 0; i < list->len; ++i)
++		free(list->items[i]);
++	free(list->items);
++	list->items = NULL;
++	list->len = 0;
++	list->cap = 0;
++}
++
++static void config_init(struct fixfiles_config *cfg)
++{
++	memset(cfg, 0, sizeof(*cfg));
++	cfg->command = CMD_RESTORE;
++	cfg->mode = MODE_DEFAULT;
++	cfg->selinux_type = xstrdup("targeted");
++	string_list_init(&cfg->rpm_packages);
++	string_list_init(&cfg->file_paths);
++	string_list_init(&cfg->excludes);
++	string_list_init(&cfg->mounts_rw);
++	string_list_init(&cfg->mounts_ro);
++}
++
++static void config_destroy(struct fixfiles_config *cfg)
++{
++	free(cfg->prefc_path);
++	free(cfg->selinux_type);
++	free(cfg->fc_path);
++	string_list_free(&cfg->rpm_packages);
++	string_list_free(&cfg->file_paths);
++	string_list_free(&cfg->excludes);
++	string_list_free(&cfg->mounts_rw);
++	string_list_free(&cfg->mounts_ro);
++}
++
++static bool file_exists(const char *path)
++{
++	return path && access(path, F_OK) == 0;
++}
++
++static void usage(const char *progname)
++{
++	fprintf(stderr,
++		"Usage: %1$s [-v] [-F] [-M] [-f] [-T nthreads] relabel\n"
++		"       %1$s [-v] [-F] [-B|-N time] [-T nthreads] {check|restore|verify}\n"
++		"       %1$s [-v] [-F] [-T nthreads] {check|restore|verify} dir/file ...\n"
++		"       %1$s [-v] [-F] [-T nthreads] -R pkg[,pkg...] {check|restore|verify}\n"
++		"       %1$s [-v] [-F] [-T nthreads] -C PREV_FILECONTEXT {check|restore|verify}\n"
++		"       %1$s [-F] [-M] [-B] [-T nthreads] onboot\n"
++		,
++		progname);
++	exit(EXIT_FAILURE);
++}
++
++static void determine_file_contexts(struct fixfiles_config *cfg)
++{
++	free(cfg->fc_path);
++	cfg->fc_path = NULL;
++	char *policy_type = NULL;
++	if (selinux_getpolicytype(&policy_type) == 0 && policy_type) {
++		free(cfg->selinux_type);
++		cfg->selinux_type = policy_type;
++	} else {
++		free(policy_type);
++	}
++	const char *lib_path = selinux_file_context_path();
++	if (lib_path && file_exists(lib_path)) {
++		cfg->fc_path = xstrdup(lib_path);
++		return;
++	}
++	char candidate[PATH_MAX];
++	snprintf(candidate, sizeof(candidate),
++		 "/etc/selinux/%s/contexts/files/file_contexts",
++		 cfg->selinux_type ? cfg->selinux_type : "targeted");
++	if (file_exists(candidate)) {
++		cfg->fc_path = xstrdup(candidate);
++		return;
++	}
++	const char *fallback = "/etc/security/selinux/file_contexts";
++	if (file_exists(fallback)) {
++		cfg->fc_path = xstrdup(fallback);
++		return;
++	}
++	die("Unable to locate file_contexts (looked for %s and %s)",
++	    candidate, fallback);
++}
++
++static void load_exclude_dirs(struct fixfiles_config *cfg)
++{
++	const char *path = "/etc/selinux/fixfiles_exclude_dirs";
++	FILE *fp = fopen(path, "r");
++	if (!fp)
++		return;
++	char *line = NULL;
++	size_t len = 0;
++	while (getline(&line, &len, fp) != -1) {
++		char *entry = trim(line);
++		if (!*entry || *entry == '#')
++			continue;
++		if (*entry != '/')
++			continue;
++		struct stat sb;
++		if (lstat(entry, &sb) < 0 || !S_ISDIR(sb.st_mode))
++			continue;
++		if (!string_list_contains(&cfg->excludes, entry))
++			string_list_append(&cfg->excludes, entry);
++	}
++	free(line);
++	fclose(fp);
++}
++
++static int parse_kernel_component(const char **str)
++{
++	int value = 0;
++	while (**str && isdigit((unsigned char)**str)) {
++		value = value * 10 + (**str - '0');
++		(*str)++;
++	}
++	if (**str == '.')
++		(*str)++;
++	return value;
++}
++
++static bool kernel_supports_seclabel(void)
++{
++	struct utsname uts;
++	if (uname(&uts) < 0)
++		return true;
++	const char *p = uts.release;
++	int major = parse_kernel_component(&p);
++	int minor = parse_kernel_component(&p);
++	int patch = parse_kernel_component(&p);
++	if (major > 2)
++		return true;
++	if (major < 2)
++		return false;
++	if (minor > 6)
++		return true;
++	if (minor < 6)
++		return false;
++	return patch >= 30;
++}
++
++static bool has_mount_option(const char *opts, const char *needle)
++{
++	if (!opts || !needle)
++		return false;
++	size_t len = strlen(needle);
++	const char *cur = opts;
++	while (*cur) {
++		const char *comma = strchr(cur, ',');
++		size_t chunk = comma ? (size_t)(comma - cur) : strlen(cur);
++		if (chunk == len && strncmp(cur, needle, chunk) == 0)
++			return true;
++		if (!comma)
++			break;
++		cur = comma + 1;
++	}
++	return false;
++}
++
++static bool fs_type_supports_label(const char *type)
++{
++	static const char *const supported[] = {
++		"ext2", "ext3", "ext4", "ext4dev", "gfs2",
++		"xfs", "jfs", "btrfs", NULL
++	};
++	for (size_t i = 0; supported[i]; ++i) {
++		if (strcmp(type, supported[i]) == 0)
++			return true;
++	}
++	return false;
++}
++
++static void load_mount_lists(struct fixfiles_config *cfg)
++{
++	bool use_seclabel = kernel_supports_seclabel();
++	FILE *fp = setmntent("/proc/self/mounts", "r");
++	if (!fp)
++		die("Unable to read /proc/self/mounts: %s", strerror(errno));
++	struct mntent *ent;
++	while ((ent = getmntent(fp)) != NULL) {
++		if (!ent->mnt_dir || !ent->mnt_type)
++			continue;
++		bool supported = false;
++		if (use_seclabel)
++			supported = has_mount_option(ent->mnt_opts, "seclabel");
++		else if (!has_mount_option(ent->mnt_opts, "context=") &&
++			 fs_type_supports_label(ent->mnt_type))
++			supported = true;
++		if (!supported)
++			continue;
++		if (has_mount_option(ent->mnt_opts, "rw"))
++			string_list_append(&cfg->mounts_rw, ent->mnt_dir);
++		else
++			string_list_append(&cfg->mounts_ro, ent->mnt_dir);
++	}
++	endmntent(fp);
++	string_list_sort_unique(&cfg->mounts_rw);
++	string_list_sort_unique(&cfg->mounts_ro);
++}
++
++static void log_read_only_mounts(const struct fixfiles_config *cfg)
++{
++	if (!cfg->mounts_ro.len)
++		return;
++	fputs("Warning: Skipping the following R/O filesystems:\n", stdout);
++	for (size_t i = 0; i < cfg->mounts_ro.len; ++i)
++		printf("%s\n", cfg->mounts_ro.items[i]);
++}
++
++static void log_excluded_dirs(const struct fixfiles_config *cfg)
++{
++	for (size_t i = 0; i < cfg->excludes.len; ++i)
++		printf("skipping the directory %s\n", cfg->excludes.items[i]);
++}
++
++static bool is_excluded_path(const struct fixfiles_config *cfg, const char *path)
++{
++	for (size_t i = 0; i < cfg->excludes.len; ++i) {
++		const char *ex = cfg->excludes.items[i];
++		size_t len = strlen(ex);
++		if (strncmp(path, ex, len) == 0 &&
++		    (path[len] == '\0' || path[len] == '/'))
++			return true;
++	}
++	return false;
++}
++
++static void set_restore_mode(struct fixfiles_config *cfg, enum restore_mode mode)
++{
++	if (cfg->mode_locked)
++		die("Cannot combine restore modes");
++	cfg->mode = mode;
++	cfg->mode_locked = true;
++}
++
++static void ensure_private_mount_namespace(void)
++{
++#ifdef CLONE_NEWNS
++	static bool configured = false;
++	static bool attempted = false;
++	if (configured || attempted)
++		return;
++	attempted = true;
++	if (unshare(CLONE_NEWNS) == 0) {
++		if (mount(NULL, "/", NULL, MS_REC | MS_PRIVATE, NULL) == 0)
++			configured = true;
++	}
++#endif
++}
++
++static void apply_excludes_to_restore(const struct fixfiles_config *cfg)
++{
++	for (size_t i = 0; i < cfg->excludes.len; ++i)
++		add_exclude(cfg->excludes.items[i]);
++}
++
++static void setup_restore_session(const struct fixfiles_config *cfg, bool nochange)
++{
++	static const char validate[] = "1";
++	memset(&r_opts, 0, sizeof(r_opts));
++	r_opts.progname = (char *)program_name;
++	r_opts.progress = cfg->verbose ? 0 : SELINUX_RESTORECON_PROGRESS;
++	r_opts.verbose = cfg->verbose ? SELINUX_RESTORECON_VERBOSE : 0;
++	r_opts.recurse = SELINUX_RESTORECON_RECURSE;
++	r_opts.userealpath = 0;
++	r_opts.add_assoc = SELINUX_RESTORECON_ADD_ASSOC;
++	r_opts.xdev = SELINUX_RESTORECON_XDEV;
++	r_opts.ignore_mounts = 0;
++	r_opts.nochange = nochange ? SELINUX_RESTORECON_NOCHANGE : 0;
++	r_opts.set_specctx = cfg->force ? SELINUX_RESTORECON_SET_SPECFILE_CTX : 0;
++	r_opts.selabel_opt_validate = validate;
++	r_opts.count_errors = SELINUX_RESTORECON_COUNT_ERRORS;
++	r_opts.selabel_opt_path = cfg->fc_path;
++	restore_init(&r_opts);
++	apply_excludes_to_restore(cfg);
++}
++
++static void teardown_restore_session(void)
++{
++	restore_finish();
++}
++
++static int relabel_path(const char *path, size_t nthreads,
++			long unsigned *skipped_errors)
++{
++	int rc = selinux_restorecon_parallel(path,
++					 r_opts.restorecon_flags,
++					 nthreads);
++	if (rc >= 0 &&
++	    (r_opts.restorecon_flags & SELINUX_RESTORECON_COUNT_ERRORS) &&
++	    skipped_errors)
++		*skipped_errors += selinux_restorecon_get_skipped_errors();
++	return rc;
++}
++
++static int remove_path_recursive(const char *path)
++{
++	struct stat st;
++	if (lstat(path, &st) < 0) {
++		if (errno == ENOENT)
++			return 0;
++		return -1;
++	}
++	if (S_ISDIR(st.st_mode) && !S_ISLNK(st.st_mode)) {
++		DIR *dir = opendir(path);
++		if (!dir)
++			return -1;
++		struct dirent *de;
++		int rc = 0;
++		while ((de = readdir(dir)) != NULL) {
++			if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0)
++				continue;
++			char child[PATH_MAX];
++			if (snprintf(child, sizeof(child), "%s/%s", path, de->d_name) >= (int)sizeof(child)) {
++				rc = -1;
++				break;
++			}
++			rc = remove_path_recursive(child);
++			if (rc < 0)
++				break;
++		}
++		closedir(dir);
++		if (rc < 0)
++			return rc;
++		return rmdir(path);
++	}
++	return unlink(path);
++}
++
++static void clean_directory_contents(const char *path)
++{
++	DIR *dir = opendir(path);
++	if (!dir)
++		return;
++	struct dirent *de;
++	while ((de = readdir(dir)) != NULL) {
++		if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0)
++			continue;
++		char child[PATH_MAX];
++		if (snprintf(child, sizeof(child), "%s/%s", path, de->d_name) >= (int)sizeof(child))
++			continue;
++		remove_path_recursive(child);
++	}
++	closedir(dir);
++}
++
++static int mkdir_p(const char *path, mode_t mode)
++{
++	char tmp[PATH_MAX];
++	if (snprintf(tmp, sizeof(tmp), "%s", path) >= (int)sizeof(tmp))
++		return -1;
++	for (char *p = tmp + 1; *p; ++p) {
++		if (*p == '/') {
++			*p = '\0';
++			if (mkdir(tmp, mode) < 0 && errno != EEXIST)
++				return -1;
++			*p = '/';
++		}
++	}
++	if (mkdir(tmp, mode) < 0 && errno != EEXIST)
++		return -1;
++	return 0;
++}
++
++static char *create_temp_root(void)
++{
++	const char *bases[] = { "/run", "/tmp", NULL };
++	for (size_t i = 0; bases[i]; ++i) {
++		char tmpl[PATH_MAX];
++		if (snprintf(tmpl, sizeof(tmpl), "%s/fixfilesXXXXXX", bases[i]) >= (int)sizeof(tmpl))
++			continue;
++		char *dir = xstrdup(tmpl);
++		if (mkdtemp(dir))
++			return dir;
++		free(dir);
++	}
++	die("Unable to create temporary directory");
++	return NULL;
++}
++
++static void remove_glob_matches(const char *pattern)
++{
++	glob_t g;
++	if (glob(pattern, GLOB_NOSORT, NULL, &g) != 0)
++		return;
++	for (size_t i = 0; i < g.gl_pathc; ++i)
++		remove_path_recursive(g.gl_pathv[i]);
++	globfree(&g);
++}
++
++static void strip_s0_tokens(char *line)
++{
++	char *match;
++	while ((match = strstr(line, ":s0")) != NULL)
++		memmove(match, match + 3, strlen(match + 3) + 1);
++}
++
++static void load_fc_lines(const char *path, struct string_list *out)
++{
++	FILE *fp = fopen(path, "r");
++	if (!fp)
++		die("Unable to open %s: %s", path, strerror(errno));
++	char *line = NULL;
++	size_t len = 0;
++	while (getline(&line, &len, fp) != -1) {
++		char *p = trim(line);
++		if (!*p || *p == '#')
++			continue;
++		if (*p != '/')
++			continue;
++		strip_s0_tokens(p);
++		string_list_append(out, p);
++	}
++	free(line);
++	fclose(fp);
++	string_list_sort_unique(out);
++}
++
++static void symmetric_diff(const struct string_list *a,
++			      const struct string_list *b,
++			      struct string_list *out)
++{
++	size_t i = 0, j = 0;
++	while (i < a->len && j < b->len) {
++		int cmp = strcmp(a->items[i], b->items[j]);
++		if (cmp == 0) {
++			++i;
++			++j;
++		} else if (cmp < 0) {
++			string_list_append(out, a->items[i++]);
++		} else {
++			string_list_append(out, b->items[j++]);
++		}
++	}
++	while (i < a->len)
++		string_list_append(out, a->items[i++]);
++	while (j < b->len)
++		string_list_append(out, b->items[j++]);
++}
++
++static char *extract_pattern_from_line(const char *line)
++{
++	if (!line || line[0] != '/')
++		return NULL;
++	char buf[PATH_MAX];
++	size_t i = 0;
++	while (line[i] && !isspace((unsigned char)line[i]) && i + 1 < sizeof(buf)) {
++		buf[i] = line[i];
++		++i;
++	}
++	buf[i] = '\0';
++	return xstrdup(buf);
++}
++
++static char *regex_to_glob_pattern(const char *regex)
++{
++	char buf[PATH_MAX];
++	size_t j = 0;
++	for (size_t i = 0; regex[i] && j + 1 < sizeof(buf); ++i) {
++		char c = regex[i];
++		if ((isalnum((unsigned char)c) || c == '/') && regex[i + 1] == '?') {
++			buf[j++] = '*';
++			break;
++		}
++		if (c == '(') {
++			size_t k = i + 1;
++			while (isalnum((unsigned char)regex[k]) || regex[k] == '/')
++				++k;
++			if (k > i + 1 && regex[k] == ')' && regex[k + 1] == '?') {
++				buf[j++] = '*';
++				break;
++			}
++		}
++		if (c == '\\' && regex[i + 1]) {
++			buf[j++] = regex[++i];
++			continue;
++		}
++		if ((c == '.' && (regex[i + 1] == '*' || regex[i + 1] == '+')) ||
++		    c == '?' || c == '{' || c == '(' || c == '[') {
++			buf[j++] = '*';
++			break;
++		}
++		buf[j++] = c;
++	}
++	if (j == 0)
++		return NULL;
++	buf[j] = '\0';
++	return xstrdup(buf);
++}
++
++static bool path_has_prefix(const char *path, const char *prefix)
++{
++	size_t len = strlen(prefix);
++	return strncmp(path, prefix, len) == 0 &&
++		(path[len] == '\0' || path[len] == '/');
++}
++
++static bool diff_pattern_excluded(const char *pattern)
++{
++	static const char *const extra[] = {
++		"/sys", "/proc", "/mnt", "/var/tmp",
++		"/var/lib/BackupPC", "/home", "/root", "/tmp", NULL
++	};
++	for (size_t i = 0; extra[i]; ++i) {
++		if (path_has_prefix(pattern, extra[i]))
++			return true;
++	}
++	return false;
++}
++
++static int relabel_from_prefc(struct fixfiles_config *cfg,
++			 long unsigned *skipped_errors)
++{
++	struct string_list prev, curr, diffs, patterns;
++	string_list_init(&prev);
++	string_list_init(&curr);
++	string_list_init(&diffs);
++	string_list_init(&patterns);
++	load_fc_lines(cfg->prefc_path, &prev);
++	load_fc_lines(cfg->fc_path, &curr);
++	symmetric_diff(&prev, &curr, &diffs);
++	for (size_t i = 0; i < diffs.len; ++i) {
++		char *pattern = extract_pattern_from_line(diffs.items[i]);
++		if (!pattern)
++			continue;
++		if (diff_pattern_excluded(pattern) || is_excluded_path(cfg, pattern)) {
++			free(pattern);
++			continue;
++		}
++		char *glob = regex_to_glob_pattern(pattern);
++		free(pattern);
++		if (!glob)
++			continue;
++		string_list_append(&patterns, glob);
++		free(glob);
++	}
++	string_list_sort_unique(&patterns);
++	log_excluded_dirs(cfg);
++	int rc = 0;
++	long unsigned relabeled_files = 0;
++	for (size_t i = 0; i < patterns.len; ++i) {
++		rc = process_glob(patterns.items[i], &r_opts,
++				 cfg->nthreads, skipped_errors, &relabeled_files);
++		if (rc != 0 && rc != GLOB_NOMATCH)
++			break;
++	}
++	string_list_free(&prev);
++	string_list_free(&curr);
++	string_list_free(&diffs);
++	string_list_free(&patterns);
++	return rc;
++}
++
++static void collect_newer_paths(const struct fixfiles_config *cfg,
++				  const char *root,
++				  struct string_list *targets)
++{
++	char *const paths[] = { (char *)root, NULL };
++	FTS *fts = fts_open(paths, FTS_PHYSICAL | FTS_NOCHDIR, NULL);
++	if (!fts)
++		return;
++	FTSENT *ent;
++	while ((ent = fts_read(fts)) != NULL) {
++		if (is_excluded_path(cfg, ent->fts_path)) {
++			fts_set(fts, ent, FTS_SKIP);
++			continue;
++		}
++		if (ent->fts_info == FTS_DP)
++			continue;
++		const struct stat *sb = ent->fts_statp;
++		if (!sb)
++			continue;
++		if (sb->st_mtime >= cfg->tfilter.when) {
++			string_list_append(targets, ent->fts_path);
++			if (ent->fts_info == FTS_D)
++				fts_set(fts, ent, FTS_SKIP);
++		}
++	}
++	fts_close(fts);
++}
++
++static int relabel_newer_than(const struct fixfiles_config *cfg,
++			long unsigned *skipped_errors)
++{
++	struct string_list targets;
++	string_list_init(&targets);
++	log_read_only_mounts(cfg);
++	log_excluded_dirs(cfg);
++	for (size_t i = 0; i < cfg->mounts_rw.len; ++i)
++		collect_newer_paths(cfg, cfg->mounts_rw.items[i], &targets);
++	string_list_sort_unique(&targets);
++	int rc = 0;
++	for (size_t i = 0; i < targets.len; ++i) {
++		rc = relabel_path(targets.items[i], cfg->nthreads, skipped_errors);
++		if (rc < 0)
++			break;
++	}
++	string_list_free(&targets);
++	return rc;
++}
++
++static int collect_rpm_files_for_package(const char *pkg,
++				 struct string_list *files)
++{
++	int pipefd[2];
++	if (pipe(pipefd) < 0)
++		return -1;
++	pid_t pid = fork();
++	if (pid < 0) {
++		close(pipefd[0]);
++		close(pipefd[1]);
++		return -1;
++	}
++	if (pid == 0) {
++		close(pipefd[0]);
++		if (dup2(pipefd[1], STDOUT_FILENO) < 0)
++			_exit(127);
++		close(pipefd[1]);
++		execlp("rpm", "rpm", "-q", "--qf",
++		       "[%{FILESTATES} %{FILENAMES}\n]", pkg, (char *)NULL);
++		_exit(127);
++	}
++	close(pipefd[1]);
++	FILE *fp = fdopen(pipefd[0], "r");
++	if (!fp) {
++		close(pipefd[0]);
++		waitpid(pid, NULL, 0);
++		return -1;
++	}
++	char *line = NULL;
++	size_t len = 0;
++	while (getline(&line, &len, fp) != -1) {
++		if (line[0] == '0' && line[1] == ' ') {
++			char *path = trim(line + 2);
++			if (*path)
++				string_list_append(files, path);
++		}
++	}
++	free(line);
++	fclose(fp);
++	int status = 0;
++	if (waitpid(pid, &status, 0) < 0)
++		return -1;
++	if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
++		fprintf(stderr, "%s not found\n", pkg);
++		return -1;
++	}
++	return 0;
++}
++
++static void collect_rpm_files(const struct fixfiles_config *cfg,
++			struct string_list *files)
++{
++	for (size_t i = 0; i < cfg->rpm_packages.len; ++i)
++		collect_rpm_files_for_package(cfg->rpm_packages.items[i], files);
++}
++
++static int relabel_rpm_packages(const struct fixfiles_config *cfg,
++		long unsigned *skipped_errors)
++{
++	struct string_list files;
++	string_list_init(&files);
++	collect_rpm_files(cfg, &files);
++	string_list_sort_unique(&files);
++	log_excluded_dirs(cfg);
++	int rc = 0;
++	for (size_t i = 0; i < files.len; ++i) {
++		rc = relabel_path(files.items[i], cfg->nthreads, skipped_errors);
++		if (rc < 0)
++			break;
++	}
++	string_list_free(&files);
++	return rc;
++}
++
++static int relabel_mounts_default(const struct fixfiles_config *cfg,
++				  long unsigned *skipped_errors)
++{
++	if (!cfg->mounts_rw.len) {
++		fprintf(stderr, "fixfiles: No suitable file systems found\n");
++		return -1;
++	}
++	log_read_only_mounts(cfg);
++	log_excluded_dirs(cfg);
++	for (size_t i = 0; i < cfg->mounts_rw.len; ++i) {
++		const char *mount = cfg->mounts_rw.items[i];
++		printf("Relabeling %s\n", mount);
++		int rc = relabel_path(mount, cfg->nthreads, skipped_errors);
++		if (rc < 0)
++			return rc;
++	}
++	return 0;
++}
++
++static int relabel_mounts_bind(const struct fixfiles_config *cfg,
++				long unsigned *skipped_errors)
++{
++	if (!cfg->mounts_rw.len) {
++		fprintf(stderr, "fixfiles: No suitable file systems found\n");
++		return -1;
++	}
++	log_read_only_mounts(cfg);
++	log_excluded_dirs(cfg);
++	ensure_private_mount_namespace();
++	for (size_t i = 0; i < cfg->mounts_rw.len; ++i) {
++		const char *mount_point = cfg->mounts_rw.items[i];
++		char *tmp_root = create_temp_root();
++		char target[PATH_MAX];
++		if (snprintf(target, sizeof(target), "%s%s", tmp_root, mount_point) >= (int)sizeof(target)) {
++			remove_path_recursive(tmp_root);
++			free(tmp_root);
++			return -1;
++		}
++		if (mkdir_p(target, 0700) < 0) {
++			remove_path_recursive(tmp_root);
++			free(tmp_root);
++			return -1;
++		}
++		if (mount(mount_point, target, NULL, MS_BIND, NULL) < 0) {
++			perror("mount --bind");
++			remove_path_recursive(tmp_root);
++			free(tmp_root);
++			return -1;
++		}
++		if (selinux_restorecon_set_alt_rootpath(tmp_root) < 0) {
++			perror("selinux_restorecon_set_alt_rootpath");
++			umount(target);
++			remove_path_recursive(tmp_root);
++			free(tmp_root);
++			return -1;
++		}
++		int rc = relabel_path(target, cfg->nthreads, skipped_errors);
++		if (selinux_restorecon_set_alt_rootpath("") < 0)
++			perror("selinux_restorecon_set_alt_rootpath");
++		if (umount(target) < 0)
++			perror("umount");
++		remove_path_recursive(tmp_root);
++		free(tmp_root);
++		if (rc < 0)
++			return rc;
++	}
++	return 0;
++}
++
++static int relabel_explicit_paths(const struct fixfiles_config *cfg,
++				 long unsigned *skipped_errors)
++{
++	if (!cfg->file_paths.len)
++		return 0;
++	log_excluded_dirs(cfg);
++	for (size_t i = 0; i < cfg->file_paths.len; ++i) {
++		const char *path = cfg->file_paths.items[i];
++		int rc = relabel_path(path, cfg->nthreads, skipped_errors);
++		if (rc < 0)
++			return rc;
++	}
++	return 0;
++}
++
++static void decode_mount_token(const char *src, char *dst, size_t len)
++{
++	size_t j = 0;
++	for (size_t i = 0; src[i] && src[i] != '\n' && j + 1 < len; ++i) {
++		if (src[i] == '\\' &&
++		    src[i + 1] >= '0' && src[i + 1] <= '7' &&
++		    src[i + 2] >= '0' && src[i + 2] <= '7' &&
++		    src[i + 3] >= '0' && src[i + 3] <= '7') {
++			int val = (src[i + 1] - '0') * 64 +
++				  (src[i + 2] - '0') * 8 +
++				  (src[i + 3] - '0');
++			dst[j++] = (char)val;
++			i += 3;
++			continue;
++		}
++		dst[j++] = src[i];
++	}
++	dst[j] = '\0';
++}
++
++static bool get_selinux_mountpoint(char *buf, size_t len)
++{
++	FILE *fp = fopen("/proc/self/mountinfo", "r");
++	if (!fp)
++		return false;
++	char *line = NULL;
++	size_t line_len = 0;
++	bool found = false;
++	while (!found && getline(&line, &line_len, fp) != -1) {
++		char *sep = strstr(line, " - ");
++		if (!sep)
++			continue;
++		char *fstype = sep + 3;
++		char *space = strchr(fstype, ' ');
++		if (!space)
++			continue;
++		*space = '\0';
++		if (strcmp(fstype, "selinuxfs") != 0)
++			continue;
++		*sep = '\0';
++		char *save = NULL;
++		char *token;
++		int field = 0;
++		for (token = strtok_r(line, " ", &save);
++		     token; token = strtok_r(NULL, " ", &save)) {
++			++field;
++			if (field == 5) {
++				decode_mount_token(token, buf, len);
++				found = true;
++				break;
++			}
++		}
++	}
++	free(line);
++	fclose(fp);
++	return found;
++}
++
++static bool read_initial_type(const char *name, char *out, size_t len)
++{
++	char mnt[PATH_MAX];
++	if (!get_selinux_mountpoint(mnt, sizeof(mnt)))
++		return false;
++	char path[PATH_MAX];
++	if (snprintf(path, sizeof(path), "%s/initial_contexts/%s", mnt, name) >= (int)sizeof(path))
++		return false;
++	FILE *fp = fopen(path, "r");
++	if (!fp)
++		return false;
++	char buf[256];
++	if (!fgets(buf, sizeof(buf), fp)) {
++		fclose(fp);
++		return false;
++	}
++	fclose(fp);
++	char *ctx_str = trim(buf);
++	context_t ctx = context_new(ctx_str);
++	if (!ctx)
++		return false;
++	const char *type = context_type_get(ctx);
++	if (!type) {
++		context_free(ctx);
++		return false;
++	}
++	strncpy(out, type, len - 1);
++	out[len - 1] = '\0';
++	context_free(ctx);
++	return true;
++}
++
++static bool context_has_type(const char *ctx, const char *type)
++{
++	if (!ctx || !type)
++		return false;
++	context_t c = context_new(ctx);
++	if (!c)
++		return false;
++	const char *ctype = context_type_get(c);
++	bool match = ctype && strcmp(ctype, type) == 0;
++	context_free(c);
++	return match;
++}
++
++static void cleanup_label_tree(const char *root, const char *ref,
++				const char *unlabeled_type,
++				const char *undefined_type,
++				bool purge_special)
++{
++	char *ref_ctx = NULL;
++	if (lgetfilecon(ref, &ref_ctx) < 0)
++		return;
++	char *const paths[] = { (char *)root, NULL };
++	FTS *fts = fts_open(paths, FTS_PHYSICAL | FTS_NOCHDIR, NULL);
++	if (!fts) {
++		freecon(ref_ctx);
++		return;
++	}
++	FTSENT *ent;
++	while ((ent = fts_read(fts)) != NULL) {
++		if (ent->fts_level == 0)
++			continue;
++		if (ent->fts_info == FTS_DP)
++			continue;
++		const struct stat *sb = ent->fts_statp;
++		if (!sb)
++			continue;
++		char *cur = NULL;
++		bool missing_ctx = false;
++		if (lgetfilecon(ent->fts_path, &cur) < 0) {
++			if (errno == ENODATA)
++				missing_ctx = true;
++			else
++				continue;
++		}
++		bool bad = missing_ctx;
++		if (!missing_ctx)
++			bad = context_has_type(cur, unlabeled_type) ||
++			      context_has_type(cur, undefined_type);
++		if (cur)
++			freecon(cur);
++		if (!bad)
++			continue;
++		if (purge_special && (S_ISFIFO(sb->st_mode) || S_ISSOCK(sb->st_mode))) {
++			remove_path_recursive(ent->fts_path);
++			continue;
++		}
++		if (lsetfilecon(ent->fts_path, ref_ctx) < 0)
++			perror("lsetfilecon");
++	}
++	fts_close(fts);
++	freecon(ref_ctx);
++}
++
++static bool path_is_dir(const char *path)
++{
++	struct stat st;
++	return stat(path, &st) == 0 && S_ISDIR(st.st_mode);
++}
++
++static void cleanup_post_relabel(void)
++{
++	puts("Cleaning up labels on /tmp");
++	remove_glob_matches("/tmp/gconfd-*");
++	remove_glob_matches("/tmp/pulse-*");
++	remove_glob_matches("/tmp/orbit-*");
++	char undefined_type[64] = "";
++	char unlabeled_type[64] = "";
++	if (!read_initial_type("unlabeled", undefined_type,
++			 sizeof(undefined_type)))
++		return;
++	if (!read_initial_type("file", unlabeled_type,
++			 sizeof(unlabeled_type)))
++		return;
++	cleanup_label_tree("/tmp", "/tmp", unlabeled_type, undefined_type, true);
++	cleanup_label_tree("/var/tmp", "/var/tmp", unlabeled_type, undefined_type, false);
++	cleanup_label_tree("/var/run", "/var/run", unlabeled_type, undefined_type, false);
++	if (path_is_dir("/var/lib/debug"))
++		cleanup_label_tree("/var/lib/debug", "/lib", unlabeled_type, undefined_type, false);
++}
++
++static void regenerate_homedir_contexts(void)
++{
++	semanage_handle_t *sh = semanage_handle_create();
++	if (!sh)
++		return;
++	semanage_set_create_store(sh, 1);
++	if (semanage_connect(sh) < 0) {
++		fprintf(stderr, "genhomedircon: semanage_connect failed\n");
++		goto out;
++	}
++	if (semanage_begin_transaction(sh) < 0) {
++		fprintf(stderr, "genhomedircon: semanage_begin_transaction failed\n");
++		goto out;
++	}
++	semanage_set_reload(sh, 0);
++	semanage_set_rebuild(sh, 1);
++	if (semanage_commit(sh) < 0)
++		fprintf(stderr, "genhomedircon rebuild failed\n");
++out:
++	if (semanage_is_connected(sh))
++		semanage_disconnect(sh);
++	semanage_handle_destroy(sh);
++}
++
++static void apply_time_filter(struct fixfiles_config *cfg, const char *timestr)
++{
++	struct tm tm = { 0 };
++	char buf[64];
++	if (strlen(timestr) >= sizeof(buf))
++		die("Time string too long");
++	strncpy(buf, timestr, sizeof(buf));
++	char *trimmed = trim(buf);
++	if (!strptime(trimmed, "%Y-%m-%d %H:%M", &tm))
++		die("Invalid time format '%s' (expected YYYY-MM-DD HH:MM)", timestr);
++	cfg->tfilter.active = true;
++	cfg->tfilter.when = mktime(&tm);
++	snprintf(cfg->tfilter.original,
++		 sizeof(cfg->tfilter.original), "%s", trimmed);
++}
++
++static void apply_boot_time_filter(struct fixfiles_config *cfg)
++{
++	struct sysinfo info;
++	if (sysinfo(&info) < 0)
++		die("sysinfo failed: %s", strerror(errno));
++	time_t now = time(NULL);
++	time_t boot = now - info.uptime;
++	struct tm tm;
++	localtime_r(&boot, &tm);
++	char formatted[64];
++	if (!strftime(formatted, sizeof(formatted), "%Y-%m-%d %H:%M", &tm))
++		die("Failed to format boot time");
++	cfg->tfilter.active = true;
++	cfg->tfilter.when = boot;
++	snprintf(cfg->tfilter.original,
++		 sizeof(cfg->tfilter.original), "%s", formatted);
++}
++
++static void parse_arguments(int argc, char **argv, struct fixfiles_config *cfg)
++{
++	int opt;
++	while ((opt = getopt(argc, argv, "N:BC:FfR:vMT:")) != -1) {
++		switch (opt) {
++		case 'N':
++			set_restore_mode(cfg, MODE_DEFAULT);
++			apply_time_filter(cfg, optarg);
++			break;
++		case 'B':
++			set_restore_mode(cfg, MODE_DEFAULT);
++			apply_boot_time_filter(cfg);
++			break;
++		case 'C':
++			set_restore_mode(cfg, MODE_PREFC);
++			free(cfg->prefc_path);
++			cfg->prefc_path = xstrdup(optarg);
++			break;
++		case 'F':
++			cfg->force = true;
++			break;
++		case 'f':
++			cfg->full_relabel = true;
++			cfg->skip_prompt = true;
++			break;
++		case 'R':
++			set_restore_mode(cfg, MODE_RPM);
++			{
++				char *copy = xstrdup(optarg);
++				char *token, *saveptr = NULL;
++				for (token = strtok_r(copy, ",", &saveptr);
++				     token; token = strtok_r(NULL, ",", &saveptr)) {
++					char *trimmed = trim(token);
++					if (*trimmed)
++						string_list_append(&cfg->rpm_packages, trimmed);
++				}
++				free(copy);
++			}
++			break;
++		case 'v':
++			cfg->verbose = true;
++			break;
++		case 'M':
++			cfg->bind_mounts = true;
++			break;
++		case 'T':
++			{
++				char *end = NULL;
++				unsigned long long value = strtoull(optarg, &end, 10);
++				if (optarg[0] == '\0' || (end && *end != '\0'))
++					die("Invalid thread count '%s'", optarg);
++				cfg->nthreads = value;
++			}
++			break;
++		default:
++			usage(program_name);
++		}
++	}
++	if (optind >= argc)
++		usage(program_name);
++	const char *cmd = argv[optind++];
++	if (strcmp(cmd, "restore") == 0) {
++		cfg->command = CMD_RESTORE;
++	} else if (strcmp(cmd, "check") == 0) {
++		cfg->command = CMD_CHECK;
++	} else if (strcmp(cmd, "verify") == 0) {
++		cfg->command = CMD_VERIFY;
++	} else if (strcmp(cmd, "relabel") == 0) {
++		cfg->command = CMD_RELABEL;
++	} else if (strcmp(cmd, "onboot") == 0) {
++		cfg->command = CMD_ONBOOT;
++	} else {
++		usage(program_name);
++	}
++	if (cfg->command == CMD_CHECK || cfg->command == CMD_VERIFY)
++		cfg->verbose = true;
++	if (optind < argc) {
++		set_restore_mode(cfg, MODE_FILEPATH);
++		for (; optind < argc; ++optind)
++			string_list_append(&cfg->file_paths, argv[optind]);
++	}
++}
++
++static void validate_config(const struct fixfiles_config *cfg)
++{
++	if (cfg->mode == MODE_RPM && cfg->rpm_packages.len == 0)
++		die("-R requires at least one package");
++	if (cfg->mode == MODE_FILEPATH && cfg->file_paths.len == 0)
++		die("No file paths provided");
++	if (cfg->mode == MODE_PREFC && (!cfg->prefc_path || !file_exists(cfg->prefc_path)))
++		die("Previous file context file not found");
++	if (cfg->command == CMD_ONBOOT && cfg->mode != MODE_DEFAULT)
++		die("onboot cannot be combined with other modes");
++}
++
++static bool is_dry_run_command(const struct fixfiles_config *cfg)
++{
++	return cfg->command == CMD_CHECK || cfg->command == CMD_VERIFY;
++}
++
++static int handle_restore(struct fixfiles_config *cfg)
++{
++	bool nochange = is_dry_run_command(cfg);
++	regenerate_homedir_contexts();
++	setup_restore_session(cfg, nochange);
++	long unsigned skipped_errors = 0;
++	int rc = 0;
++	switch (cfg->mode) {
++	case MODE_FILEPATH:
++		rc = relabel_explicit_paths(cfg, &skipped_errors);
++		break;
++	case MODE_RPM:
++		rc = relabel_rpm_packages(cfg, &skipped_errors);
++		break;
++	case MODE_PREFC:
++		rc = relabel_from_prefc(cfg, &skipped_errors);
++		break;
++	case MODE_DEFAULT:
++		if (cfg->tfilter.active)
++			rc = relabel_newer_than(cfg, &skipped_errors);
++		else if (cfg->bind_mounts)
++			rc = relabel_mounts_bind(cfg, &skipped_errors);
++		else
++			rc = relabel_mounts_default(cfg, &skipped_errors);
++		break;
++	default:
++		rc = -1;
++	}
++	teardown_restore_session();
++	if (rc == 0 && (cfg->command == CMD_RESTORE || cfg->command == CMD_RELABEL))
++		cleanup_post_relabel();
++	if (rc == 0 && skipped_errors)
++		printf("Number of errors ignored: %lu\n", skipped_errors);
++	return rc;
++}
++
++static int handle_onboot(const struct fixfiles_config *cfg)
++{
++	FILE *fp = fopen("/.autorelabel", "w");
++	if (!fp)
++		die("Unable to create /.autorelabel: %s", strerror(errno));
++	bool force = cfg->force;
++	if (is_selinux_enabled() <= 0)
++		force = true;
++	if (force)
++		fprintf(fp, "-F ");
++	if (cfg->tfilter.active)
++		fprintf(fp, "-N %s ", cfg->tfilter.original);
++	if (cfg->bind_mounts)
++		fprintf(fp, "-M ");
++	if (cfg->nthreads)
++		fprintf(fp, "-T %zu ", cfg->nthreads);
++	fputc('\n', fp);
++	if (fclose(fp) != 0)
++		die("Failed to finalize /.autorelabel: %s", strerror(errno));
++	puts("System will relabel on next boot");
++	return 0;
++}
++
++static bool prompt_clean_tmp(void)
++{
++	fputs("\n    Files in the /tmp directory may be labeled incorrectly, this command\n"
++	      "    can remove all files in /tmp.  If you choose to remove files from /tmp,\n"
++	      "    a reboot will be required after completion.\n\n"
++	      "    Do you wish to clean out the /tmp directory [N]? ", stdout);
++	fflush(stdout);
++	char answer[8];
++	if (!fgets(answer, sizeof(answer), stdin))
++		return false;
++	return answer[0] == 'y' || answer[0] == 'Y';
++}
++
++static int handle_relabel(struct fixfiles_config *cfg)
++{
++	bool clean_tmp = cfg->full_relabel;
++	if (!clean_tmp && !cfg->skip_prompt)
++		clean_tmp = prompt_clean_tmp();
++	if (clean_tmp) {
++		puts("Cleaning out /tmp");
++		clean_directory_contents("/tmp");
++	}
++	return handle_restore(cfg);
++}
++
++int main(int argc, char **argv)
++{
++	if (argc < 2)
++		usage(argv[0]);
++	program_name = argv[0];
++	struct fixfiles_config cfg;
++	config_init(&cfg);
++	parse_arguments(argc, argv, &cfg);
++	determine_file_contexts(&cfg);
++	load_exclude_dirs(&cfg);
++	load_mount_lists(&cfg);
++	validate_config(&cfg);
++	int rc = 0;
++	switch (cfg.command) {
++	case CMD_ONBOOT:
++		rc = handle_onboot(&cfg);
++		break;
++	case CMD_RELABEL:
++		rc = handle_relabel(&cfg);
++		break;
++	case CMD_RESTORE:
++	case CMD_CHECK:
++	case CMD_VERIFY:
++		rc = handle_restore(&cfg);
++		break;
++	default:
++		rc = -1;
++	}
++	config_destroy(&cfg);
++	return rc == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
++}

@@ -1,5 +1,5 @@
 diff --git OLD/wireless-regdb.spec NEW/wireless-regdb.spec
-index 37d7bc9..0cecb5f 100644
+index 37d7bc9..4756d0d 100644
 --- OLD/wireless-regdb.spec
 +++ NEW/wireless-regdb.spec
 @@ -7,22 +7,26 @@ Summary:        Regulatory database for 802.11 wireless networking
@@ -29,7 +29,7 @@ index 37d7bc9..0cecb5f 100644
 +# Source2:        setregdomain.1
  Source3:        85-regulatory.rules
  
-+Patch0:         https://gist.github.com/fxzxmic/078afc99689a75104cad7428f8c9e3ac/raw/307fc9b8d6301cffee80be14d4937a357694c37d/fedora-wireless-regdb-setregdomain.patch
++Patch0:         fedora-wireless-regdb-setregdomain.patch
 +
  
  %description
