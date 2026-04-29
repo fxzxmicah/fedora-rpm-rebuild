@@ -1,0 +1,191 @@
+diff --git a/data/conf.d/90-stub-plugins.cfg b/data/conf.d/90-stub-plugins.cfg
+new file mode 100644
+index 0000000..4b4b604
+--- /dev/null
++++ b/data/conf.d/90-stub-plugins.cfg
+@@ -0,0 +1,5 @@
++[crypto]
++sonames=libbd_crypto.so.3;libbd_stub.so.3
++
++[mdraid]
++sonames=libbd_mdraid.so.3;libbd_stub.so.3
+diff --git a/data/conf.d/Makefile.am b/data/conf.d/Makefile.am
+index 7238632..6b24268 100644
+--- a/data/conf.d/Makefile.am
++++ b/data/conf.d/Makefile.am
+@@ -1,5 +1,6 @@
+ libbdconfdir = $(sysconfdir)/libblockdev/@MAJOR_VER@/conf.d
+ dist_libbdconf_DATA = ${srcdir}/00-default.cfg
++dist_libbdconf_DATA += ${srcdir}/90-stub-plugins.cfg
+ 
+ if WITH_LVM_DBUS
+ dist_libbdconf_DATA += ${srcdir}/10-lvm-dbus.cfg
+diff --git a/src/plugins/Makefile.am b/src/plugins/Makefile.am
+index 52e8959..5add692 100644
+--- a/src/plugins/Makefile.am
++++ b/src/plugins/Makefile.am
+@@ -17,6 +17,8 @@ if WITH_BTRFS
+ lib_LTLIBRARIES += libbd_btrfs.la
+ endif
+ 
++lib_LTLIBRARIES += libbd_stub.la
++
+ if WITH_CRYPTO
+ lib_LTLIBRARIES += libbd_crypto.la
+ endif
+@@ -140,6 +142,12 @@ libbd_part_la_CPPFLAGS = -I${builddir}/../../include/
+ libbd_part_la_SOURCES = part.c part.h check_deps.c check_deps.h
+ endif
+ 
++libbd_stub_la_CFLAGS = $(GLIB_CFLAGS) -Wall -Wextra -Werror
++libbd_stub_la_LIBADD = $(GLIB_LIBS)
++libbd_stub_la_LDFLAGS = -version-info 3:0:0 -Wl,--no-undefined -export-symbols-regex '^bd_.*'
++libbd_stub_la_CPPFLAGS = -I${builddir}/../../include/
++libbd_stub_la_SOURCES = stub.c
++
+ libincludedir = $(includedir)/blockdev
+ libinclude_HEADERS =
+ 
+diff --git a/src/plugins/stub.c b/src/plugins/stub.c
+new file mode 100644
+index 0000000..dec72e7
+--- /dev/null
++++ b/src/plugins/stub.c
+@@ -0,0 +1,137 @@
++#include <glib.h>
++
++#include "crypto.h"
++#include "mdraid.h"
++
++static void set_stub_error (GError **error, GQuark domain, gint code, const gchar *plugin_name) {
++    g_set_error (error, domain, code,
++                 "The %s plugin is not available on this system.", plugin_name);
++}
++
++static void set_crypto_unavailable (GError **error) {
++    set_stub_error (error, BD_CRYPTO_ERROR, BD_CRYPTO_ERROR_TECH_UNAVAIL, "crypto");
++}
++
++static void set_md_unavailable (GError **error) {
++    set_stub_error (error, BD_MD_ERROR, BD_MD_ERROR_TECH_UNAVAIL, "mdraid");
++}
++
++#define CRYPTO_STUB_BOOL(signature) \
++    gboolean signature { \
++        set_crypto_unavailable (error); \
++        return FALSE; \
++    }
++
++#define CRYPTO_STUB_PTR(type, signature) \
++    type signature { \
++        set_crypto_unavailable (error); \
++        return NULL; \
++    }
++
++#define MD_STUB_BOOL(signature) \
++    gboolean signature { \
++        set_md_unavailable (error); \
++        return FALSE; \
++    }
++
++#define MD_STUB_PTR(type, signature) \
++    type signature { \
++        set_md_unavailable (error); \
++        return NULL; \
++    }
++
++#define MD_STUB_U64(signature) \
++    guint64 signature { \
++        set_md_unavailable (error); \
++        return 0; \
++    }
++
++GQuark bd_crypto_error_quark (void) {
++    return g_quark_from_static_string ("g-bd-crypto-error-quark");
++}
++
++gboolean bd_crypto_init (void) {
++    return TRUE;
++}
++
++void bd_crypto_close (void) {
++}
++
++CRYPTO_STUB_BOOL (bd_crypto_is_tech_avail (BDCryptoTech tech G_GNUC_UNUSED, guint64 mode G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_PTR (gchar *, bd_crypto_generate_backup_passphrase (GError **error))
++CRYPTO_STUB_BOOL (bd_crypto_device_is_luks (const gchar *device G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_PTR (const gchar *, bd_crypto_luks_status (const gchar *luks_device G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_PTR (BDCryptoKeyslotContext *, bd_crypto_keyslot_context_new_passphrase (const guint8 *pass_data G_GNUC_UNUSED, gsize data_len G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_PTR (BDCryptoKeyslotContext *, bd_crypto_keyslot_context_new_keyfile (const gchar *keyfile G_GNUC_UNUSED, guint64 keyfile_offset G_GNUC_UNUSED, gsize key_size G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_PTR (BDCryptoKeyslotContext *, bd_crypto_keyslot_context_new_keyring (const gchar *key_desc G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_PTR (BDCryptoKeyslotContext *, bd_crypto_keyslot_context_new_volume_key (const guint8 *volume_key G_GNUC_UNUSED, gsize volume_key_size G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_BOOL (bd_crypto_luks_format (const gchar *device G_GNUC_UNUSED, const gchar *cipher G_GNUC_UNUSED, guint64 key_size G_GNUC_UNUSED, BDCryptoKeyslotContext *context G_GNUC_UNUSED, guint64 min_entropy G_GNUC_UNUSED, BDCryptoLUKSVersion luks_version G_GNUC_UNUSED, BDCryptoLUKSExtra *extra G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_BOOL (bd_crypto_luks_open (const gchar *device G_GNUC_UNUSED, const gchar *name G_GNUC_UNUSED, BDCryptoKeyslotContext *context G_GNUC_UNUSED, gboolean read_only G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_BOOL (bd_crypto_luks_close (const gchar *luks_device G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_BOOL (bd_crypto_luks_add_key (const gchar *device G_GNUC_UNUSED, BDCryptoKeyslotContext *context G_GNUC_UNUSED, BDCryptoKeyslotContext *ncontext G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_BOOL (bd_crypto_luks_remove_key (const gchar *device G_GNUC_UNUSED, BDCryptoKeyslotContext *context G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_BOOL (bd_crypto_luks_change_key (const gchar *device G_GNUC_UNUSED, BDCryptoKeyslotContext *context G_GNUC_UNUSED, BDCryptoKeyslotContext *ncontext G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_BOOL (bd_crypto_luks_resize (const gchar *luks_device G_GNUC_UNUSED, guint64 size G_GNUC_UNUSED, BDCryptoKeyslotContext *context G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_BOOL (bd_crypto_luks_suspend (const gchar *luks_device G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_BOOL (bd_crypto_luks_resume (const gchar *luks_device G_GNUC_UNUSED, BDCryptoKeyslotContext *context G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_BOOL (bd_crypto_luks_kill_slot (const gchar *device G_GNUC_UNUSED, gint slot G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_BOOL (bd_crypto_luks_header_backup (const gchar *device G_GNUC_UNUSED, const gchar *backup_file G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_BOOL (bd_crypto_luks_header_restore (const gchar *device G_GNUC_UNUSED, const gchar *backup_file G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_BOOL (bd_crypto_luks_set_label (const gchar *device G_GNUC_UNUSED, const gchar *label G_GNUC_UNUSED, const gchar *subsystem G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_BOOL (bd_crypto_luks_check_label (const gchar *label G_GNUC_UNUSED, const gchar *subsystem G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_BOOL (bd_crypto_luks_set_uuid (const gchar *device G_GNUC_UNUSED, const gchar *uuid G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_BOOL (bd_crypto_luks_convert (const gchar *device G_GNUC_UNUSED, BDCryptoLUKSVersion target_version G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_BOOL (bd_crypto_luks_set_persistent_flags (const gchar *device G_GNUC_UNUSED, BDCryptoLUKSPersistentFlags flags G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_PTR (BDCryptoLUKSInfo *, bd_crypto_luks_info (const gchar *device G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_PTR (BDCryptoBITLKInfo *, bd_crypto_bitlk_info (const gchar *device G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_PTR (BDCryptoIntegrityInfo *, bd_crypto_integrity_info (const gchar *device G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_PTR (BDCryptoLUKSTokenInfo **, bd_crypto_luks_token_info (const gchar *device G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_BOOL (bd_crypto_integrity_format (const gchar *device G_GNUC_UNUSED, const gchar *algorithm G_GNUC_UNUSED, gboolean wipe G_GNUC_UNUSED, BDCryptoKeyslotContext *context G_GNUC_UNUSED, BDCryptoIntegrityExtra *extra G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_BOOL (bd_crypto_integrity_open (const gchar *device G_GNUC_UNUSED, const gchar *name G_GNUC_UNUSED, const gchar *algorithm G_GNUC_UNUSED, BDCryptoKeyslotContext *context G_GNUC_UNUSED, BDCryptoIntegrityOpenFlags flags G_GNUC_UNUSED, BDCryptoIntegrityExtra *extra G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_BOOL (bd_crypto_integrity_close (const gchar *integrity_device G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_BOOL (bd_crypto_keyring_add_key (const gchar *key_desc G_GNUC_UNUSED, const guint8 *key_data G_GNUC_UNUSED, gsize data_len G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_BOOL (bd_crypto_device_seems_encrypted (const gchar *device G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_BOOL (bd_crypto_tc_open (const gchar *device G_GNUC_UNUSED, const gchar *name G_GNUC_UNUSED, BDCryptoKeyslotContext *context G_GNUC_UNUSED, const gchar **keyfiles G_GNUC_UNUSED, gboolean hidden G_GNUC_UNUSED, gboolean system G_GNUC_UNUSED, gboolean veracrypt G_GNUC_UNUSED, guint32 veracrypt_pim G_GNUC_UNUSED, gboolean read_only G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_BOOL (bd_crypto_tc_close (const gchar *tc_device G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_BOOL (bd_crypto_escrow_device (const gchar *device G_GNUC_UNUSED, const gchar *passphrase G_GNUC_UNUSED, const gchar *cert_data G_GNUC_UNUSED, const gchar *directory G_GNUC_UNUSED, const gchar *backup_passphrase G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_BOOL (bd_crypto_bitlk_open (const gchar *device G_GNUC_UNUSED, const gchar *name G_GNUC_UNUSED, BDCryptoKeyslotContext *context G_GNUC_UNUSED, gboolean read_only G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_BOOL (bd_crypto_bitlk_close (const gchar *bitlk_device G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_BOOL (bd_crypto_fvault2_open (const gchar *device G_GNUC_UNUSED, const gchar *name G_GNUC_UNUSED, BDCryptoKeyslotContext *context G_GNUC_UNUSED, gboolean read_only G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_BOOL (bd_crypto_fvault2_close (const gchar *fvault2_device G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_BOOL (bd_crypto_opal_is_supported (const gchar *device G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_BOOL (bd_crypto_opal_wipe_device (const gchar *device G_GNUC_UNUSED, BDCryptoKeyslotContext *context G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_BOOL (bd_crypto_opal_format (const gchar *device G_GNUC_UNUSED, const gchar *cipher G_GNUC_UNUSED, guint64 key_size G_GNUC_UNUSED, BDCryptoKeyslotContext *context G_GNUC_UNUSED, guint64 min_entropy G_GNUC_UNUSED, BDCryptoLUKSHWEncryptionType hw_encryption G_GNUC_UNUSED, BDCryptoKeyslotContext *opal_context G_GNUC_UNUSED, BDCryptoLUKSExtra *extra G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_BOOL (bd_crypto_opal_reset_device (const gchar *device G_GNUC_UNUSED, BDCryptoKeyslotContext *context G_GNUC_UNUSED, GError **error))
++
++GQuark bd_md_error_quark (void) {
++    return g_quark_from_static_string ("g-bd-md-error-quark");
++}
++
++gboolean bd_md_init (void) {
++    return TRUE;
++}
++
++void bd_md_close (void) {
++}
++
++MD_STUB_BOOL (bd_md_is_tech_avail (BDMDTech tech G_GNUC_UNUSED, guint64 mode G_GNUC_UNUSED, GError **error))
++MD_STUB_U64 (bd_md_get_superblock_size (guint64 member_size G_GNUC_UNUSED, const gchar *version G_GNUC_UNUSED, GError **error))
++MD_STUB_BOOL (bd_md_create (const gchar *device_name G_GNUC_UNUSED, const gchar *level G_GNUC_UNUSED, const gchar **disks G_GNUC_UNUSED, guint64 spares G_GNUC_UNUSED, const gchar *version G_GNUC_UNUSED, const gchar *bitmap G_GNUC_UNUSED, guint64 chunk_size G_GNUC_UNUSED, const BDExtraArg **extra G_GNUC_UNUSED, GError **error))
++MD_STUB_BOOL (bd_md_destroy (const gchar *device G_GNUC_UNUSED, GError **error))
++MD_STUB_BOOL (bd_md_deactivate (const gchar *raid_spec G_GNUC_UNUSED, GError **error))
++MD_STUB_BOOL (bd_md_activate (const gchar *raid_spec G_GNUC_UNUSED, const gchar **members G_GNUC_UNUSED, const gchar *uuid G_GNUC_UNUSED, gboolean start_degraded G_GNUC_UNUSED, const BDExtraArg **extra G_GNUC_UNUSED, GError **error))
++MD_STUB_BOOL (bd_md_run (const gchar *raid_spec G_GNUC_UNUSED, GError **error))
++MD_STUB_BOOL (bd_md_nominate (const gchar *device G_GNUC_UNUSED, GError **error))
++MD_STUB_BOOL (bd_md_denominate (const gchar *device G_GNUC_UNUSED, GError **error))
++MD_STUB_BOOL (bd_md_add (const gchar *raid_spec G_GNUC_UNUSED, const gchar *device G_GNUC_UNUSED, guint64 raid_devs G_GNUC_UNUSED, const BDExtraArg **extra G_GNUC_UNUSED, GError **error))
++MD_STUB_BOOL (bd_md_remove (const gchar *raid_spec G_GNUC_UNUSED, const gchar *device G_GNUC_UNUSED, gboolean fail G_GNUC_UNUSED, const BDExtraArg **extra G_GNUC_UNUSED, GError **error))
++MD_STUB_PTR (BDMDExamineData *, bd_md_examine (const gchar *device G_GNUC_UNUSED, GError **error))
++MD_STUB_PTR (BDMDDetailData *, bd_md_detail (const gchar *raid_spec G_GNUC_UNUSED, GError **error))
++MD_STUB_PTR (gchar *, bd_md_canonicalize_uuid (const gchar *uuid G_GNUC_UNUSED, GError **error))
++MD_STUB_PTR (gchar *, bd_md_get_md_uuid (const gchar *uuid G_GNUC_UNUSED, GError **error))
++MD_STUB_PTR (gchar *, bd_md_node_from_name (const gchar *name G_GNUC_UNUSED, GError **error))
++MD_STUB_PTR (gchar *, bd_md_name_from_node (const gchar *node G_GNUC_UNUSED, GError **error))
++MD_STUB_PTR (gchar *, bd_md_get_status (const gchar *raid_spec G_GNUC_UNUSED, GError **error))
++MD_STUB_BOOL (bd_md_set_bitmap_location (const gchar *raid_spec G_GNUC_UNUSED, const gchar *location G_GNUC_UNUSED, GError **error))
++MD_STUB_PTR (gchar *, bd_md_get_bitmap_location (const gchar *raid_spec G_GNUC_UNUSED, GError **error))
++MD_STUB_BOOL (bd_md_request_sync_action (const gchar *raid_spec G_GNUC_UNUSED, const gchar *action G_GNUC_UNUSED, GError **error))

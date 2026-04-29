@@ -1,32 +1,7 @@
 diff --git OLD/udisks2.spec NEW/udisks2.spec
-index ba5e5b9..fb47069 100644
+index ba5e5b9..f346ab5 100644
 --- OLD/udisks2.spec
 +++ NEW/udisks2.spec
-@@ -59,15 +59,15 @@ BuildRequires: libblockdev-smart-devel  >= %{libblockdev_version}
- BuildRequires: libmount-devel
- BuildRequires: libuuid-devel
- 
--Requires: libblockdev        >= %{libblockdev_version}
--Requires: libblockdev-part   >= %{libblockdev_version}
--Requires: libblockdev-loop   >= %{libblockdev_version}
--Requires: libblockdev-swap   >= %{libblockdev_version}
--Requires: libblockdev-mdraid >= %{libblockdev_version}
--Requires: libblockdev-fs     >= %{libblockdev_version}
--Requires: libblockdev-crypto >= %{libblockdev_version}
--Requires: libblockdev-nvme   >= %{libblockdev_version}
--Requires: libblockdev-smart  >= %{libblockdev_version}
-+Requires:   libblockdev        >= %{libblockdev_version}
-+Requires:   libblockdev-part   >= %{libblockdev_version}
-+Requires:   libblockdev-loop   >= %{libblockdev_version}
-+Requires:   libblockdev-swap   >= %{libblockdev_version}
-+Recommends: libblockdev-mdraid >= %{libblockdev_version}
-+Requires:   libblockdev-fs     >= %{libblockdev_version}
-+Recommends: libblockdev-crypto >= %{libblockdev_version}
-+Requires:   libblockdev-nvme   >= %{libblockdev_version}
-+Requires:   libblockdev-smart  >= %{libblockdev_version}
- 
- Requires: lib%{name}%{?_isa} = %{version}-%{release}
- 
 @@ -109,6 +109,7 @@ Recommends: ntfs-3g
  Recommends: btrfs-progs
  %endif

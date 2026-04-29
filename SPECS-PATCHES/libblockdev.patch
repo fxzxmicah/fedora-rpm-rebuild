@@ -1,0 +1,57 @@
+diff --git OLD/libblockdev.spec NEW/libblockdev.spec
+index 3c98063..d2ec37b 100644
+--- OLD/libblockdev.spec
++++ NEW/libblockdev.spec
+@@ -92,6 +92,8 @@ License:     LGPL-2.1-or-later
+ URL:         https://github.com/storaged-project/libblockdev
+ Source0:     https://github.com/storaged-project/libblockdev/releases/download/%{version}/%{name}-%{version}.tar.gz
+ 
++Patch1:      libblockdev-fallback-stub-plugin.patch
++
+ BuildRequires: make
+ BuildRequires: glib2-devel
+ %if %{with_gi}
+@@ -630,6 +632,19 @@ Requires: %{name}-s390%{?_isa} = %{version}-%{release}
+ %description plugins-all
+ A meta-package that pulls all the libblockdev plugins as dependencies.
+ 
++%package stub
++Summary:     Fallback stub plugin for libblockdev crypto and mdraid
++Requires: %{name}%{?_isa} = %{version}-%{release}
++Provides: %{name}-crypto%{?_isa} = %{version}-%{release}
++Provides: %{name}-crypto = %{version}-%{release}
++Provides: %{name}-mdraid%{?_isa} = %{version}-%{release}
++Provides: %{name}-mdraid = %{version}-%{release}
++
++%description stub
++This package provides a minimal stub plugin library and a configuration drop-in
++that makes libblockdev try the normal crypto and mdraid plugin libraries first
++and fall back to the stub plugin when those libraries are not installed.
++
+ 
+ %prep
+ %autosetup -n %{name}-%{version} -p1
+@@ -654,10 +669,12 @@ autoreconf -ivf
+ %install
+ %{make_install}
+ find %{buildroot} -type f -name "*.la" | xargs %{__rm}
++%{__rm} -f %{buildroot}%{_libdir}/libbd_stub.so
+ 
+ 
+ %ldconfig_scriptlets
+ %ldconfig_scriptlets utils
++%ldconfig_scriptlets stub
+ 
+ %if %{with_btrfs}
+ %ldconfig_scriptlets btrfs
+@@ -757,6 +774,10 @@ find %{buildroot} -type f -name "*.la" | xargs %{__rm}
+ %files utils
+ %{_libdir}/libbd_utils.so.*
+ 
++%files stub
++%{_libdir}/libbd_stub.so.*
++%config(noreplace) %{_sysconfdir}/libblockdev/3/conf.d/90-stub-plugins.cfg
++
+ %files utils-devel
+ %{_libdir}/libbd_utils.so
+ %{_libdir}/pkgconfig/blockdev-utils.pc
