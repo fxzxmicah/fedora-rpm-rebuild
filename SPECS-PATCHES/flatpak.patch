@@ -1,5 +1,5 @@
 diff --git OLD/flatpak.spec NEW/flatpak.spec
-index 198967f..9f314c4 100644
+index 1f6ce3a..a61c35f 100644
 --- OLD/flatpak.spec
 +++ NEW/flatpak.spec
 @@ -8,8 +8,8 @@
@@ -12,7 +12,7 @@ index 198967f..9f314c4 100644
 +%bcond malcontent 0
  
  Name:           flatpak
- Version:        1.17.6
+ Version:        1.17.7
 @@ -81,8 +81,10 @@ Requires:       ostree-libs%{?_isa} >= %{ostree_version}
  Requires:       /usr/bin/fusermount3
  Requires:       /usr/bin/xdg-dbus-proxy
@@ -68,7 +68,7 @@ index 198967f..9f314c4 100644
  %files devel
  %{_datadir}/gir-1.0/Flatpak-1.0.gir
  %{_datadir}/gtk-doc/
-+%{_datadir}/selinux/devel/include/contrib/flatpak.if
++%{_datadir}/selinux/devel/include/distributed/flatpak.if
  %{_includedir}/%{name}/
  %{_libdir}/libflatpak.so
  %{_libdir}/pkgconfig/%{name}.pc
@@ -76,7 +76,7 @@ index 198967f..9f314c4 100644
  
  %files selinux
  %{_datadir}/selinux/packages/flatpak.pp.bz2
--%{_datadir}/selinux/devel/include/contrib/flatpak.if
+-%{_datadir}/selinux/devel/include/distributed/flatpak.if
  
  %files session-helper
  %license COPYING
