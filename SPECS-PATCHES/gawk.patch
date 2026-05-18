@@ -1,8 +1,19 @@
 diff --git OLD/gawk.spec NEW/gawk.spec
-index e230f55..ac3cdfc 100644
+index e230f55..aec8b23 100644
 --- OLD/gawk.spec
 +++ NEW/gawk.spec
-@@ -148,6 +148,19 @@ text processing.
+@@ -63,9 +63,7 @@ Provides:         /bin/gawk
+ 
+ Provides:         gawk(abi) = %{gawk_api_major}.%{gawk_api_minor}
+ 
+-# Safeguard to allow this package to be installed only on UsrMove enabled
+-# filesystem. More info: https://fedoraproject.org/wiki/Features/UsrMove
+-Requires:         filesystem >= 3
++Requires:         (gawk-extras = %{version}-%{release} if rpm-build)
+ 
+ BuildRequires:    git
+ BuildRequires:    gcc
+@@ -148,6 +146,19 @@ text processing.
  
  # === SUBPACKAGES =============================================================
  
@@ -22,7 +33,7 @@ index e230f55..ac3cdfc 100644
  %package devel
  Summary:          Header file for gawk extensions development
  Requires:         %{name}%{?_isa} = %{version}-%{release}
-@@ -259,19 +272,24 @@ install -m 0644 -p awklib/eg/data/* %{buildroot}%{_docdir}/%{name}/eg/data/
+@@ -259,19 +270,24 @@ install -m 0644 -p awklib/eg/data/* %{buildroot}%{_docdir}/%{name}/eg/data/
  #%files -f %{name}.lang
  %files
  %{_bindir}/*awk
