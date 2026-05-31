@@ -1,16 +1,16 @@
 diff --git OLD/policycoreutils.spec NEW/policycoreutils.spec
-index 2005ac8..c96d83f 100644
+index e97d3c2..6665853 100644
 --- OLD/policycoreutils.spec
 +++ NEW/policycoreutils.spec
-@@ -46,6 +46,7 @@ Patch0003: 0003-sandbox-Use-matchbox-window-manager-instead-of-openb.patch
- Patch0004: 0004-Use-SHA-2-instead-of-SHA-1.patch
- Patch0005: 0005-python-sepolicy-Fix-spec-file-dependencies.patch
- Patch0006: 0006-sepolicy-Fix-detection-of-writeable-locations.patch
+@@ -63,6 +63,7 @@ Patch0020: 0020-sandbox-seunshare-rewrite-to-pin-directories-before-.patch
+ Patch0021: 0021-sandbox-seunshare-fully-check-setfsuid-calls.patch
+ Patch0022: 0022-sandbox-seunshare-check-owner-in-seunshare_mount_fil.patch
+ Patch0023: 0023-sandbox-seunshare-fix-fd_tmpdir_r-check.patch
 +Patch9001: selinux-policycoreutils-fixfiles.patch
  # Patch list end
  
  # gen_changelog
-@@ -77,8 +78,8 @@ BuildRequires: (python3-wheel if python3-setuptools < 71)
+@@ -94,8 +95,8 @@ BuildRequires: (python3-wheel if python3-setuptools < 71)
  BuildRequires: systemd
  BuildRequires: git-core
  BuildRequires: gnupg2
@@ -21,15 +21,15 @@ index 2005ac8..c96d83f 100644
  Recommends: rpm
  
  %description
-@@ -276,6 +277,7 @@ by python 3 in an SELinux environment.
- Summary: SELinux policy core policy devel utilities
- Requires: policycoreutils-python-utils = %{version}-%{release}
- Requires: /usr/bin/make python3-dnf
+@@ -298,6 +299,7 @@ Requires: python3-libdnf5
+ %else
+ Requires: python3-dnf
+ %endif
 +Requires: policycoreutils-semodule-utils = %{version}-%{release}
  Requires: (selinux-policy-devel if selinux-policy)
  
  %description devel
-@@ -300,6 +302,25 @@ The policycoreutils-devel package contains the management tools use to develop p
+@@ -322,6 +324,25 @@ The policycoreutils-devel package contains the management tools use to develop p
  %{_usr}/share/bash-completion/completions/sepolicy
  
  
@@ -55,7 +55,7 @@ index 2005ac8..c96d83f 100644
  %package sandbox
  Summary: SELinux sandbox utilities
  Requires: python3-policycoreutils = %{version}-%{release}
-@@ -388,10 +409,6 @@ system-config-selinux is a utility for managing the SELinux environment
+@@ -410,10 +431,6 @@ system-config-selinux is a utility for managing the SELinux environment
  %{_sbindir}/sestatus
  %endif
  %{_bindir}/secon
@@ -66,7 +66,7 @@ index 2005ac8..c96d83f 100644
  %{_bindir}/sestatus
  %{_libexecdir}/selinux/hll
  %{_libexecdir}/selinux/selinux-autorelabel
-@@ -413,10 +430,6 @@ system-config-selinux is a utility for managing the SELinux environment
+@@ -435,10 +452,6 @@ system-config-selinux is a utility for managing the SELinux environment
  %{_mandir}/man1/secon.1*
  %{_mandir}/man1/unsetfiles.1*
  %{_mandir}/man8/genhomedircon.8*
