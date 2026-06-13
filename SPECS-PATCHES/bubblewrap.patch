@@ -1,5 +1,5 @@
 diff --git OLD/bubblewrap.spec NEW/bubblewrap.spec
-index f0ff8c9..2bdc9b0 100644
+index f0ff8c9..2b6ad9c 100644
 --- OLD/bubblewrap.spec
 +++ NEW/bubblewrap.spec
 @@ -15,11 +15,23 @@ BuildRequires: pkgconfig(libcap)
@@ -41,7 +41,7 @@ index f0ff8c9..2bdc9b0 100644
  %{_mandir}/man1/bwrap.1*
  
 +%files zsh-completion
-+%{_datadir}/zsh/site-functions/_bwrap
++%{_datadir}/zsh/site-functions/*
 +
  %changelog
  * Fri Jan 16 2026 Fedora Release Engineering <releng@fedoraproject.org> - 0.11.0-4

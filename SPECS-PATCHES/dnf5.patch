@@ -1,0 +1,103 @@
+diff --git OLD/dnf5.spec NEW/dnf5.spec
+index 89f7309..a96a040 100644
+--- OLD/dnf5.spec
++++ NEW/dnf5.spec
+@@ -4,6 +4,7 @@
+ %global project_version_micro 1
+ 
+ %bcond dnf5_obsoletes_dnf %[0%{?fedora} > 40 || 0%{?rhel} > 10]
++%bcond microdnf %[0%{?fedora} < 41 || 0%{?rhel} < 11]
+ 
+ Name:           dnf5
+ Version:        %{project_version_prime}.%{project_version_major}.%{project_version_minor}.%{project_version_micro}
+@@ -24,19 +25,19 @@ Requires:       coreutils
+ %if 0%{?fedora} > 41
+ Recommends:     (libdnf5-plugin-expired-pgp-keys if gnupg2)
+ %endif
++Requires:       (%{name}-zsh-completion = %{version}-%{release} if zsh)
+ 
++%if %{with microdnf}
+ %if 0%{?fedora} || 0%{?rhel} > 10
+ Provides:       microdnf = %{version}-%{release}
+ Obsoletes:      microdnf < 4
+ %endif
++%endif
+ 
+ %if %{with dnf5_obsoletes_dnf}
+ Provides:       dnf = %{version}-%{release}
+ Obsoletes:      dnf < 5
+ 
+-Provides:       yum = %{version}-%{release}
+-Obsoletes:      yum < 5
+-
+ Conflicts:      python3-dnf-plugins-core < 4.7.0
+ %endif
+ 
+@@ -293,14 +294,15 @@ It supports RPM packages, modulemd modules, and comps groups & environments.
+ %{_bindir}/dnf5
+ %if %{with dnf5_obsoletes_dnf}
+ %{_bindir}/dnf
+-%{_bindir}/yum
+ %endif
+ %{_unitdir}/dnf*-makecache.service
+ %{_unitdir}/dnf*-makecache.timer
+ 
++%if %{with microdnf}
+ %if 0%{?fedora} || 0%{?rhel} > 10
+ %{_bindir}/microdnf
+ %endif
++%endif
+ 
+ %dir %{_sysconfdir}/dnf/dnf5-aliases.d
+ %doc %{_sysconfdir}/dnf/dnf5-aliases.d/README
+@@ -316,9 +318,6 @@ It supports RPM packages, modulemd modules, and comps groups & environments.
+ %dir %{_datadir}/bash-completion/
+ %dir %{_datadir}/bash-completion/completions/
+ %{_datadir}/bash-completion/completions/dnf*
+-%dir %{_datadir}/zsh/
+-%dir %{_datadir}/zsh/site-functions/
+-%{_datadir}/zsh/site-functions/_dnf5
+ %license COPYING.md
+ %license gpl-2.0.txt
+ %doc AUTHORS.md CHANGELOG.md CONTRIBUTING.md README.md
+@@ -434,6 +433,20 @@ It supports RPM packages, modulemd modules, and comps groups & environments.
+ %exclude %{_datadir}/dnf5/aliases.d/compatibility-reposync.conf
+ %endif
+ 
++# ========== dnf5-zsh-completion ==========
++%package zsh-completion
++Summary:        Zsh completion scripts for %{name}
++Requires:       %{name} = %{version}-%{release}
++Requires:       zsh
++
++BuildArch:      noarch
++
++%description zsh-completion
++Zsh completion scripts for %{name}
++
++%files zsh-completion
++%{_datadir}/zsh/site-functions/*
++
+ # ========== libdnf5 ==========
+ %package -n libdnf5
+ Summary:        Package management library
+@@ -1065,7 +1078,6 @@ DNF5 plugin for working with RPM package manifest files.
+ 
+ %if %{with dnf5_obsoletes_dnf}
+ ln -sr %{buildroot}%{_bindir}/dnf5 %{buildroot}%{_bindir}/dnf
+-ln -sr %{buildroot}%{_bindir}/dnf5 %{buildroot}%{_bindir}/yum
+ ln -sr %{buildroot}%{_datadir}/bash-completion/completions/dnf5 %{buildroot}%{_datadir}/bash-completion/completions/dnf
+ %if %{with man}
+     for file in %{buildroot}%{_mandir}/man[578]/dnf5[-.]*; do
+@@ -1097,9 +1109,11 @@ touch %{buildroot}%{_sysconfdir}/dnf/versionlock.toml
+ mkdir -p %{buildroot}%{_sharedstatedir}/dnf
+ touch %{buildroot}%{_sharedstatedir}/dnf/system-repo.lock
+ 
++%if %{with microdnf}
+ %if 0%{?fedora} || 0%{?rhel} > 10
+ ln -sr %{buildroot}%{_bindir}/dnf5 %{buildroot}%{_bindir}/microdnf
+ %endif
++%endif
+ 
+ %if %{with systemd}
+ mkdir -p %{buildroot}%{_unitdir}/system-update.target.wants/

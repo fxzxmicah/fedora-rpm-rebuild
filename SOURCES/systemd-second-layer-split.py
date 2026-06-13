@@ -703,6 +703,7 @@ DIRECT_MOVES = {
         '/usr/share/zsh/site-functions/_bootctl',
         '/usr/share/zsh/site-functions/_coredumpctl',
         '/usr/share/zsh/site-functions/_kernel-install',
+        '/usr/share/zsh/site-functions/_systemd-hwdb',
         '/usr/share/zsh/site-functions/_udevadm',
     ],
 }

@@ -1,5 +1,5 @@
 diff --git OLD/bluez.spec NEW/bluez.spec
-index 5c57cda..ff7a378 100644
+index 5c57cda..3a66be2 100644
 --- OLD/bluez.spec
 +++ NEW/bluez.spec
 @@ -44,6 +44,8 @@ Requires(post): systemd
@@ -28,12 +28,14 @@ index 5c57cda..ff7a378 100644
  %prep
  %autosetup -p1
  
-@@ -265,6 +277,8 @@ install emulator/btvirt ${RPM_BUILD_ROOT}/%{_libexecdir}/bluetooth/
+@@ -265,7 +277,9 @@ install emulator/btvirt ${RPM_BUILD_ROOT}/%{_libexecdir}/bluetooth/
  %{_datadir}/dbus-1/system-services/org.bluez.service
  %{_unitdir}/bluetooth.service
  %{_userunitdir}/mpris-proxy.service
+-%{_datadir}/zsh/site-functions/_bluetoothctl
 +
 +%files zsh-completion
- %{_datadir}/zsh/site-functions/_bluetoothctl
++%{_datadir}/zsh/site-functions/*
  
  %if %{with deprecated}
+ %files deprecated
