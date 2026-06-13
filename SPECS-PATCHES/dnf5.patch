@@ -1,12 +1,12 @@
 diff --git OLD/dnf5.spec NEW/dnf5.spec
-index 89f7309..a96a040 100644
+index 89f7309..8c74ee3 100644
 --- OLD/dnf5.spec
 +++ NEW/dnf5.spec
 @@ -4,6 +4,7 @@
  %global project_version_micro 1
  
  %bcond dnf5_obsoletes_dnf %[0%{?fedora} > 40 || 0%{?rhel} > 10]
-+%bcond microdnf %[0%{?fedora} < 41 || 0%{?rhel} < 11]
++%bcond microdnf %[!(0%{?fedora} > 40 || 0%{?rhel} > 10)]
  
  Name:           dnf5
  Version:        %{project_version_prime}.%{project_version_major}.%{project_version_minor}.%{project_version_micro}
