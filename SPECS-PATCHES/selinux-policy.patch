@@ -1,16 +1,27 @@
 diff --git OLD/selinux-policy.spec NEW/selinux-policy.spec
-index 6803f25..abb68c6 100644
+index 9344da2..d339d46 100644
 --- OLD/selinux-policy.spec
 +++ NEW/selinux-policy.spec
 @@ -59,6 +59,7 @@ BuildRequires: groff
  Requires(pre): policycoreutils >= %{POLICYCOREUTILSVER}
- Requires(post): /bin/awk /usr/bin/sha512sum
+ Requires(pre): /usr/bin/sha512sum
  Requires(meta): (rpm-plugin-selinux if rpm-libs)
 +Requires(meta): (%{name}-rpm-macros = %{version}-%{release} if rpm-build)
  Requires: selinux-policy-any = %{version}-%{release}
  Provides: selinux-policy-base = %{version}-%{release}
  Provides: selinux-policy-stable = %{STABLEVER}
-@@ -78,7 +79,6 @@ the policy has been adjusted to provide support for Fedora.
+@@ -73,18 +74,12 @@ the policy has been adjusted to provide support for Fedora.
+ %{!?_licensedir:%global license %%doc}
+ %license COPYING
+ %dir %{_datadir}/selinux
+-%dir %{_datadir}/selinux/devel
+-%dir %{_datadir}/selinux/devel/include
+-%dir %{_datadir}/selinux/devel/include/distributed
+ %dir %{_datadir}/selinux/packages
+-%dir %{_datadir}/selinux/packages/minimum
+-%dir %{_datadir}/selinux/packages/mls
+ %dir %{_datadir}/selinux/packages/targeted
+ %dir %{_sysconfdir}/selinux
  %ghost %config(noreplace) %{_sysconfdir}/selinux/config
  %ghost %{_sysconfdir}/sysconfig/selinux
  %{_usr}/lib/tmpfiles.d/selinux-policy.conf
@@ -18,7 +29,7 @@ index 6803f25..abb68c6 100644
  %{_unitdir}/selinux-check-proper-disable.service
  %{_libexecdir}/selinux/binsbin-convert.sh
  %{_libexecdir}/selinux/varrun-convert.sh
-@@ -148,6 +148,17 @@ and some additional files.
+@@ -157,6 +152,17 @@ and some additional files.
  selinuxenabled && sepolgen-ifgen 2>/dev/null
  exit 0
  
@@ -36,3 +47,19 @@ index 6803f25..abb68c6 100644
  %package doc
  Summary: SELinux policy documentation
  Requires(pre): selinux-policy = %{version}-%{release}
+@@ -724,6 +730,7 @@ exit 0
+ %config(noreplace) %{_sysconfdir}/selinux/minimum/contexts/users/unconfined_u
+ %config(noreplace) %{_sysconfdir}/selinux/minimum/contexts/users/sysadm_u
+ %fileList minimum
++%dir %{_datadir}/selinux/packages/minimum
+ %{_datadir}/selinux/minimum/modules-enabled.lst
+ %endif
+ 
+@@ -781,6 +788,7 @@ exit 0
+ %config(noreplace) %{_sysconfdir}/dnf/protected.d/selinux-policy-mls.conf
+ %config(noreplace) %{_sysconfdir}/selinux/mls/contexts/users/unconfined_u
+ %fileList mls
++%dir %{_datadir}/selinux/packages/mls
+ %endif
+ 
+ %changelog
