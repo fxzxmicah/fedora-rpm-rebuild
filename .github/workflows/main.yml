@@ -3,6 +3,7 @@ name: Rebuild and Upload
 on:
   push:
     paths:
+      - SOURCES/**
       - SPECS-PATCHES/**
   workflow_dispatch:
     inputs:
@@ -21,7 +22,9 @@ jobs:
 
     steps:
     - name: Install Dependencies
-      run: dnf install -y git-core rpmdevtools copr-cli
+      run: |
+        rm /etc/yum.repos.d/fedora-cisco-openh264.repo
+        dnf install -y git-core rpmdevtools copr-cli
 
     - name: Checkout Code
       uses: actions/checkout@v4
@@ -36,10 +39,13 @@ jobs:
       run: |
         case "${{ inputs.packages }}" in
           "" )
-            mapfile -t packages < <(git diff-tree --diff-filter=AM --no-commit-id --name-only -r HEAD -- SPECS-PATCHES | sed -E "s|.*/||; s/\.patch\$//")
+            mapfile -t packages < <({
+              git diff-tree --diff-filter=AM --no-commit-id --name-only -r HEAD -- SPECS-PATCHES
+              git diff-tree --diff-filter=AM --no-commit-id --name-only -r HEAD -- SOURCES | sed -E "s|.*/||" | grep -rlFf - SPECS-PATCHES/*.patch 2>/dev/null
+            } | sed -E "s|.*/||; s/\.patch\$//" | sort -u)
             ;;
           "_all" )
-            mapfile -t packages < <(find SPECS-PATCHES -name "*.patch" -exec basename {} .patch \;)
+            mapfile -t packages < <(find SPECS-PATCHES -name "*.patch" -exec basename -s .patch {} +)
             ;;
           * )
             packages=()
