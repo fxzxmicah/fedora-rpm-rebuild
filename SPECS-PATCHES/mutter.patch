@@ -1,69 +1,58 @@
 diff --git OLD/mutter.spec NEW/mutter.spec
-index cc1d6dd..2e57a48 100644
+index 302d160..fbd5f5e 100644
 --- OLD/mutter.spec
 +++ NEW/mutter.spec
-@@ -17,6 +17,8 @@
- %global major_version %%(echo %{version} | cut -d '.' -f1 | cut -d '~' -f 1)
- %global tarball_version %%(echo %{version} | tr '~' '.')
+@@ -27,6 +27,7 @@ License:       GPL-2.0-or-later
+ URL:           http://www.gnome.org
+ Source0:       http://download.gnome.org/sources/%{name}/%{major_version}/%{name}-%{tarball_version}.tar.xz
  
-+%bcond completion 0
-+
- Name:          mutter
- Version:       50.1
- Release:       %autorelease
-@@ -34,7 +36,9 @@ BuildRequires: mesa-libGLES-devel
- BuildRequires: mesa-libGL-devel
- BuildRequires: mesa-libgbm-devel
- BuildRequires: pam-devel
-+%if %{with completion}
- BuildRequires: pkgconfig(bash-completion)
-+%endif
- BuildRequires: pkgconfig(colord) >= %{colord_version}
- BuildRequires: pkgconfig(glib-2.0) >= %{glib_version}
- BuildRequires: pkgconfig(gobject-introspection-1.0) >= %{gobject_introspection_version}
-@@ -50,7 +54,9 @@ BuildRequires: pkgconfig(libpipewire-0.3) >= %{pipewire_version}
++Patch:         mutter-writable-system-config-native-gdctl.patch
+ 
+ BuildRequires: cvt
+ BuildRequires: desktop-file-utils
+@@ -51,7 +52,6 @@ BuildRequires: pkgconfig(libpipewire-0.3) >= %{pipewire_version}
  BuildRequires: pkgconfig(sysprof-capture-4)
  BuildRequires: pkgconfig(libsystemd)
  BuildRequires: pkgconfig(umockdev-1.0)
-+%if %{with completion}
- BuildRequires: python3-argcomplete
-+%endif
+-BuildRequires: python3-argcomplete
  BuildRequires: python3-docutils
  # Bootstrap requirements
  BuildRequires: gettext-devel git-core
-@@ -87,7 +93,10 @@ Requires: libinput%{?_isa} >= %{libinput_version}
+@@ -88,7 +88,7 @@ Requires: libinput%{?_isa} >= %{libinput_version}
  Requires: pipewire%{_isa} >= %{pipewire_version}
  Requires: startup-notification
  Requires: dbus
-+%if %{with completion}
- Requires: python3-argcomplete
-+%endif
+-Requires: python3-argcomplete
 +Requires: xorg-x11-server-Xwayland%{?_isa} >= 1.20.99.1
  
  # Need common
  Requires: %{name}-common = %{version}-%{release}
-@@ -160,7 +169,13 @@ Viewer for nested mutter instances.
- %autosetup -S git -n %{name}-%{tarball_version}
- 
- %build
--%meson -Degl_device=true
-+%meson -Degl_device=true \
-+%if %{with completion}
-+        -Dbash_completion=true \
-+%else
-+        -Dbash_completion=false \
-+%endif
-+        %{nil}
- %meson_build
- 
- %install
-@@ -183,7 +198,9 @@ Viewer for nested mutter instances.
+@@ -173,7 +173,6 @@ Viewer for nested mutter instances.
+ %license COPYING
+ %doc NEWS
+ %{_bindir}/gdctl
+-%{_bindir}/gnome-service-client
+ %{_bindir}/mutter
+ %{_datadir}/polkit-1/actions/org.gnome.mutter.*.policy
+ %{_libdir}/lib*.so.*
+@@ -183,7 +182,6 @@ Viewer for nested mutter instances.
+ %{_libexecdir}/mutter-x11-frames
  %{_mandir}/man1/mutter.1*
  %{_mandir}/man1/gdctl.1*
- %{_mandir}/man1/gnome-service-client.1*
-+%if %{with completion}
+-%{_mandir}/man1/gnome-service-client.1*
  %{bash_completions_dir}/gdctl
-+%endif
  
  %files common
- %{_datadir}/GConf/gsettings/mutter-schemas.convert
+@@ -205,10 +203,12 @@ Viewer for nested mutter instances.
+ %{_libexecdir}/installed-tests/mutter-%{mutter_api_version}
+ 
+ %files devkit
++%{_bindir}/gnome-service-client
+ %{_datadir}/applications/org.gnome.Mutter.Mdk.desktop
+ %{_datadir}/glib-2.0/schemas/org.gnome.mutter.devkit.gschema.xml
+ %{_datadir}/icons/hicolor/*/apps/org.gnome.Mutter.Mdk*
+ %{_libexecdir}/mutter-devkit
++%{_mandir}/man1/gnome-service-client.1*
+ 
+ %changelog
+ %autochangelog

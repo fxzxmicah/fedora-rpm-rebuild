@@ -1,0 +1,4519 @@
+From 068882ef1c847c4c34e86043db9e029de2dda3a5 Mon Sep 17 00:00:00 2001
+From: Fxzx micah <143358-fxzxmicah@users.noreply.gitlab.gnome.org>
+Date: Sun, 9 Aug 2026 18:57:40 +0800
+Subject: [PATCH 1/2] backends: Prefer writable system monitor config
+
+---
+ doc/monitor-configuration.md             |  18 +-
+ src/backends/meta-monitor-config-store.c | 562 +++++++++++++++++++++--
+ src/backends/meta-monitor-config-store.h |  17 +-
+ src/tests/monitor-store-unit-tests.c     | 236 ++++++++++
+ 4 files changed, 794 insertions(+), 39 deletions(-)
+
+diff --git a/doc/monitor-configuration.md b/doc/monitor-configuration.md
+index a061ee5..0aaa602 100644
+--- a/doc/monitor-configuration.md
++++ b/doc/monitor-configuration.md
+@@ -29,11 +29,17 @@ per hardware setup.
+ 
+ Monitor configurations are managed by Mutter via the Display panel in Settings,
+ which uses a D-Bus API to communicate with Mutter. Each time a new configuration
+-is applied and accepted, the user level configuration file is replaced with
+-updated content.
++is applied and accepted, Mutter replaces the user level configuration file with
++updated content. If the user level file does not exist and the file in the last
++system configuration directory is writable (or can be created in that
++directory), Mutter writes that system level file instead. The default system
++configuration directory is `/etc/xdg`, so this makes configurations applied by
++an administrator available globally without first creating a per-user override.
+ 
+ Previously defined monitor configurations for hardware state other than the
+-current are left intact.
++current are left intact. When writing a system level file, Mutter only replaces
++the monitor `<configuration/>` elements that it manages. Policy, comments and
++other content in the file are preserved.
+ 
+ ## Configuration policy
+ 
+@@ -44,6 +50,12 @@ whether configuration via Settings (i.e. D-Bus) should be allowed.
+ The default policy is to prioritize configurations defined in the user level
+ configuration file, and to allow configuring via D-Bus.
+ 
++If a stores policy is present, Mutter also uses its priority order when choosing
++where to save a new configuration. A system store can be selected when the file
++in the last system configuration directory is writable or can be created; if it
++is unavailable, Mutter continues with the next store in the policy. If none of
++the stores in the policy can be used, the configuration is not saved.
++
+ Changing the policy is possible by manually adding a `<policy/>` element inside
+ the `<monitors version="2"/>` element in the `monitors.xml` file. Note that
+ there may only be one `<policy/>` element in each configuration file.
+diff --git a/src/backends/meta-monitor-config-store.c b/src/backends/meta-monitor-config-store.c
+index 8abb7d9..fdba9fb 100644
+--- a/src/backends/meta-monitor-config-store.c
++++ b/src/backends/meta-monitor-config-store.c
+@@ -22,6 +22,7 @@
+ #include "backends/meta-monitor-config-store.h"
+ 
+ #include <gio/gio.h>
++#include <glib/gstdio.h>
+ #include <string.h>
+ 
+ #include "backends/meta-monitor-config-manager.h"
+@@ -124,6 +125,9 @@ struct _MetaMonitorConfigStore
+   GCancellable *save_cancellable;
+ 
+   GFile *user_file;
++  GFile *write_file;
++  MetaConfigStore write_store;
++  GHashTable *system_file_configs;
+   GFile *custom_read_file;
+   GFile *custom_write_file;
+ 
+@@ -2171,7 +2175,8 @@ read_config_file (MetaMonitorConfigStore  *config_store,
+                                               G_MARKUP_TREAT_CDATA_AS_TEXT |
+                                               G_MARKUP_PREFIX_ERROR_POSITION,
+                                               &parser, NULL);
+-  if (!g_markup_parse_context_parse (parse_context, buffer, size, error))
++  if (!g_markup_parse_context_parse (parse_context, buffer, size, error) ||
++      !g_markup_parse_context_end_parse (parse_context, error))
+     {
+       g_list_free_full (parser.current_logical_monitor_configs,
+                         (GDestroyNotify) meta_logical_monitor_config_free);
+@@ -2406,23 +2411,21 @@ append_logical_monitor_xml (GString                  *buffer,
+   g_string_append (buffer, "    </logicalmonitor>\n");
+ }
+ 
+-static GString *
+-generate_config_xml (MetaMonitorConfigStore *config_store)
++static void
++append_configurations (GString    *buffer,
++                       GHashTable *configs,
++                       gboolean    skip_system_configs)
+ {
+-  GString *buffer;
+   GHashTableIter iter;
+   MetaMonitorsConfig *config;
+ 
+-  buffer = g_string_new ("");
+-  g_string_append_printf (buffer, "<monitors version=\"%d\">\n",
+-                          MONITORS_CONFIG_XML_FORMAT_VERSION);
+-
+-  g_hash_table_iter_init (&iter, config_store->configs);
++  g_hash_table_iter_init (&iter, configs);
+   while (g_hash_table_iter_next (&iter, NULL, (gpointer *) &config))
+     {
+       GList *l;
+ 
+-      if (config->flags & META_MONITORS_CONFIG_FLAG_SYSTEM_CONFIG)
++      if (skip_system_configs &&
++          (config->flags & META_MONITORS_CONFIG_FLAG_SYSTEM_CONFIG))
+         continue;
+ 
+       g_string_append (buffer, "  <configuration>\n");
+@@ -2470,6 +2473,294 @@ generate_config_xml (MetaMonitorConfigStore *config_store)
+ 
+       g_string_append (buffer, "  </configuration>\n");
+     }
++}
++
++typedef struct
++{
++  gsize start;
++  gsize end;
++} ConfigXmlSpan;
++
++typedef struct
++{
++  const char *xml;
++  gsize length;
++  GArray *spans;
++  unsigned int depth;
++  gboolean seen_root;
++  gsize configuration_start;
++  gsize root_start;
++  gsize root_end_start;
++} ConfigXmlParser;
++
++static gsize
++xml_position_to_offset (ConfigXmlParser    *parser,
++                        GMarkupParseContext *context)
++{
++  const char *line_start = parser->xml;
++  int line;
++  int column;
++  int current_line;
++
++  g_markup_parse_context_get_position (context, &line, &column);
++  for (current_line = 1; current_line < line; current_line++)
++    {
++      line_start = strchr (line_start, '\n');
++      g_assert_nonnull (line_start);
++      line_start++;
++    }
++
++  /* GMarkup reports the column as a byte offset into the current line. */
++  return line_start - parser->xml + column - 1;
++}
++
++static gsize
++include_tag_indentation (const char *xml,
++                         gsize       tag_start)
++{
++  gsize start = tag_start;
++
++  while (start > 0 && (xml[start - 1] == ' ' || xml[start - 1] == '\t'))
++    start--;
++
++  if (start > 0 && xml[start - 1] != '\n' && xml[start - 1] != '\r')
++    return tag_start;
++
++  return start;
++}
++
++static gsize
++include_trailing_newline (const char *xml,
++                          gsize       length,
++                          gsize       tag_end)
++{
++  if (tag_end < length && xml[tag_end] == '\r')
++    tag_end++;
++  if (tag_end < length && xml[tag_end] == '\n')
++    tag_end++;
++
++  return tag_end;
++}
++
++static void
++handle_config_xml_start_element (GMarkupParseContext  *context,
++                                 const char           *element_name,
++                                 const char          **attribute_names,
++                                 const char          **attribute_values,
++                                 gpointer              user_data,
++                                 GError              **error)
++{
++  ConfigXmlParser *parser = user_data;
++  gsize position = xml_position_to_offset (parser, context);
++  const char *tag;
++
++  if (parser->depth == 0)
++    {
++      if (parser->seen_root || !g_str_equal (element_name, "monitors"))
++        {
++          g_set_error (error, G_MARKUP_ERROR, G_MARKUP_ERROR_PARSE,
++                       "Invalid monitors XML document");
++          return;
++        }
++
++      tag = g_strrstr_len (parser->xml, position, "<monitors");
++      g_assert_nonnull (tag);
++      parser->root_start = tag - parser->xml;
++      parser->seen_root = TRUE;
++    }
++  else if (parser->depth == 1 &&
++           g_str_equal (element_name, "configuration"))
++    {
++      tag = g_strrstr_len (parser->xml, position, "<configuration");
++      g_assert_nonnull (tag);
++      parser->configuration_start =
++        include_tag_indentation (parser->xml, tag - parser->xml);
++    }
++
++  parser->depth++;
++}
++
++static void
++handle_config_xml_end_element (GMarkupParseContext  *context,
++                               const char           *element_name,
++                               gpointer              user_data,
++                               GError              **error)
++{
++  ConfigXmlParser *parser = user_data;
++  gsize position = xml_position_to_offset (parser, context);
++
++  if (parser->depth == 2 &&
++      g_str_equal (element_name, "configuration"))
++    {
++      ConfigXmlSpan span = {
++        .start = parser->configuration_start,
++        .end = include_trailing_newline (parser->xml,
++                                        parser->length,
++                                        position),
++      };
++
++      g_array_append_val (parser->spans, span);
++      parser->configuration_start = G_MAXSIZE;
++    }
++  else if (parser->depth == 1 && g_str_equal (element_name, "monitors"))
++    {
++      const char *tag =
++        g_strrstr_len (parser->xml, position, "</monitors");
++
++      if (tag)
++        parser->root_end_start =
++          include_tag_indentation (parser->xml, tag - parser->xml);
++    }
++
++  parser->depth--;
++}
++
++/*
++ * System configuration files may contain administrator-owned policy and
++ * extension elements. Keep their original representation intact and only
++ * replace the top-level configuration elements owned by the monitor store.
++ */
++char *
++meta_monitor_config_store_replace_configurations (const char  *xml,
++                                                   const char  *configurations,
++                                                   GError     **error)
++{
++  const GMarkupParser markup_parser = {
++    .start_element = handle_config_xml_start_element,
++    .end_element = handle_config_xml_end_element,
++  };
++  g_autoptr (GMarkupParseContext) context = NULL;
++  g_autoptr (GArray) spans = NULL;
++  g_autoptr (GString) updated = NULL;
++  ConfigXmlParser parser = {
++    .xml = xml,
++    .length = strlen (xml),
++    .configuration_start = G_MAXSIZE,
++    .root_start = G_MAXSIZE,
++    .root_end_start = G_MAXSIZE,
++  };
++  gsize cursor = 0;
++  guint i;
++
++  spans = g_array_new (FALSE, FALSE, sizeof (ConfigXmlSpan));
++  parser.spans = spans;
++  context = g_markup_parse_context_new (&markup_parser,
++                                        G_MARKUP_PREFIX_ERROR_POSITION,
++                                        &parser,
++                                        NULL);
++  if (!g_markup_parse_context_parse (context, xml, -1, error) ||
++      !g_markup_parse_context_end_parse (context, error))
++    return NULL;
++
++  if (!parser.seen_root || parser.depth != 0)
++    {
++      g_set_error (error, G_MARKUP_ERROR, G_MARKUP_ERROR_PARSE,
++                   "Invalid monitors XML document");
++      return NULL;
++    }
++
++  updated = g_string_sized_new (parser.length + strlen (configurations));
++  if (spans->len > 0)
++    {
++      for (i = 0; i < spans->len; i++)
++        {
++          ConfigXmlSpan span = g_array_index (spans, ConfigXmlSpan, i);
++
++          g_string_append_len (updated, xml + cursor, span.start - cursor);
++          if (i == 0)
++            g_string_append (updated, configurations);
++          cursor = span.end;
++        }
++      g_string_append_len (updated, xml + cursor, parser.length - cursor);
++    }
++  else if (parser.root_end_start != G_MAXSIZE)
++    {
++      g_string_append_len (updated, xml, parser.root_end_start);
++      if (parser.root_end_start > 0 &&
++          xml[parser.root_end_start - 1] != '\n')
++        g_string_append_c (updated, '\n');
++      g_string_append (updated, configurations);
++      g_string_append_len (updated,
++                           xml + parser.root_end_start,
++                           parser.length - parser.root_end_start);
++    }
++  else
++    {
++      const char *tag_end = strchr (xml + parser.root_start, '>');
++      const char *slash;
++
++      g_assert_nonnull (tag_end);
++      slash = tag_end;
++      while (slash > xml && g_ascii_isspace (slash[-1]))
++        slash--;
++      g_assert_cmpint (slash[-1], ==, '/');
++
++      g_string_append_len (updated, xml, slash - xml - 1);
++      g_string_append (updated, ">\n");
++      g_string_append (updated, configurations);
++      g_string_append (updated, "</monitors>");
++      g_string_append_len (updated,
++                           tag_end + 1,
++                           parser.length - (tag_end + 1 - xml));
++    }
++
++  return g_string_free (g_steal_pointer (&updated), FALSE);
++}
++
++static GString *
++generate_config_xml (MetaMonitorConfigStore  *config_store,
++                     MetaConfigStore          destination_store,
++                     char                  **etag,
++                     GError                 **error)
++{
++  g_autoptr (GString) configurations = g_string_new ("");
++  g_autofree char *existing_xml = NULL;
++  g_autofree char *updated_xml = NULL;
++  GString *buffer;
++
++  if (destination_store == META_CONFIG_STORE_SYSTEM)
++    {
++      g_autoptr (GError) load_error = NULL;
++
++      append_configurations (configurations,
++                             config_store->system_file_configs,
++                             FALSE);
++      if (g_file_load_contents (config_store->write_file,
++                                NULL,
++                                &existing_xml,
++                                NULL,
++                                etag,
++                                &load_error))
++        {
++          updated_xml =
++            meta_monitor_config_store_replace_configurations (
++              existing_xml,
++              configurations->str,
++              error);
++          if (!updated_xml)
++            return NULL;
++
++          return g_string_new (updated_xml);
++        }
++      else if (!g_error_matches (load_error,
++                                 G_IO_ERROR,
++                                 G_IO_ERROR_NOT_FOUND))
++        {
++          g_propagate_error (error, g_steal_pointer (&load_error));
++          return NULL;
++        }
++    }
++  else
++    {
++      append_configurations (configurations,
++                             config_store->configs,
++                             TRUE);
++    }
++
++  buffer = g_string_new ("");
++  g_string_append_printf (buffer, "<monitors version=\"%d\">\n",
++                          MONITORS_CONFIG_XML_FORMAT_VERSION);
++  g_string_append (buffer, configurations->str);
+ 
+   g_string_append (buffer, "</monitors>\n");
+ 
+@@ -2480,8 +2771,25 @@ typedef struct _SaveData
+ {
+   MetaMonitorConfigStore *config_store;
+   GString *buffer;
++  char *etag;
+ } SaveData;
+ 
++static GFileCreateFlags
++get_file_create_flags (GFile *file)
++{
++  g_autoptr (GFile) parent = g_file_get_parent (file);
++  const char *parent_path;
++
++  if (!parent)
++    return G_FILE_CREATE_NONE;
++
++  parent_path = g_file_peek_path (parent);
++  if (parent_path && g_access (parent_path, W_OK) == 0)
++    return G_FILE_CREATE_REPLACE_DESTINATION;
++
++  return G_FILE_CREATE_NONE;
++}
++
+ static void
+ saved_cb (GObject      *object,
+           GAsyncResult *result,
+@@ -2507,6 +2815,7 @@ saved_cb (GObject      *object,
+ 
+   g_clear_object (&data->config_store);
+   g_string_free (data->buffer, TRUE);
++  g_free (data->etag);
+   g_free (data);
+ }
+ 
+@@ -2515,20 +2824,40 @@ meta_monitor_config_store_save_sync (MetaMonitorConfigStore *config_store)
+ {
+   GError *error = NULL;
+   GFile *file;
++  MetaConfigStore destination_store;
+   GString *buffer;
++  g_autofree char *etag = NULL;
++  GFileCreateFlags create_flags;
+ 
+   if (config_store->custom_write_file)
+-    file = config_store->custom_write_file;
++    {
++      file = config_store->custom_write_file;
++      destination_store = META_CONFIG_STORE_USER;
++    }
+   else
+-    file = config_store->user_file;
++    {
++      file = config_store->write_file;
++      destination_store = config_store->write_store;
++    }
+ 
+-  buffer = generate_config_xml (config_store);
++  buffer = generate_config_xml (config_store,
++                                destination_store,
++                                &etag,
++                                &error);
++  if (!buffer)
++    {
++      g_warning ("Generating monitor configuration failed: %s",
++                 error->message);
++      g_error_free (error);
++      return;
++    }
+ 
++  create_flags = get_file_create_flags (file);
+   if (!g_file_replace_contents (file,
+                                 buffer->str, buffer->len,
+-                                NULL,
++                                etag,
+                                 FALSE,
+-                                G_FILE_CREATE_REPLACE_DESTINATION,
++                                create_flags,
+                                 NULL,
+                                 NULL,
+                                 &error))
+@@ -2546,6 +2875,8 @@ meta_monitor_config_store_save (MetaMonitorConfigStore *config_store)
+ {
+   GString *buffer;
+   SaveData *data;
++  g_autofree char *etag = NULL;
++  GFileCreateFlags create_flags;
+ 
+   if (config_store->save_cancellable)
+     {
+@@ -2564,26 +2895,41 @@ meta_monitor_config_store_save (MetaMonitorConfigStore *config_store)
+       return;
+     }
+ 
+-  if (config_store->has_stores_policy &&
+-      !g_list_find (config_store->stores_policy,
+-                    GINT_TO_POINTER (META_CONFIG_STORE_USER)))
++  if (!config_store->write_file)
+     return;
+ 
+-  config_store->save_cancellable = g_cancellable_new ();
++  {
++    g_autoptr (GError) error = NULL;
++
++    buffer = generate_config_xml (config_store,
++                                  config_store->write_store,
++                                  &etag,
++                                  &error);
++    if (!buffer)
++      {
++        g_warning ("Generating monitor configuration failed: %s",
++                   error->message);
++        return;
++      }
++  }
+ 
+-  buffer = generate_config_xml (config_store);
++  config_store->save_cancellable = g_cancellable_new ();
+ 
+   data = g_new0 (SaveData, 1);
+   *data = (SaveData) {
+     .config_store = g_object_ref (config_store),
+-    .buffer = buffer
++    .buffer = buffer,
++    .etag = g_steal_pointer (&etag),
+   };
+ 
+-  g_file_replace_contents_async (config_store->user_file,
++  create_flags = get_file_create_flags (config_store->write_file);
++
++  g_file_replace_contents_async (config_store->write_file,
+                                  buffer->str, buffer->len,
+-                                 NULL,
+-                                 TRUE,
+-                                 G_FILE_CREATE_REPLACE_DESTINATION,
++                                 data->etag,
++                                 create_flags ==
++                                   G_FILE_CREATE_REPLACE_DESTINATION,
++                                 create_flags,
+                                  config_store->save_cancellable,
+                                  saved_cb, data);
+ }
+@@ -2614,7 +2960,16 @@ meta_monitor_config_store_add (MetaMonitorConfigStore *config_store,
+                         config->key, g_object_ref (config));
+ 
+   if (!is_system_config (config))
+-    maybe_save_configs (config_store);
++    {
++      if (config_store->write_store == META_CONFIG_STORE_SYSTEM &&
++          config_store->system_file_configs)
++        {
++          g_hash_table_replace (config_store->system_file_configs,
++                                config->key,
++                                g_object_ref (config));
++        }
++      maybe_save_configs (config_store);
++    }
+ }
+ 
+ void
+@@ -2624,7 +2979,13 @@ meta_monitor_config_store_remove (MetaMonitorConfigStore *config_store,
+   g_hash_table_remove (config_store->configs, config->key);
+ 
+   if (!is_system_config (config))
+-    maybe_save_configs (config_store);
++    {
++      if (config_store->write_store == META_CONFIG_STORE_SYSTEM &&
++          config_store->system_file_configs)
++        g_hash_table_remove (config_store->system_file_configs, config->key);
++
++      maybe_save_configs (config_store);
++    }
+ }
+ 
+ gboolean
+@@ -2716,8 +3077,10 @@ meta_monitor_config_store_dispose (GObject *object)
+     }
+ 
+   g_clear_pointer (&config_store->configs, g_hash_table_destroy);
++  g_clear_pointer (&config_store->system_file_configs, g_hash_table_destroy);
+ 
+   g_clear_object (&config_store->user_file);
++  g_clear_object (&config_store->write_file);
+   g_clear_object (&config_store->custom_read_file);
+   g_clear_object (&config_store->custom_write_file);
+   g_clear_pointer (&config_store->stores_policy, g_list_free);
+@@ -2804,24 +3167,107 @@ replace_configs (MetaMonitorConfigStore *config_store,
+                                  (gpointer *) &key,
+                                  (gpointer *) &config))
+     {
+-      g_hash_table_iter_steal (&iter);
+-      g_hash_table_replace (config_store->configs, key, config);
++      g_hash_table_replace (config_store->configs,
++                            key,
++                            g_object_ref (config));
+     }
+ }
+ 
++static gboolean
++config_file_is_writable (const char *file_path)
++{
++  g_autofree char *parent_path = NULL;
++
++  if (g_file_test (file_path, G_FILE_TEST_EXISTS))
++    return g_access (file_path, W_OK) == 0;
++
++  parent_path = g_path_get_dirname (file_path);
++  return g_access (parent_path, W_OK) == 0;
++}
++
++GFile *
++meta_monitor_config_store_get_writable_system_file (
++  const char * const *system_dirs)
++{
++  const char *system_dir = NULL;
++  g_autofree char *system_file_path = NULL;
++
++  /*
++   * System configuration files are loaded in order, with later files taking
++   * precedence. Only the last directory can therefore be a write target.
++   */
++  for (; system_dirs && *system_dirs; system_dirs++)
++    system_dir = *system_dirs;
++
++  if (!system_dir)
++    return NULL;
++
++  system_file_path = g_build_filename (system_dir, "monitors.xml", NULL);
++  if (config_file_is_writable (system_file_path))
++    return g_file_new_for_path (system_file_path);
++
++  return NULL;
++}
++
++GFile *
++meta_monitor_config_store_select_write_file (GFile            *user_file,
++                                             GFile            *system_file,
++                                             gboolean          has_stores_policy,
++                                             GList            *stores_policy,
++                                             MetaConfigStore  *store)
++{
++  GList *l;
++
++  if (has_stores_policy)
++    {
++      for (l = stores_policy; l; l = l->next)
++        {
++          MetaConfigStore candidate_store = GPOINTER_TO_INT (l->data);
++
++          switch (candidate_store)
++            {
++            case META_CONFIG_STORE_SYSTEM:
++              if (system_file)
++                {
++                  *store = META_CONFIG_STORE_SYSTEM;
++                  return g_object_ref (system_file);
++                }
++              break;
++            case META_CONFIG_STORE_USER:
++              *store = META_CONFIG_STORE_USER;
++              return g_object_ref (user_file);
++            }
++        }
++
++      return NULL;
++    }
++
++  if (!g_file_query_exists (user_file, NULL) && system_file)
++    {
++      *store = META_CONFIG_STORE_SYSTEM;
++      return g_object_ref (system_file);
++    }
++
++  *store = META_CONFIG_STORE_USER;
++  return g_object_ref (user_file);
++}
++
+ void
+ meta_monitor_config_store_reset (MetaMonitorConfigStore *config_store)
+ {
+   g_autoptr (GHashTable) system_configs = NULL;
+   g_autoptr (GHashTable) user_configs = NULL;
++  g_autoptr (GFile) writable_system_file = NULL;
+   const char * const *system_dirs;
+   char *user_file_path;
+   GError *error = NULL;
+   gboolean should_save_configs = FALSE;
+ 
+   g_clear_object (&config_store->user_file);
++  g_clear_object (&config_store->write_file);
+   g_clear_object (&config_store->custom_read_file);
+   g_clear_object (&config_store->custom_write_file);
++  g_clear_pointer (&config_store->system_file_configs, g_hash_table_destroy);
+   g_hash_table_remove_all (config_store->configs);
+ 
+   g_clear_pointer (&config_store->stores_policy, g_list_free);
+@@ -2829,7 +3275,15 @@ meta_monitor_config_store_reset (MetaMonitorConfigStore *config_store)
+   config_store->policy.enable_dbus = TRUE;
+   config_store->has_dbus_policy = FALSE;
+ 
+-  for (system_dirs = g_get_system_config_dirs ();
++  system_dirs = g_get_system_config_dirs ();
++  writable_system_file =
++    meta_monitor_config_store_get_writable_system_file (system_dirs);
++  user_file_path = g_build_filename (g_get_user_config_dir (),
++                                     "monitors.xml",
++                                     NULL);
++  config_store->user_file = g_file_new_for_path (user_file_path);
++
++  for (;
+        system_dirs && *system_dirs;
+        system_dirs++)
+     {
+@@ -2838,19 +3292,33 @@ meta_monitor_config_store_reset (MetaMonitorConfigStore *config_store)
+       system_file_path = g_build_filename (*system_dirs, "monitors.xml", NULL);
+       if (g_file_test (system_file_path, G_FILE_TEST_EXISTS))
+         {
++          g_autoptr (GHashTable) file_configs = NULL;
+           g_autoptr (GFile) system_file = NULL;
+ 
+           system_file = g_file_new_for_path (system_file_path);
+           if (!read_config_file (config_store,
+                                  system_file,
+                                  META_MONITORS_CONFIG_FLAG_SYSTEM_CONFIG,
+-                                 &system_configs,
++                                 &file_configs,
+                                  &should_save_configs,
+                                  &error))
+             {
+               g_warning ("Failed to read monitors config file '%s': %s",
+                          system_file_path, error->message);
+               g_clear_error (&error);
++              if (writable_system_file &&
++                  g_file_equal (system_file, writable_system_file))
++                g_clear_object (&writable_system_file);
++              continue;
++            }
++
++          g_clear_pointer (&system_configs, g_hash_table_unref);
++          system_configs = g_hash_table_ref (file_configs);
++          if (writable_system_file &&
++              g_file_equal (system_file, writable_system_file))
++            {
++              config_store->system_file_configs =
++                g_hash_table_ref (file_configs);
+             }
+ 
+           if (should_save_configs)
+@@ -2864,10 +3332,26 @@ meta_monitor_config_store_reset (MetaMonitorConfigStore *config_store)
+         }
+     }
+ 
+-  user_file_path = g_build_filename (g_get_user_config_dir (),
+-                                     "monitors.xml",
+-                                     NULL);
+-  config_store->user_file = g_file_new_for_path (user_file_path);
++  if (writable_system_file && !config_store->system_file_configs)
++    {
++      /*
++       * A newly created last system file takes precedence over the preceding
++       * files, so carry their effective configurations forward.
++       */
++      if (system_configs)
++        {
++          config_store->system_file_configs =
++            g_hash_table_ref (system_configs);
++        }
++      else
++        {
++          config_store->system_file_configs =
++            g_hash_table_new_full (meta_monitors_config_key_hash,
++                                   meta_monitors_config_key_equal,
++                                   NULL,
++                                   g_object_unref);
++        }
++    }
+ 
+   if (g_file_test (user_file_path, G_FILE_TEST_EXISTS))
+     {
+@@ -2884,6 +3368,14 @@ meta_monitor_config_store_reset (MetaMonitorConfigStore *config_store)
+         }
+     }
+ 
++  config_store->write_file =
++    meta_monitor_config_store_select_write_file (
++      config_store->user_file,
++      writable_system_file,
++      config_store->has_stores_policy,
++      config_store->stores_policy,
++      &config_store->write_store);
++
+   if (config_store->has_stores_policy)
+     {
+       GList *l;
+diff --git a/src/backends/meta-monitor-config-store.h b/src/backends/meta-monitor-config-store.h
+index 01f956a..1e549d8 100644
+--- a/src/backends/meta-monitor-config-store.h
++++ b/src/backends/meta-monitor-config-store.h
+@@ -19,7 +19,7 @@
+ 
+ #pragma once
+ 
+-#include <glib-object.h>
++#include <gio/gio.h>
+ 
+ #include "backends/meta-monitor-config-manager.h"
+ 
+@@ -72,5 +72,20 @@ MetaMonitorManager * meta_monitor_config_store_get_monitor_manager (MetaMonitorC
+ META_EXPORT_TEST
+ void meta_monitor_config_store_reset (MetaMonitorConfigStore *config_store);
+ 
++META_EXPORT_TEST
++GFile * meta_monitor_config_store_get_writable_system_file (const char * const *system_dirs);
++
++META_EXPORT_TEST
++GFile * meta_monitor_config_store_select_write_file (GFile            *user_file,
++                                                     GFile            *system_file,
++                                                     gboolean          has_stores_policy,
++                                                     GList            *stores_policy,
++                                                     MetaConfigStore  *store);
++
++META_EXPORT_TEST
++char * meta_monitor_config_store_replace_configurations (const char  *xml,
++                                                         const char  *configurations,
++                                                         GError     **error);
++
+ META_EXPORT_TEST
+ const MetaMonitorConfigPolicy * meta_monitor_config_store_get_policy (MetaMonitorConfigStore *config_store);
+diff --git a/src/tests/monitor-store-unit-tests.c b/src/tests/monitor-store-unit-tests.c
+index a09cd5c..3f90687 100644
+--- a/src/tests/monitor-store-unit-tests.c
++++ b/src/tests/monitor-store-unit-tests.c
+@@ -21,6 +21,8 @@
+ 
+ #include "tests/monitor-store-unit-tests.h"
+ 
++#include <glib/gstdio.h>
++
+ #include "backends/meta-backend-private.h"
+ #include "backends/meta-monitor-config-store.h"
+ #include "backends/meta-monitor-config-manager.h"
+@@ -1217,6 +1219,236 @@ meta_test_monitor_store_policy_dbus_invalid (void)
+   g_assert_cmpint (policy->enable_dbus, ==, FALSE);
+ }
+ 
++static void
++meta_test_monitor_store_write_file_selection (void)
++{
++  g_autofree char *tmp_dir = NULL;
++  g_autofree char *system_dir = NULL;
++  g_autofree char *system_file_path = NULL;
++  g_autofree char *user_dir = NULL;
++  g_autofree char *user_file_path = NULL;
++  g_autoptr (GFile) write_file = NULL;
++  g_autoptr (GFile) system_file = NULL;
++  g_autoptr (GFile) user_file = NULL;
++  g_autofree char *fallback_system_dir = NULL;
++  const char *system_dirs[3];
++  g_autoptr (GList) stores_policy = NULL;
++  MetaConfigStore store;
++
++  tmp_dir = g_dir_make_tmp ("mutter-monitor-store-XXXXXX", NULL);
++  g_assert_nonnull (tmp_dir);
++  system_dir = g_build_filename (tmp_dir, "system", NULL);
++  system_file_path = g_build_filename (system_dir, "monitors.xml", NULL);
++  user_dir = g_build_filename (tmp_dir, "user", NULL);
++  user_file_path = g_build_filename (user_dir, "monitors.xml", NULL);
++  user_file = g_file_new_for_path (user_file_path);
++  fallback_system_dir = g_build_filename (tmp_dir, "fallback-system", NULL);
++  system_dirs[0] = fallback_system_dir;
++  system_dirs[1] = system_dir;
++  system_dirs[2] = NULL;
++
++  g_assert_cmpint (g_mkdir (fallback_system_dir, 0700), ==, 0);
++  g_assert_cmpint (g_mkdir (system_dir, 0700), ==, 0);
++
++  system_file =
++    meta_monitor_config_store_get_writable_system_file (system_dirs);
++  g_assert_nonnull (system_file);
++  write_file = meta_monitor_config_store_select_write_file (
++    user_file,
++    system_file,
++    FALSE,
++    NULL,
++    &store);
++  g_assert_cmpint (store, ==, META_CONFIG_STORE_SYSTEM);
++  g_assert_true (g_file_equal (write_file, system_file));
++
++  g_clear_object (&write_file);
++  g_clear_object (&system_file);
++  g_assert_cmpint (g_chmod (system_dir, 0500), ==, 0);
++  system_file =
++    meta_monitor_config_store_get_writable_system_file (system_dirs);
++  g_assert_null (system_file);
++  g_assert_cmpint (g_chmod (system_dir, 0700), ==, 0);
++
++  g_assert_true (g_file_set_contents (system_file_path, "", 0, NULL));
++  g_assert_cmpint (g_chmod (system_dir, 0500), ==, 0);
++  system_file =
++    meta_monitor_config_store_get_writable_system_file (system_dirs);
++  g_assert_nonnull (system_file);
++  g_clear_object (&system_file);
++  g_assert_cmpint (g_chmod (system_dir, 0700), ==, 0);
++  g_assert_cmpint (g_remove (system_file_path), ==, 0);
++
++  system_file =
++    meta_monitor_config_store_get_writable_system_file (system_dirs);
++  g_assert_nonnull (system_file);
++
++  g_clear_object (&write_file);
++  g_assert_cmpint (g_mkdir (user_dir, 0700), ==, 0);
++  g_assert_true (g_file_set_contents (user_file_path, "", 0, NULL));
++
++  write_file = meta_monitor_config_store_select_write_file (
++    user_file,
++    system_file,
++    FALSE,
++    NULL,
++    &store);
++  g_assert_cmpint (store, ==, META_CONFIG_STORE_USER);
++  g_assert_true (g_file_equal (write_file, user_file));
++
++  g_clear_object (&write_file);
++  stores_policy = g_list_append (stores_policy,
++                                 GINT_TO_POINTER (META_CONFIG_STORE_SYSTEM));
++  write_file = meta_monitor_config_store_select_write_file (
++    user_file,
++    system_file,
++    TRUE,
++    stores_policy,
++    &store);
++  g_assert_cmpint (store, ==, META_CONFIG_STORE_SYSTEM);
++  g_assert_true (g_file_equal (write_file, system_file));
++
++  g_clear_object (&write_file);
++  stores_policy = g_list_prepend (stores_policy,
++                                  GINT_TO_POINTER (META_CONFIG_STORE_USER));
++  write_file = meta_monitor_config_store_select_write_file (
++    user_file,
++    system_file,
++    TRUE,
++    stores_policy,
++    &store);
++  g_assert_cmpint (store, ==, META_CONFIG_STORE_USER);
++  g_assert_true (g_file_equal (write_file, user_file));
++
++  g_clear_object (&write_file);
++  g_clear_pointer (&stores_policy, g_list_free);
++  stores_policy = g_list_append (stores_policy,
++                                 GINT_TO_POINTER (META_CONFIG_STORE_SYSTEM));
++  g_assert_null (meta_monitor_config_store_select_write_file (
++                   user_file,
++                   NULL,
++                   TRUE,
++                   stores_policy,
++                   &store));
++
++  g_assert_cmpint (g_remove (user_file_path), ==, 0);
++  g_assert_cmpint (g_rmdir (user_dir), ==, 0);
++  g_assert_cmpint (g_rmdir (system_dir), ==, 0);
++  g_assert_cmpint (g_rmdir (fallback_system_dir), ==, 0);
++  g_assert_cmpint (g_rmdir (tmp_dir), ==, 0);
++}
++
++static void
++meta_test_monitor_store_replace_system_configurations (void)
++{
++  const char *xml =
++    "<?xml version=\"1.0\"?>\n"
++    "<monitors version=\"2\">\n"
++    "  <!-- This is managed by the administrator. -->\n"
++    "  <policy>\n"
++    "    <stores>\n"
++    "      <store>system</store>\n"
++    "    </stores>\n"
++    "  </policy>\n"
++    "  <configuration>\n"
++    "    <old/>\n"
++    "  </configuration>\n"
++    "  <extension key=\"preserve-me\">\n"
++    "    <configuration>not-a-top-level-configuration</configuration>\n"
++    "  </extension>\n"
++    "  <configuration/>\n"
++    "</monitors>\n";
++  const char *configurations =
++    "  <configuration>\n"
++    "    <new/>\n"
++    "  </configuration>\n";
++  const char *expected =
++    "<?xml version=\"1.0\"?>\n"
++    "<monitors version=\"2\">\n"
++    "  <!-- This is managed by the administrator. -->\n"
++    "  <policy>\n"
++    "    <stores>\n"
++    "      <store>system</store>\n"
++    "    </stores>\n"
++    "  </policy>\n"
++    "  <configuration>\n"
++    "    <new/>\n"
++    "  </configuration>\n"
++    "  <extension key=\"preserve-me\">\n"
++    "    <configuration>not-a-top-level-configuration</configuration>\n"
++    "  </extension>\n"
++    "</monitors>\n";
++  g_autofree char *updated = NULL;
++  g_autoptr (GError) error = NULL;
++
++  updated = meta_monitor_config_store_replace_configurations (xml,
++                                                              configurations,
++                                                              &error);
++  g_assert_no_error (error);
++  g_assert_cmpstr (updated, ==, expected);
++
++  g_clear_pointer (&updated, g_free);
++  updated = meta_monitor_config_store_replace_configurations (
++    "<monitors version=\"2\"><!-- 管理员 -->"
++    "<configuration/><extension>保留</extension></monitors>\n",
++    configurations,
++    &error);
++  g_assert_no_error (error);
++  g_assert_cmpstr (updated, ==,
++                   "<monitors version=\"2\"><!-- 管理员 -->"
++                   "  <configuration>\n"
++                   "    <new/>\n"
++                   "  </configuration>\n"
++                   "<extension>保留</extension></monitors>\n");
++
++  g_clear_pointer (&updated, g_free);
++  updated = meta_monitor_config_store_replace_configurations (
++    "<monitors version=\"2\">\n"
++    "  <policy><dbus>no</dbus></policy>\n"
++    "</monitors>\n",
++    configurations,
++    &error);
++  g_assert_no_error (error);
++  g_assert_cmpstr (updated, ==,
++                   "<monitors version=\"2\">\n"
++                   "  <policy><dbus>no</dbus></policy>\n"
++                   "  <configuration>\n"
++                   "    <new/>\n"
++                   "  </configuration>\n"
++                   "</monitors>\n");
++
++  g_clear_pointer (&updated, g_free);
++  updated = meta_monitor_config_store_replace_configurations (
++    "<?xml version=\"1.0\"?>\n"
++    "<monitors version=\"2\"/>\n",
++    configurations,
++    &error);
++  g_assert_no_error (error);
++  g_assert_cmpstr (updated, ==,
++                   "<?xml version=\"1.0\"?>\n"
++                   "<monitors version=\"2\">\n"
++                   "  <configuration>\n"
++                   "    <new/>\n"
++                   "  </configuration>\n"
++                   "</monitors>\n");
++
++  g_clear_pointer (&updated, g_free);
++  updated = meta_monitor_config_store_replace_configurations (
++    "<monitors version=\"2\"><configuration></monitors></configuration>",
++    configurations,
++    &error);
++  g_assert_error (error, G_MARKUP_ERROR, G_MARKUP_ERROR_PARSE);
++  g_assert_null (updated);
++
++  g_clear_error (&error);
++  updated = meta_monitor_config_store_replace_configurations (
++    "<extension/><monitors version=\"2\"/>",
++    configurations,
++    &error);
++  g_assert_error (error, G_MARKUP_ERROR, G_MARKUP_ERROR_PARSE);
++  g_assert_null (updated);
++}
++
+ void
+ init_monitor_store_tests (void)
+ {
+@@ -1268,4 +1500,8 @@ init_monitor_store_tests (void)
+                    meta_test_monitor_store_policy_dbus);
+   g_test_add_func ("/backends/monitor-store/dbus-invalid",
+                    meta_test_monitor_store_policy_dbus_invalid);
++  g_test_add_func ("/backends/monitor-store/write-file-selection",
++                   meta_test_monitor_store_write_file_selection);
++  g_test_add_func ("/backends/monitor-store/replace-system-configurations",
++                   meta_test_monitor_store_replace_system_configurations);
+ }
+-- 
+2.54.0
+
+
+From d7a90a563fc4c7517aad837e92bb769103605b37 Mon Sep 17 00:00:00 2001
+From: Fxzx micah <143358-fxzxmicah@users.noreply.gitlab.gnome.org>
+Date: Sun, 9 Aug 2026 19:33:36 +0800
+Subject: [PATCH 2/2] tools: Rewrite gdctl in C
+
+---
+ doc/man/gdctl.rst                            |   18 +-
+ meson.build                                  |    3 -
+ meson.options                                |    6 -
+ src/tests/gdctl/complete-color-modes         |    3 +
+ src/tests/gdctl/complete-layout-modes        |    2 +
+ src/tests/gdctl/complete-modes               |    4 +
+ src/tests/gdctl/complete-monitors            |    2 +
+ src/tests/gdctl/complete-options-set         |   14 +
+ src/tests/gdctl/complete-options-set-monitor |   28 +
+ src/tests/gdctl/complete-rgb-ranges          |    3 +
+ src/tests/gdctl/complete-scales              |   12 +
+ src/tests/gdctl/complete-transforms          |    8 +
+ src/tests/monitor-gdctl-tests.c              |  125 +
+ tools/gdctl-bash-completion                  |   79 +
+ tools/gdctl.c                                | 2834 ++++++++++++++++++
+ tools/meson.build                            |   51 +-
+ 16 files changed, 3145 insertions(+), 47 deletions(-)
+ create mode 100644 src/tests/gdctl/complete-color-modes
+ create mode 100644 src/tests/gdctl/complete-layout-modes
+ create mode 100644 src/tests/gdctl/complete-modes
+ create mode 100644 src/tests/gdctl/complete-monitors
+ create mode 100644 src/tests/gdctl/complete-options-set
+ create mode 100644 src/tests/gdctl/complete-options-set-monitor
+ create mode 100644 src/tests/gdctl/complete-rgb-ranges
+ create mode 100644 src/tests/gdctl/complete-scales
+ create mode 100644 src/tests/gdctl/complete-transforms
+ create mode 100644 tools/gdctl-bash-completion
+ create mode 100644 tools/gdctl.c
+
+diff --git a/doc/man/gdctl.rst b/doc/man/gdctl.rst
+index da7726b..9b7510f 100644
+--- a/doc/man/gdctl.rst
++++ b/doc/man/gdctl.rst
+@@ -11,7 +11,7 @@ GNOME Display Controller
+ 
+ SYNOPSIS
+ --------
+-**gdctl** [-h] COMMAND ...
++**gdctl** COMMAND [OPTIONS]
+ 
+ DESCRIPTION
+ -----------
+@@ -31,7 +31,7 @@ COMMANDS
+ 
+   Set a new display configuration
+ 
+-``pref``
++``prefs``
+ 
+   Set display related preferences.
+ 
+@@ -72,7 +72,7 @@ SET OPTIONS
+ 
+   Only verify, without applying, the configuration.
+ 
+-``--layout-mode LAYOUT-MODE``, ``-l``
++``--layout-mode LAYOUT-MODE``, ``-l LAYOUT-MODE``
+ 
+   Specify the layout mode the configuration should use. Either ``logical``, or
+   ``physical``.
+@@ -113,7 +113,7 @@ LOGICAL MONITOR OPTIONS
+ 
+   Set the X position of the currently configured logical monitor.
+ 
+-``--y Y``, ``-y Y``             Y position
++``--y Y``, ``-y Y``
+ 
+   Set the Y position of the currently configured logical monitor.
+ 
+@@ -122,7 +122,7 @@ LOGICAL MONITOR OPTIONS
+   Place the logical monitor to the right of the logical monitor ``CONNECTOR``
+   belongs to.
+ 
+-``--left-of CONNECTOR``   Place left of other monitor
++``--left-of CONNECTOR``
+ 
+   Place the logical monitor to the left of the logical monitor ``CONNECTOR``
+   belongs to.
+@@ -163,13 +163,9 @@ PREFS OPTIONS
+ MONITOR PREFS OPTIONS
+ ---------------------
+ 
+-``--luminance LUMINANCE``, ``-l LUMINANCE``
++``--backlight VALUE``, ``-b VALUE``
+ 
+-  Set the luminance of the monitor for the current color mode.
+-
+-``--reset-luminance``
+-
+-  Reset the luminance of the monitor for the current color mode to its default.
++  Set the backlight value of the monitor.
+ 
+ EXAMPLES
+ --------
+diff --git a/meson.build b/meson.build
+index 4e8426c..d5778ec 100644
+--- a/meson.build
++++ b/meson.build
+@@ -367,7 +367,6 @@ have_clutter_tests = false
+ have_kvm_tests = false
+ have_tty_tests = false
+ have_installed_tests = false
+-have_bash_completion = get_option('bash_completion')
+ 
+ if have_tests
+   gtk3_dep = dependency('gtk+-3.0', version: gtk3_req)
+@@ -740,8 +739,6 @@ summary('mandir', mandir, section: 'Directories')
+ summary('buildtype', get_option('buildtype'), section: 'Build Configuration')
+ summary('debug', get_option('debug'), section: 'Build Configuration')
+ 
+-summary('Bash completion', have_bash_completion, section: 'Shell integration')
+-
+ summary('OpenGL', have_gl, section: 'Rendering APIs')
+ summary('GLES2', have_gles2, section: 'Rendering APIs')
+ summary('EGL', have_egl, section: 'Rendering APIs')
+diff --git a/meson.options b/meson.options
+index 4824a8c..3efa83a 100644
+--- a/meson.options
++++ b/meson.options
+@@ -202,12 +202,6 @@ option('fonts',
+   description: 'Enable font rendering integration using Pango'
+ )
+ 
+-option('bash_completion',
+-  type: 'boolean',
+-  value: true,
+-  description: 'Integrate bash completion for gdctl'
+-)
+-
+ option('devkit',
+   type: 'feature',
+   value: 'auto',
+diff --git a/src/tests/gdctl/complete-color-modes b/src/tests/gdctl/complete-color-modes
+new file mode 100644
+index 0000000..fe04516
+--- /dev/null
++++ b/src/tests/gdctl/complete-color-modes
+@@ -0,0 +1,3 @@
++default
++bt2100
++sdr-native
+diff --git a/src/tests/gdctl/complete-layout-modes b/src/tests/gdctl/complete-layout-modes
+new file mode 100644
+index 0000000..497d77b
+--- /dev/null
++++ b/src/tests/gdctl/complete-layout-modes
+@@ -0,0 +1,2 @@
++logical
++physical
+diff --git a/src/tests/gdctl/complete-modes b/src/tests/gdctl/complete-modes
+new file mode 100644
+index 0000000..762f9c1
+--- /dev/null
++++ b/src/tests/gdctl/complete-modes
+@@ -0,0 +1,4 @@
++3840x2160@60.000
++3840x2160@30.000
++2560x1440@60.000
++1440x900@60.000
+diff --git a/src/tests/gdctl/complete-monitors b/src/tests/gdctl/complete-monitors
+new file mode 100644
+index 0000000..cca59d9
+--- /dev/null
++++ b/src/tests/gdctl/complete-monitors
+@@ -0,0 +1,2 @@
++DP-1
++DP-2
+diff --git a/src/tests/gdctl/complete-options-set b/src/tests/gdctl/complete-options-set
+new file mode 100644
+index 0000000..a55ca01
+--- /dev/null
++++ b/src/tests/gdctl/complete-options-set
+@@ -0,0 +1,14 @@
++-h
++--help
++-P
++--persistent
++-V
++--verify
++-v
++--verbose
++-l
++--layout-mode
++-L
++--logical-monitor
++-e
++--for-lease-monitor
+diff --git a/src/tests/gdctl/complete-options-set-monitor b/src/tests/gdctl/complete-options-set-monitor
+new file mode 100644
+index 0000000..2dc18b7
+--- /dev/null
++++ b/src/tests/gdctl/complete-options-set-monitor
+@@ -0,0 +1,28 @@
++-h
++--help
++-L
++--logical-monitor
++-e
++--for-lease-monitor
++-M
++--monitor
++-p
++--primary
++-s
++--scale
++-t
++--transform
++-x
++--x
++-y
++--y
++--right-of
++--left-of
++--above
++--below
++-m
++--mode
++-c
++--color-mode
++-r
++--rgb-range
+diff --git a/src/tests/gdctl/complete-rgb-ranges b/src/tests/gdctl/complete-rgb-ranges
+new file mode 100644
+index 0000000..d848099
+--- /dev/null
++++ b/src/tests/gdctl/complete-rgb-ranges
+@@ -0,0 +1,3 @@
++auto
++full
++limited
+diff --git a/src/tests/gdctl/complete-scales b/src/tests/gdctl/complete-scales
+new file mode 100644
+index 0000000..4192de1
+--- /dev/null
++++ b/src/tests/gdctl/complete-scales
+@@ -0,0 +1,12 @@
++2.5
++2.6666667461395264
++2.0
++3.0
++3.3333332538604736
++1.6666666269302368
++1.5
++1.3333333730697632
++1.25
++3.75
++1.0
++4.0
+diff --git a/src/tests/gdctl/complete-transforms b/src/tests/gdctl/complete-transforms
+new file mode 100644
+index 0000000..08f8214
+--- /dev/null
++++ b/src/tests/gdctl/complete-transforms
+@@ -0,0 +1,8 @@
++normal
++90
++180
++270
++flipped
++flipped-90
++flipped-270
++flipped-180
+diff --git a/src/tests/monitor-gdctl-tests.c b/src/tests/monitor-gdctl-tests.c
+index 3d371fa..1d3745f 100644
+--- a/src/tests/monitor-gdctl-tests.c
++++ b/src/tests/monitor-gdctl-tests.c
+@@ -19,6 +19,7 @@
+ #include "config.h"
+ 
+ #include <stdarg.h>
++#include <string.h>
+ 
+ #include "backends/meta-monitor-config-manager.h"
+ #include "tests/meta-monitor-test-utils.h"
+@@ -448,6 +449,79 @@ meta_test_monitor_dbus_get_state (void)
+                       "show", "--modes", NULL);
+   check_gdctl_output ("show-verbose",
+                       "show", "--verbose", NULL);
++  check_gdctl_result ("set", "--help", NULL);
++}
++
++static void
++meta_test_monitor_dbus_completion (void)
++{
++  MetaBackend *backend = meta_context_get_backend (test_context);
++  MetaMonitorManager *monitor_manager =
++    meta_backend_get_monitor_manager (backend);
++  MetaMonitorManagerTest *monitor_manager_test =
++    META_MONITOR_MANAGER_TEST (monitor_manager);
++  MetaMonitorTestSetup *test_setup;
++
++  test_setup = meta_create_monitor_test_setup (backend,
++                                               &test_case_setup,
++                                               MONITOR_TEST_FLAG_NO_STORED);
++  meta_monitor_manager_test_emulate_hotplug (monitor_manager_test, test_setup);
++
++  check_gdctl_output ("complete-monitors",
++                      "complete", "monitors", NULL);
++  check_gdctl_output ("complete-modes",
++                      "complete", "modes", "DP-1", NULL);
++  check_gdctl_output ("complete-scales",
++                      "complete", "scales", "DP-1",
++                      "3840x2160@60.000", NULL);
++  check_gdctl_output ("complete-transforms",
++                      "complete", "value", "set", "-t", "", "", NULL);
++  check_gdctl_output ("complete-layout-modes",
++                      "complete", "layout-modes", NULL);
++  check_gdctl_output ("complete-color-modes",
++                      "complete", "color-modes", NULL);
++  check_gdctl_output ("complete-rgb-ranges",
++                      "complete", "rgb-ranges", NULL);
++  check_gdctl_output ("complete-options-set",
++                      "complete", "options", "set", "global", NULL);
++  check_gdctl_output ("complete-options-set-monitor",
++                      "complete", "options", "set", "monitor", NULL);
++}
++
++static void
++meta_test_monitor_dbus_argument_parsing (void)
++{
++  const char * const argv[] = {
++    gdctl_path,
++    "set",
++    "--logical-monitor",
++    "--scale",
++    "invalid",
++    NULL,
++  };
++  g_autoptr (GSubprocessLauncher) launcher = NULL;
++  g_autoptr (GSubprocess) subprocess = NULL;
++  g_autofree char *stderr_buf = NULL;
++  g_autoptr (GError) error = NULL;
++
++  launcher = g_subprocess_launcher_new (G_SUBPROCESS_FLAGS_STDERR_PIPE);
++  g_subprocess_launcher_setenv (launcher,
++                                "DBUS_SESSION_BUS_ADDRESS",
++                                "unix:path=/nonexistent/gdctl-test-bus",
++                                TRUE);
++  subprocess = g_subprocess_launcher_spawnv (launcher, argv, &error);
++  g_assert_no_error (error);
++  g_assert_true (g_subprocess_communicate_utf8 (subprocess,
++                                                NULL,
++                                                NULL,
++                                                NULL,
++                                                &stderr_buf,
++                                                &error));
++  g_assert_no_error (error);
++  g_assert_true (g_subprocess_get_if_exited (subprocess));
++  g_assert_cmpint (g_subprocess_get_exit_status (subprocess), ==, 2);
++  g_assert_nonnull (strstr (stderr_buf, "Invalid number invalid"));
++  g_assert_null (strstr (stderr_buf, "Failed to retrieve current state"));
+ }
+ 
+ static void
+@@ -505,6 +579,49 @@ setup_apply_configuration_test (void)
+                                                         &test_case_expect));
+ }
+ 
++static void
++meta_test_monitor_dbus_empty_configuration (void)
++{
++  const char * const argv[] = {
++    gdctl_path,
++    "set",
++    "--verbose",
++    NULL,
++  };
++  g_autoptr (GSubprocessLauncher) launcher = NULL;
++  g_autoptr (GSubprocess) subprocess = NULL;
++  g_autofree char *stdout_buf = NULL;
++  g_autofree char *stderr_buf = NULL;
++  g_autoptr (GError) error = NULL;
++
++  setup_apply_configuration_test ();
++
++  launcher = g_subprocess_launcher_new (G_SUBPROCESS_FLAGS_STDOUT_PIPE |
++                                        G_SUBPROCESS_FLAGS_STDERR_PIPE);
++  subprocess = g_subprocess_launcher_spawnv (launcher, argv, &error);
++  g_assert_no_error (error);
++  g_assert_true (g_subprocess_communicate_utf8 (subprocess,
++                                                NULL,
++                                                NULL,
++                                                &stdout_buf,
++                                                &stderr_buf,
++                                                &error));
++  g_assert_no_error (error);
++  g_assert_true (g_subprocess_get_if_exited (subprocess));
++  g_assert_cmpint (g_subprocess_get_exit_status (subprocess), ==, 1);
++  g_assert_cmpstr (stdout_buf, ==, "");
++  g_assert_nonnull (strstr (stderr_buf, "No logical monitors configured"));
++  g_assert_null (strstr (stderr_buf, "Failed to apply configuration"));
++}
++
++static void
++meta_test_monitor_dbus_prefs (void)
++{
++  setup_apply_configuration_test ();
++
++  check_gdctl_result ("prefs", "--monitor", "DP-1", NULL);
++}
++
+ static void
+ meta_test_monitor_dbus_apply_left_of (void)
+ {
+@@ -706,6 +823,14 @@ init_tests (void)
+ {
+   g_test_add_func ("/backends/native/monitor/dbus/get-state",
+                    meta_test_monitor_dbus_get_state);
++  g_test_add_func ("/backends/native/monitor/dbus/completion",
++                   meta_test_monitor_dbus_completion);
++  g_test_add_func ("/backends/native/monitor/dbus/argument-parsing",
++                   meta_test_monitor_dbus_argument_parsing);
++  g_test_add_func ("/backends/native/monitor/dbus/empty-configuration",
++                   meta_test_monitor_dbus_empty_configuration);
++  g_test_add_func ("/backends/native/monitor/dbus/prefs",
++                   meta_test_monitor_dbus_prefs);
+   g_test_add_func ("/backends/native/monitor/dbus/apply/verify",
+                    meta_test_monitor_dbus_apply_verify);
+   g_test_add_func ("/backends/native/monitor/dbus/apply/left-of",
+diff --git a/tools/gdctl-bash-completion b/tools/gdctl-bash-completion
+new file mode 100644
+index 0000000..fc19706
+--- /dev/null
++++ b/tools/gdctl-bash-completion
+@@ -0,0 +1,79 @@
++_gdctl()
++{
++    local cur prev command connector mode scope option value prefix
++    local options word i
++
++    COMPREPLY=()
++    cur=${COMP_WORDS[COMP_CWORD]}
++    prev=${COMP_WORDS[COMP_CWORD-1]}
++    command=${COMP_WORDS[1]}
++
++    connector=
++    mode=
++    scope=global
++    for ((i=2; i<COMP_CWORD; i++)); do
++        word=${COMP_WORDS[i]}
++        case "$word" in
++            -L|--logical-monitor)
++                scope=logical-monitor
++                connector=
++                mode=
++                ;;
++            -M|--monitor)
++                if ((i + 1 < COMP_CWORD)); then
++                    connector=${COMP_WORDS[i+1]}
++                    scope=monitor
++                    ((i++))
++                fi
++                ;;
++            --monitor=*)
++                connector=${word#*=}
++                scope=monitor
++                ;;
++            -M?*)
++                connector=${word#-M}
++                scope=monitor
++                ;;
++            -m|--mode)
++                if ((i + 1 < COMP_CWORD)); then
++                    mode=${COMP_WORDS[i+1]}
++                    ((i++))
++                fi
++                ;;
++            --mode=*)
++                mode=${word#*=}
++                ;;
++            -m?*)
++                mode=${word#-m}
++                ;;
++        esac
++    done
++
++    option=$prev
++    value=$cur
++    prefix=
++    if [[ "$cur" == --*=* ]]; then
++        option=${cur%%=*}
++        value=${cur#*=}
++        prefix=$option=
++    elif [[ "$cur" == -?* && "$cur" != --* && ${#cur} -gt 2 ]]; then
++        option=${cur:0:2}
++        value=${cur:2}
++        prefix=$option
++    fi
++
++    if options=$(gdctl complete value "$command" "$option" "$connector" "$mode"); then
++        COMPREPLY=($(compgen -W "$options" -- "$value"))
++        if [[ -n "$prefix" ]]; then
++            for ((i=0; i<${#COMPREPLY[@]}; i++)); do
++                COMPREPLY[i]=$prefix${COMPREPLY[i]}
++            done
++        fi
++        return
++    fi
++
++    options=$(gdctl complete options "$command" "$scope")
++    COMPREPLY=($(compgen -W "$options" -- "$cur"))
++}
++
++complete -F _gdctl gdctl
+diff --git a/tools/gdctl.c b/tools/gdctl.c
+new file mode 100644
+index 0000000..90709a3
+--- /dev/null
++++ b/tools/gdctl.c
+@@ -0,0 +1,2834 @@
++/*
++ * Copyright (C) 2026 Red Hat
++ *
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License as
++ * published by the Free Software Foundation; either version 2 of the
++ * License, or (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful, but
++ * WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, see <http://www.gnu.org/licenses/>.
++ */
++
++#include "config.h"
++
++#include <gio/gio.h>
++#include <locale.h>
++#include <math.h>
++#include <stdlib.h>
++#include <string.h>
++
++#define DISPLAY_CONFIG_NAME "org.gnome.Mutter.DisplayConfig"
++#define DISPLAY_CONFIG_PATH "/org/gnome/Mutter/DisplayConfig"
++#define DISPLAY_CONFIG_INTERFACE "org.gnome.Mutter.DisplayConfig"
++
++typedef enum
++{
++  TRANSFORM_NORMAL,
++  TRANSFORM_90,
++  TRANSFORM_180,
++  TRANSFORM_270,
++  TRANSFORM_FLIPPED,
++  TRANSFORM_FLIPPED_90,
++  TRANSFORM_FLIPPED_270,
++  TRANSFORM_FLIPPED_180,
++} Transform;
++
++typedef enum
++{
++  LAYOUT_MODE_LOGICAL = 1,
++  LAYOUT_MODE_PHYSICAL = 2,
++} LayoutMode;
++
++typedef enum
++{
++  CONFIG_METHOD_VERIFY,
++  CONFIG_METHOD_TEMPORARY,
++  CONFIG_METHOD_PERSISTENT,
++} ConfigMethod;
++
++typedef enum
++{
++  POSITION_NONE = 0,
++  POSITION_ABSOLUTE_X = 1 << 0,
++  POSITION_RELATIVE_X = 1 << 1,
++  POSITION_ABSOLUTE_Y = 1 << 2,
++  POSITION_RELATIVE_Y = 1 << 3,
++} PositionType;
++
++typedef struct
++{
++  char *id;
++  int width;
++  int height;
++  double refresh_rate;
++  double preferred_scale;
++  GArray *supported_scales;
++  GVariant *properties;
++  gboolean is_current;
++  gboolean is_preferred;
++} MonitorMode;
++
++typedef struct
++{
++  char *connector;
++  char *vendor;
++  char *product;
++  char *serial;
++  char *display_name;
++  GPtrArray *modes;
++  GVariant *properties;
++  MonitorMode *current_mode;
++  MonitorMode *preferred_mode;
++
++  MonitorMode *configured_mode;
++  int color_mode;
++  int rgb_range;
++} Monitor;
++
++typedef struct
++{
++  GPtrArray *monitors;
++  int x;
++  int y;
++  double scale;
++  Transform transform;
++  gboolean is_primary;
++  GVariant *properties;
++
++  gboolean has_x;
++  gboolean has_y;
++  char *right_of;
++  char *left_of;
++  char *above;
++  char *below;
++  gboolean position_calculated;
++} LogicalMonitor;
++
++typedef struct
++{
++  GDBusProxy *proxy;
++  unsigned int serial;
++  GPtrArray *monitors;
++  GHashTable *monitors_by_connector;
++  GPtrArray *logical_monitors;
++  GVariant *properties;
++  gboolean supports_changing_layout_mode;
++  LayoutMode layout_mode;
++} MonitorsState;
++
++typedef struct
++{
++  MonitorsState *state;
++  GPtrArray *logical_monitors;
++  GPtrArray *monitors_for_lease;
++  LayoutMode layout_mode;
++} Config;
++
++typedef struct
++{
++  char *connector;
++  char *mode;
++  int color_mode;
++  int rgb_range;
++} MonitorArguments;
++
++typedef struct
++{
++  GPtrArray *monitors;
++  int x;
++  int y;
++  double scale;
++  Transform transform;
++  gboolean is_primary;
++  gboolean has_x;
++  gboolean has_y;
++  char *right_of;
++  char *left_of;
++  char *above;
++  char *below;
++} LogicalMonitorArguments;
++
++typedef struct
++{
++  gboolean persistent;
++  gboolean verify;
++  gboolean verbose;
++  gboolean has_layout_mode;
++  LayoutMode layout_mode;
++  GPtrArray *logical_monitor_args;
++  GPtrArray *monitor_lease_connectors;
++  GPtrArray *logical_monitors;
++  GPtrArray *monitors_for_lease;
++} SetArguments;
++
++typedef struct
++{
++  char *connector;
++  gboolean has_backlight;
++  double backlight;
++} MonitorPrefs;
++
++typedef struct
++{
++  GPtrArray *monitors;
++} PrefsArguments;
++
++static const char *transform_names[] = {
++  "normal",
++  "90",
++  "180",
++  "270",
++  "flipped",
++  "flipped-90",
++  "flipped-270",
++  "flipped-180",
++};
++
++static const char *color_mode_names[] = {
++  "default",
++  "bt2100",
++  "sdr-native",
++};
++
++static const char *rgb_range_names[] = {
++  NULL,
++  "auto",
++  "full",
++  "limited",
++};
++
++static void
++monitor_mode_free (MonitorMode *mode)
++{
++  g_free (mode->id);
++  g_clear_pointer (&mode->supported_scales, g_array_unref);
++  g_clear_pointer (&mode->properties, g_variant_unref);
++  g_free (mode);
++}
++
++static void
++monitor_free (Monitor *monitor)
++{
++  g_free (monitor->connector);
++  g_free (monitor->vendor);
++  g_free (monitor->product);
++  g_free (monitor->serial);
++  g_free (monitor->display_name);
++  g_clear_pointer (&monitor->modes, g_ptr_array_unref);
++  g_clear_pointer (&monitor->properties, g_variant_unref);
++  g_free (monitor);
++}
++
++static void
++logical_monitor_free (LogicalMonitor *logical_monitor)
++{
++  g_clear_pointer (&logical_monitor->monitors, g_ptr_array_unref);
++  g_clear_pointer (&logical_monitor->properties, g_variant_unref);
++  g_free (logical_monitor->right_of);
++  g_free (logical_monitor->left_of);
++  g_free (logical_monitor->above);
++  g_free (logical_monitor->below);
++  g_free (logical_monitor);
++}
++
++static void
++monitors_state_free (MonitorsState *state)
++{
++  g_clear_object (&state->proxy);
++  g_clear_pointer (&state->monitors, g_ptr_array_unref);
++  g_clear_pointer (&state->monitors_by_connector, g_hash_table_unref);
++  g_clear_pointer (&state->logical_monitors, g_ptr_array_unref);
++  g_clear_pointer (&state->properties, g_variant_unref);
++  g_free (state);
++}
++
++G_DEFINE_AUTOPTR_CLEANUP_FUNC (MonitorsState, monitors_state_free)
++
++static void
++config_free (Config *config)
++{
++  g_clear_pointer (&config->logical_monitors, g_ptr_array_unref);
++  g_clear_pointer (&config->monitors_for_lease, g_ptr_array_unref);
++  g_free (config);
++}
++
++G_DEFINE_AUTOPTR_CLEANUP_FUNC (Config, config_free)
++
++static void
++monitor_arguments_free (MonitorArguments *monitor_args)
++{
++  g_free (monitor_args->connector);
++  g_free (monitor_args->mode);
++  g_free (monitor_args);
++}
++
++static void
++logical_monitor_arguments_free (LogicalMonitorArguments *logical_monitor_args)
++{
++  g_clear_pointer (&logical_monitor_args->monitors, g_ptr_array_unref);
++  g_free (logical_monitor_args->right_of);
++  g_free (logical_monitor_args->left_of);
++  g_free (logical_monitor_args->above);
++  g_free (logical_monitor_args->below);
++  g_free (logical_monitor_args);
++}
++
++static void
++set_arguments_clear (SetArguments *args)
++{
++  g_clear_pointer (&args->logical_monitor_args, g_ptr_array_unref);
++  g_clear_pointer (&args->monitor_lease_connectors, g_ptr_array_unref);
++  g_clear_pointer (&args->logical_monitors, g_ptr_array_unref);
++  g_clear_pointer (&args->monitors_for_lease, g_ptr_array_unref);
++}
++
++G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC (SetArguments, set_arguments_clear)
++
++static void
++monitor_prefs_free (MonitorPrefs *monitor_prefs)
++{
++  g_free (monitor_prefs->connector);
++  g_free (monitor_prefs);
++}
++
++static void
++prefs_arguments_clear (PrefsArguments *args)
++{
++  g_clear_pointer (&args->monitors, g_ptr_array_unref);
++}
++
++G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC (PrefsArguments, prefs_arguments_clear)
++
++static const char *
++layout_mode_to_string (LayoutMode layout_mode)
++{
++  switch (layout_mode)
++    {
++    case LAYOUT_MODE_LOGICAL:
++      return "logical";
++    case LAYOUT_MODE_PHYSICAL:
++      return "physical";
++    }
++
++  g_assert_not_reached ();
++}
++
++static gboolean
++parse_layout_mode (const char  *value,
++                   LayoutMode  *layout_mode,
++                   GError     **error)
++{
++  if (g_str_equal (value, "logical"))
++    *layout_mode = LAYOUT_MODE_LOGICAL;
++  else if (g_str_equal (value, "physical"))
++    *layout_mode = LAYOUT_MODE_PHYSICAL;
++  else
++    {
++      g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_BAD_VALUE,
++                   "Invalid layout mode %s", value);
++      return FALSE;
++    }
++
++  return TRUE;
++}
++
++static gboolean
++parse_transform (const char  *value,
++                 Transform   *transform,
++                 GError     **error)
++{
++  size_t i;
++
++  for (i = 0; i < G_N_ELEMENTS (transform_names); i++)
++    {
++      if (g_str_equal (value, transform_names[i]))
++        {
++          *transform = i;
++          return TRUE;
++        }
++    }
++
++  g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_BAD_VALUE,
++               "Invalid transform %s", value);
++  return FALSE;
++}
++
++static gboolean
++parse_named_value (const char         *value,
++                   const char * const *names,
++                   size_t              n_names,
++                   int                *result,
++                   GError            **error)
++{
++  size_t i;
++
++  for (i = 0; i < n_names; i++)
++    {
++      if (names[i] && g_str_equal (value, names[i]))
++        {
++          *result = i;
++          return TRUE;
++        }
++    }
++
++  g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_BAD_VALUE,
++               "Invalid value %s", value);
++  return FALSE;
++}
++
++static MonitorMode *
++monitor_mode_new_from_variant (GVariant *variant)
++{
++  g_autoptr (GVariant) scales_variant = NULL;
++  g_autoptr (GVariant) properties = NULL;
++  const char *id;
++  GVariantIter iter;
++  double scale;
++  MonitorMode *mode;
++
++  mode = g_new0 (MonitorMode, 1);
++  g_variant_get (variant, "(&siidd@ad@a{sv})",
++                 &id,
++                 &mode->width,
++                 &mode->height,
++                 &mode->refresh_rate,
++                 &mode->preferred_scale,
++                 &scales_variant,
++                 &properties);
++  mode->id = g_strdup (id);
++  mode->supported_scales = g_array_new (FALSE, FALSE, sizeof (double));
++  g_variant_iter_init (&iter, scales_variant);
++  while (g_variant_iter_next (&iter, "d", &scale))
++    g_array_append_val (mode->supported_scales, scale);
++  mode->properties = g_steal_pointer (&properties);
++  {
++    gboolean unused;
++
++    mode->is_current =
++      g_variant_lookup (mode->properties, "is-current", "b", &unused);
++    mode->is_preferred =
++      g_variant_lookup (mode->properties, "is-preferred", "b", &unused);
++  }
++
++  return mode;
++}
++
++static Monitor *
++monitor_new_from_variant (GVariant *variant)
++{
++  g_autoptr (GVariant) spec = NULL;
++  g_autoptr (GVariant) modes = NULL;
++  g_autoptr (GVariant) properties = NULL;
++  const char *connector;
++  const char *vendor;
++  const char *product;
++  const char *serial;
++  const char *display_name = NULL;
++  GVariantIter iter;
++  GVariant *mode_variant;
++  Monitor *monitor;
++
++  monitor = g_new0 (Monitor, 1);
++  monitor->color_mode = -1;
++  monitor->rgb_range = -1;
++  spec = g_variant_get_child_value (variant, 0);
++  modes = g_variant_get_child_value (variant, 1);
++  properties = g_variant_get_child_value (variant, 2);
++  g_variant_get (spec, "(&s&s&s&s)",
++                 &connector, &vendor, &product, &serial);
++  monitor->connector = g_strdup (connector);
++  monitor->vendor = g_strdup (vendor);
++  monitor->product = g_strdup (product);
++  monitor->serial = g_strdup (serial);
++  if (g_variant_lookup (properties, "display-name", "&s", &display_name))
++    monitor->display_name = g_strdup (display_name);
++  monitor->properties = g_steal_pointer (&properties);
++  monitor->modes =
++    g_ptr_array_new_with_free_func ((GDestroyNotify) monitor_mode_free);
++
++  g_variant_iter_init (&iter, modes);
++  while ((mode_variant = g_variant_iter_next_value (&iter)))
++    {
++      MonitorMode *mode = monitor_mode_new_from_variant (mode_variant);
++
++      g_ptr_array_add (monitor->modes, mode);
++      if (mode->is_current)
++        monitor->current_mode = mode;
++      if (mode->is_preferred)
++        monitor->preferred_mode = mode;
++      g_variant_unref (mode_variant);
++    }
++
++  return monitor;
++}
++
++static LogicalMonitor *
++logical_monitor_new_from_variant (MonitorsState *state,
++                                  GVariant      *variant)
++{
++  g_autoptr (GVariant) monitor_specs = NULL;
++  g_autoptr (GVariant) properties = NULL;
++  GVariantIter iter;
++  GVariant *spec;
++  LogicalMonitor *logical_monitor;
++
++  logical_monitor = g_new0 (LogicalMonitor, 1);
++  logical_monitor->monitors = g_ptr_array_new ();
++  g_variant_get (variant, "(iidub@a(ssss)@a{sv})",
++                 &logical_monitor->x,
++                 &logical_monitor->y,
++                 &logical_monitor->scale,
++                 &logical_monitor->transform,
++                 &logical_monitor->is_primary,
++                 &monitor_specs,
++                 &properties);
++  logical_monitor->properties = g_steal_pointer (&properties);
++
++  g_variant_iter_init (&iter, monitor_specs);
++  while ((spec = g_variant_iter_next_value (&iter)))
++    {
++      const char *connector;
++      Monitor *monitor;
++
++      g_variant_get_child (spec, 0, "&s", &connector);
++      monitor = g_hash_table_lookup (state->monitors_by_connector, connector);
++      g_assert_nonnull (monitor);
++      g_ptr_array_add (logical_monitor->monitors, monitor);
++      g_variant_unref (spec);
++    }
++
++  return logical_monitor;
++}
++
++static MonitorsState *
++monitors_state_new (GError **error)
++{
++  g_autoptr (GVariant) current_state = NULL;
++  g_autoptr (GVariant) monitors = NULL;
++  g_autoptr (GVariant) logical_monitors = NULL;
++  g_autoptr (GVariant) properties = NULL;
++  GVariantIter iter;
++  GVariant *variant;
++  MonitorsState *state;
++  unsigned int layout_mode;
++
++  state = g_new0 (MonitorsState, 1);
++  state->proxy = g_dbus_proxy_new_for_bus_sync (
++    G_BUS_TYPE_SESSION,
++    G_DBUS_PROXY_FLAGS_NONE,
++    NULL,
++    DISPLAY_CONFIG_NAME,
++    DISPLAY_CONFIG_PATH,
++    DISPLAY_CONFIG_INTERFACE,
++    NULL,
++    error);
++  if (!state->proxy)
++    goto fail;
++
++  current_state = g_dbus_proxy_call_sync (state->proxy,
++                                          "GetCurrentState",
++                                          NULL,
++                                          G_DBUS_CALL_FLAGS_NO_AUTO_START,
++                                          -1,
++                                          NULL,
++                                          error);
++  if (!current_state)
++    goto fail;
++
++  g_variant_get (current_state,
++                 "(u@a((ssss)a(siiddada{sv})a{sv})"
++                 "@a(iiduba(ssss)a{sv})@a{sv})",
++                 &state->serial,
++                 &monitors,
++                 &logical_monitors,
++                 &properties);
++  state->properties = g_steal_pointer (&properties);
++  g_variant_lookup (state->properties,
++                    "supports-changing-layout-mode",
++                    "b",
++                    &state->supports_changing_layout_mode);
++  if (g_variant_lookup (state->properties,
++                        "layout-mode", "u", &layout_mode))
++    state->layout_mode = layout_mode;
++  else
++    state->layout_mode = LAYOUT_MODE_LOGICAL;
++
++  state->monitors =
++    g_ptr_array_new_with_free_func ((GDestroyNotify) monitor_free);
++  state->monitors_by_connector = g_hash_table_new (g_str_hash, g_str_equal);
++  g_variant_iter_init (&iter, monitors);
++  while ((variant = g_variant_iter_next_value (&iter)))
++    {
++      Monitor *monitor = monitor_new_from_variant (variant);
++
++      g_ptr_array_add (state->monitors, monitor);
++      g_hash_table_insert (state->monitors_by_connector,
++                           monitor->connector,
++                           monitor);
++      g_variant_unref (variant);
++    }
++
++  state->logical_monitors =
++    g_ptr_array_new_with_free_func ((GDestroyNotify) logical_monitor_free);
++  g_variant_iter_init (&iter, logical_monitors);
++  while ((variant = g_variant_iter_next_value (&iter)))
++    {
++      LogicalMonitor *logical_monitor =
++        logical_monitor_new_from_variant (state, variant);
++
++      g_ptr_array_add (state->logical_monitors, logical_monitor);
++      g_variant_unref (variant);
++    }
++
++  return state;
++
++fail:
++  monitors_state_free (state);
++  return NULL;
++}
++
++static gboolean
++level_is_active (GArray *levels,
++                 int     level)
++{
++  unsigned int i;
++
++  for (i = 0; i < levels->len; i++)
++    {
++      if (g_array_index (levels, int, i) == level)
++        return TRUE;
++    }
++
++  return FALSE;
++}
++
++static void
++remove_active_level (GArray *levels,
++                     int     level)
++{
++  unsigned int i;
++
++  for (i = 0; i < levels->len; i++)
++    {
++      if (g_array_index (levels, int, i) == level)
++        {
++          g_array_remove_index (levels, i);
++          return;
++        }
++    }
++}
++
++static void
++print_data (int         level,
++            gboolean    is_last,
++            GArray     *levels,
++            const char *data)
++{
++  g_autoptr (GString) line = g_string_new (NULL);
++  int i;
++
++  if (level < 0)
++    {
++      g_print ("%s\n", data);
++      return;
++    }
++
++  for (i = 0; i < level * 4 - 1; i++)
++    {
++      gboolean is_line_position =
++        (i == 0 && level_is_active (levels, 0)) ||
++        (i >= 3 && (i + 1) % 4 == 0 &&
++         level_is_active (levels, (i + 1) / 4));
++
++      g_string_append (line, is_line_position ? "│" : " ");
++    }
++  g_string_append (line, is_last ? "└──" : "├──");
++  g_string_append (line, data);
++  g_print ("%s\n", line->str);
++
++  if (is_last)
++    remove_active_level (levels, level);
++  else if (!level_is_active (levels, level))
++    g_array_append_val (levels, level);
++}
++
++static char *
++format_double (double value)
++{
++  char buffer[G_ASCII_DTOSTR_BUF_SIZE];
++
++  g_ascii_dtostr (buffer, sizeof (buffer), value);
++  if (!strchr (buffer, '.') && !strchr (buffer, 'e') && !strchr (buffer, 'E'))
++    return g_strconcat (buffer, ".0", NULL);
++
++  return g_strdup (buffer);
++}
++
++static char *
++format_monitor_title (Monitor  *monitor,
++                      gboolean  include_prefix)
++{
++  const char *prefix = include_prefix ? "Monitor " : "";
++
++  if (monitor->display_name && *monitor->display_name)
++    return g_strdup_printf ("%s%s (%s)",
++                            prefix,
++                            monitor->connector,
++                            monitor->display_name);
++
++  return g_strconcat (prefix, monitor->connector, NULL);
++}
++
++static const char *
++enum_property_to_string (const char *name,
++                         unsigned int value)
++{
++  if (g_str_equal (name, "layout-mode"))
++    return layout_mode_to_string (value);
++  if (g_str_equal (name, "color-mode") ||
++      g_str_equal (name, "supported-color-modes"))
++    {
++      if (value < G_N_ELEMENTS (color_mode_names))
++        return color_mode_names[value];
++    }
++  if (g_str_equal (name, "rgb-range"))
++    {
++      if (value < G_N_ELEMENTS (rgb_range_names))
++        return rgb_range_names[value];
++    }
++
++  return NULL;
++}
++
++static char *
++property_value_to_string_full (const char *name,
++                               GVariant   *value,
++                               gboolean    nested)
++{
++  const GVariantType *type = g_variant_get_type (value);
++
++  if (g_variant_type_equal (type, G_VARIANT_TYPE_BOOLEAN))
++    {
++      if (nested)
++        return g_strdup (g_variant_get_boolean (value) ? "True" : "False");
++      return g_strdup (g_variant_get_boolean (value) ? "yes" : "no");
++    }
++  if (g_variant_type_equal (type, G_VARIANT_TYPE_STRING))
++    return g_variant_dup_string (value, NULL);
++  if (g_variant_type_equal (type, G_VARIANT_TYPE_UINT32))
++    {
++      unsigned int number = g_variant_get_uint32 (value);
++      const char *enum_name = enum_property_to_string (name, number);
++
++      if (enum_name)
++        return g_strdup (enum_name);
++      return g_strdup_printf ("%u", number);
++    }
++  if (g_variant_type_equal (type, G_VARIANT_TYPE_INT32))
++    return g_strdup_printf ("%d", g_variant_get_int32 (value));
++  if (g_variant_type_equal (type, G_VARIANT_TYPE_DOUBLE))
++    return format_double (g_variant_get_double (value));
++  if (g_variant_type_is_array (type))
++    {
++      g_autoptr (GString) result = g_string_new ("[");
++      GVariantIter iter;
++      GVariant *element;
++      gboolean first = TRUE;
++
++      g_variant_iter_init (&iter, value);
++      while ((element = g_variant_iter_next_value (&iter)))
++        {
++          g_autofree char *element_string =
++            property_value_to_string_full (name, element, TRUE);
++
++          if (!first)
++            g_string_append (result, ", ");
++          g_string_append (result, element_string);
++          first = FALSE;
++          g_variant_unref (element);
++        }
++      g_string_append_c (result, ']');
++      return g_string_free (g_steal_pointer (&result), FALSE);
++    }
++  if (g_variant_type_is_tuple (type))
++    {
++      g_autoptr (GString) result = g_string_new ("(");
++      gsize n_children = g_variant_n_children (value);
++      gsize i;
++
++      for (i = 0; i < n_children; i++)
++        {
++          g_autoptr (GVariant) child = g_variant_get_child_value (value, i);
++          g_autofree char *child_string =
++            property_value_to_string_full (name, child, TRUE);
++
++          if (i > 0)
++            g_string_append (result, ", ");
++          g_string_append (result, child_string);
++        }
++      if (n_children == 1)
++        g_string_append_c (result, ',');
++      g_string_append_c (result, ')');
++      return g_string_free (g_steal_pointer (&result), FALSE);
++    }
++
++  return g_variant_print (value, FALSE);
++}
++
++static char *
++property_value_to_string (const char *name,
++                          GVariant   *value)
++{
++  return property_value_to_string_full (name, value, FALSE);
++}
++
++static void
++print_properties (int       level,
++                  GArray   *levels,
++                  GVariant *properties)
++{
++  GVariantIter iter;
++  const char *key;
++  GVariant *value;
++  gsize n_properties;
++  gsize i = 0;
++  g_autofree char *title = NULL;
++
++  n_properties = g_variant_n_children (properties);
++  title = g_strdup_printf ("Properties: (%" G_GSIZE_FORMAT ")", n_properties);
++  print_data (level, TRUE, levels, title);
++
++  g_variant_iter_init (&iter, properties);
++  while (g_variant_iter_next (&iter, "{&sv}", &key, &value))
++    {
++      g_autofree char *value_string = property_value_to_string (key, value);
++      g_autofree char *line = g_strdup_printf ("%s ⇒  %s", key, value_string);
++
++      print_data (level + 1, i == n_properties - 1, levels, line);
++      i++;
++      g_variant_unref (value);
++    }
++}
++
++static GVariant *
++find_backlight (MonitorsState *state,
++                Monitor       *monitor,
++                unsigned int  *serial)
++{
++  g_autoptr (GVariant) backlight = NULL;
++  g_autoptr (GVariant) entries = NULL;
++  GVariantIter iter;
++  GVariant *entry;
++
++  if (!state->proxy)
++    return NULL;
++
++  backlight = g_dbus_proxy_get_cached_property (state->proxy, "Backlight");
++  if (!backlight)
++    return NULL;
++
++  g_variant_get (backlight, "(u@aa{sv})", serial, &entries);
++  g_variant_iter_init (&iter, entries);
++  while ((entry = g_variant_iter_next_value (&iter)))
++    {
++      const char *connector;
++
++      if (g_variant_lookup (entry, "connector", "&s", &connector) &&
++          g_str_equal (connector, monitor->connector))
++        return entry;
++      g_variant_unref (entry);
++    }
++
++  return NULL;
++}
++
++static void
++print_monitor_preferences (MonitorsState *state,
++                           Monitor       *monitor,
++                           int            level,
++                           GArray        *levels,
++                           gboolean       is_last)
++{
++  g_autoptr (GVariant) backlight = NULL;
++  unsigned int serial;
++
++  print_data (level, is_last, levels, "Preferences");
++  backlight = find_backlight (state, monitor, &serial);
++  if (!backlight)
++    {
++      print_data (level + 1, TRUE, levels, "Backlight: None");
++      return;
++    }
++
++  print_data (level + 1, TRUE, levels, "Backlight:");
++  {
++    GVariantIter iter;
++    const char *key;
++    GVariant *value;
++    gsize n_properties = g_variant_n_children (backlight) - 1;
++    gsize i = 0;
++
++    g_variant_iter_init (&iter, backlight);
++    while (g_variant_iter_next (&iter, "{&sv}", &key, &value))
++      {
++        g_autofree char *value_string = NULL;
++        g_autofree char *line = NULL;
++
++        if (g_str_equal (key, "connector"))
++          {
++            g_variant_unref (value);
++            continue;
++          }
++
++        value_string = property_value_to_string_full (key, value, TRUE);
++        line = g_strdup_printf ("%s ⇒  %s", key, value_string);
++        print_data (level + 2, i == n_properties - 1, levels, line);
++        i++;
++        g_variant_unref (value);
++      }
++  }
++}
++
++static void
++print_mode (MonitorMode *mode,
++            gboolean     is_last,
++            gboolean     show_properties,
++            GArray      *levels)
++{
++  print_data (2, is_last, levels, mode->id);
++
++  if (show_properties)
++    {
++      char refresh_rate_value[G_ASCII_DTOSTR_BUF_SIZE];
++      g_autofree char *dimension = NULL;
++      g_autofree char *refresh_rate = NULL;
++      g_autofree char *preferred_scale = NULL;
++      g_autoptr (GString) scales = g_string_new ("Supported scales: [");
++      unsigned int i;
++
++      dimension = g_strdup_printf ("Dimension: %dx%d",
++                                   mode->width,
++                                   mode->height);
++      g_ascii_formatd (refresh_rate_value,
++                       sizeof (refresh_rate_value),
++                       "%.3f",
++                       mode->refresh_rate);
++      refresh_rate = g_strdup_printf ("Refresh rate: %s",
++                                      refresh_rate_value);
++      preferred_scale = format_double (mode->preferred_scale);
++      {
++        g_autofree char *line =
++          g_strdup_printf ("Preferred scale: %s", preferred_scale);
++
++        print_data (3, FALSE, levels, dimension);
++        print_data (3, FALSE, levels, refresh_rate);
++        print_data (3, FALSE, levels, line);
++      }
++
++      for (i = 0; i < mode->supported_scales->len; i++)
++        {
++          double scale = g_array_index (mode->supported_scales, double, i);
++          g_autofree char *scale_string = format_double (scale);
++
++          if (i > 0)
++            g_string_append (scales, ", ");
++          g_string_append (scales, scale_string);
++        }
++      g_string_append_c (scales, ']');
++      print_data (3, FALSE, levels, scales->str);
++      print_properties (3, levels, mode->properties);
++    }
++}
++
++static void
++print_current_state (MonitorsState *state,
++                     gboolean       show_modes,
++                     gboolean       show_properties)
++{
++  g_autoptr (GArray) levels = g_array_new (FALSE, FALSE, sizeof (int));
++  unsigned int i;
++
++  g_print ("Monitors:\n");
++  for (i = 0; i < state->monitors->len; i++)
++    {
++      Monitor *monitor = g_ptr_array_index (state->monitors, i);
++      gboolean is_last = i == state->monitors->len - 1;
++      g_autofree char *title = format_monitor_title (monitor, TRUE);
++
++      print_data (0, is_last, levels, title);
++
++      if (monitor->vendor[0])
++        {
++          g_autofree char *line =
++            g_strdup_printf ("Vendor: %s", monitor->vendor);
++          print_data (1, FALSE, levels, line);
++        }
++      if (monitor->product[0])
++        {
++          g_autofree char *line =
++            g_strdup_printf ("Product: %s", monitor->product);
++          print_data (1, FALSE, levels, line);
++        }
++      if (monitor->serial[0])
++        {
++          g_autofree char *line =
++            g_strdup_printf ("Serial: %s", monitor->serial);
++          print_data (1, FALSE, levels, line);
++        }
++
++      if (show_modes)
++        {
++          g_autofree char *line =
++            g_strdup_printf ("Modes (%u)", monitor->modes->len);
++          unsigned int j;
++
++          print_data (1, !show_properties, levels, line);
++          for (j = 0; j < monitor->modes->len; j++)
++            {
++              MonitorMode *mode = g_ptr_array_index (monitor->modes, j);
++
++              print_mode (mode,
++                          j == monitor->modes->len - 1,
++                          show_properties,
++                          levels);
++            }
++        }
++      else
++        {
++          MonitorMode *mode = monitor->current_mode;
++          const char *mode_type = "Current mode";
++
++          if (!mode)
++            {
++              mode = monitor->preferred_mode;
++              mode_type = "Preferred mode";
++            }
++          if (mode)
++            {
++              print_data (1, FALSE, levels, mode_type);
++              print_mode (mode, TRUE, show_properties, levels);
++            }
++        }
++
++      print_monitor_preferences (state,
++                                 monitor,
++                                 1,
++                                 levels,
++                                 !show_properties);
++      if (show_properties)
++        print_properties (1, levels, monitor->properties);
++    }
++
++  g_print ("\nLogical monitors:\n");
++  for (i = 0; i < state->logical_monitors->len; i++)
++    {
++      LogicalMonitor *logical_monitor =
++        g_ptr_array_index (state->logical_monitors, i);
++      g_autofree char *title =
++        g_strdup_printf ("Logical monitor #%u", i + 1);
++      g_autofree char *position =
++        g_strdup_printf ("Position: (%d, %d)",
++                         logical_monitor->x,
++                         logical_monitor->y);
++      g_autofree char *scale_value = format_double (logical_monitor->scale);
++      g_autofree char *scale = g_strdup_printf ("Scale: %s", scale_value);
++      g_autofree char *transform =
++        g_strdup_printf ("Transform: %s",
++                         transform_names[logical_monitor->transform]);
++      g_autofree char *primary =
++        g_strdup_printf ("Primary: %s",
++                         logical_monitor->is_primary ? "yes" : "no");
++      g_autofree char *monitors =
++        g_strdup_printf ("Monitors: (%u)", logical_monitor->monitors->len);
++      unsigned int j;
++
++      print_data (0, i == state->logical_monitors->len - 1, levels, title);
++      print_data (1, FALSE, levels, position);
++      print_data (1, FALSE, levels, scale);
++      print_data (1, FALSE, levels, transform);
++      print_data (1, FALSE, levels, primary);
++      print_data (1, !show_properties, levels, monitors);
++      for (j = 0; j < logical_monitor->monitors->len; j++)
++        {
++          Monitor *monitor = g_ptr_array_index (logical_monitor->monitors, j);
++          g_autofree char *monitor_title =
++            format_monitor_title (monitor, FALSE);
++
++          print_data (2,
++                      j == logical_monitor->monitors->len - 1,
++                      levels,
++                      monitor_title);
++        }
++
++      if (show_properties)
++        print_properties (1, levels, logical_monitor->properties);
++    }
++
++  if (show_properties)
++    {
++      g_print ("\n");
++      print_properties (-1, levels, state->properties);
++    }
++}
++
++static MonitorMode *
++find_monitor_mode (Monitor    *monitor,
++                   const char *mode_id)
++{
++  unsigned int i;
++
++  for (i = 0; i < monitor->modes->len; i++)
++    {
++      MonitorMode *mode = g_ptr_array_index (monitor->modes, i);
++
++      if (g_str_equal (mode->id, mode_id))
++        return mode;
++    }
++
++  return NULL;
++}
++
++static gboolean
++parse_int (const char  *value,
++           int         *result,
++           GError     **error)
++{
++  char *end = NULL;
++  int64_t number;
++
++  number = g_ascii_strtoll (value, &end, 10);
++  if (!end || *end || number < G_MININT || number > G_MAXINT)
++    {
++      g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_BAD_VALUE,
++                   "Invalid integer %s", value);
++      return FALSE;
++    }
++
++  *result = number;
++  return TRUE;
++}
++
++static gboolean
++parse_double (const char  *value,
++              double      *result,
++              GError     **error)
++{
++  char *end = NULL;
++
++  *result = g_ascii_strtod (value, &end);
++  if (!end || *end || !isfinite (*result))
++    {
++      g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_BAD_VALUE,
++                   "Invalid number %s", value);
++      return FALSE;
++    }
++
++  return TRUE;
++}
++
++typedef struct
++{
++  SetArguments *args;
++  LogicalMonitorArguments *logical_monitor;
++  MonitorArguments *monitor;
++} SetParseData;
++
++static gboolean parse_set_option (const char  *option_name,
++                                  const char  *value,
++                                  gpointer     user_data,
++                                  GError     **error);
++
++static const GOptionEntry set_global_options[] = {
++  { "persistent", 'P', G_OPTION_FLAG_NO_ARG, G_OPTION_ARG_CALLBACK,
++    parse_set_option, "Apply the configuration persistently", NULL },
++  { "verify", 'V', G_OPTION_FLAG_NO_ARG, G_OPTION_ARG_CALLBACK,
++    parse_set_option, "Only verify the configuration", NULL },
++  { "verbose", 'v', G_OPTION_FLAG_NO_ARG, G_OPTION_ARG_CALLBACK,
++    parse_set_option, "Show the generated configuration", NULL },
++  { "layout-mode", 'l', 0, G_OPTION_ARG_CALLBACK,
++    parse_set_option, "Set the layout mode", "MODE" },
++  { "logical-monitor", 'L', G_OPTION_FLAG_NO_ARG, G_OPTION_ARG_CALLBACK,
++    parse_set_option, "Start a logical monitor", NULL },
++  { "for-lease-monitor", 'e', 0, G_OPTION_ARG_CALLBACK,
++    parse_set_option, "Reserve a monitor for a lease", "CONNECTOR" },
++  { NULL }
++};
++
++static const GOptionEntry set_logical_monitor_options[] = {
++  { "monitor", 'M', 0, G_OPTION_ARG_CALLBACK,
++    parse_set_option, "Add a monitor", "CONNECTOR" },
++  { "primary", 'p', G_OPTION_FLAG_NO_ARG, G_OPTION_ARG_CALLBACK,
++    parse_set_option, "Mark as primary", NULL },
++  { "scale", 's', 0, G_OPTION_ARG_CALLBACK,
++    parse_set_option, "Set the scale", "SCALE" },
++  { "transform", 't', 0, G_OPTION_ARG_CALLBACK,
++    parse_set_option, "Set the transform", "TRANSFORM" },
++  { "x", 'x', 0, G_OPTION_ARG_CALLBACK,
++    parse_set_option, "Set the horizontal position", "X" },
++  { "y", 'y', 0, G_OPTION_ARG_CALLBACK,
++    parse_set_option, "Set the vertical position", "Y" },
++  { "right-of", 0, 0, G_OPTION_ARG_CALLBACK,
++    parse_set_option, "Place right of a monitor", "CONNECTOR" },
++  { "left-of", 0, 0, G_OPTION_ARG_CALLBACK,
++    parse_set_option, "Place left of a monitor", "CONNECTOR" },
++  { "above", 0, 0, G_OPTION_ARG_CALLBACK,
++    parse_set_option, "Place above a monitor", "CONNECTOR" },
++  { "below", 0, 0, G_OPTION_ARG_CALLBACK,
++    parse_set_option, "Place below a monitor", "CONNECTOR" },
++  { NULL }
++};
++
++static const GOptionEntry set_monitor_options[] = {
++  { "mode", 'm', 0, G_OPTION_ARG_CALLBACK,
++    parse_set_option, "Set the monitor mode", "MODE" },
++  { "color-mode", 'c', 0, G_OPTION_ARG_CALLBACK,
++    parse_set_option, "Set the color mode", "MODE" },
++  { "rgb-range", 'r', 0, G_OPTION_ARG_CALLBACK,
++    parse_set_option, "Set the RGB range", "RANGE" },
++  { NULL }
++};
++
++typedef struct
++{
++  gboolean modes;
++  gboolean properties;
++} ShowParseData;
++
++static gboolean parse_show_option (const char  *option_name,
++                                   const char  *value,
++                                   gpointer     user_data,
++                                   GError     **error);
++
++static const GOptionEntry show_options[] = {
++  { "modes", 'm', G_OPTION_FLAG_NO_ARG, G_OPTION_ARG_CALLBACK,
++    parse_show_option, "List available monitor modes", NULL },
++  { "properties", 'p', G_OPTION_FLAG_NO_ARG, G_OPTION_ARG_CALLBACK,
++    parse_show_option, "List properties", NULL },
++  { "verbose", 'v', G_OPTION_FLAG_NO_ARG, G_OPTION_ARG_CALLBACK,
++    parse_show_option, "Display all available information", NULL },
++  { NULL }
++};
++
++typedef struct
++{
++  PrefsArguments *args;
++  MonitorPrefs *monitor;
++} PrefsParseData;
++
++static gboolean parse_prefs_option (const char  *option_name,
++                                    const char  *value,
++                                    gpointer     user_data,
++                                    GError     **error);
++
++static const GOptionEntry prefs_options[] = {
++  { "monitor", 'M', 0, G_OPTION_ARG_CALLBACK,
++    parse_prefs_option, "Change monitor preferences", "CONNECTOR" },
++  { "backlight", 'b', 0, G_OPTION_ARG_CALLBACK,
++    parse_prefs_option, "Set the backlight value", "VALUE" },
++  { NULL }
++};
++
++static gboolean
++option_name_is (const char *option_name,
++                const char *long_name,
++                char        short_name)
++{
++  return g_str_equal (option_name, long_name) ||
++         (option_name[0] == '-' &&
++          option_name[1] == short_name &&
++          option_name[2] == '\0');
++}
++
++static gboolean
++parse_show_option (const char  *option_name,
++                   const char  *value,
++                   gpointer     user_data,
++                   GError     **error)
++{
++  ShowParseData *data = user_data;
++
++  if (option_name_is (option_name, "--modes", 'm'))
++    data->modes = TRUE;
++  else if (option_name_is (option_name, "--properties", 'p'))
++    data->properties = TRUE;
++  else if (option_name_is (option_name, "--verbose", 'v'))
++    data->modes = data->properties = TRUE;
++  else
++    g_assert_not_reached ();
++
++  return TRUE;
++}
++
++static gboolean
++parse_show_arguments (int         argc,
++                      char      **argv,
++                      gboolean   *modes,
++                      gboolean   *properties,
++                      GError    **error)
++{
++  g_autoptr (GOptionContext) context = NULL;
++  GOptionGroup *group;
++  ShowParseData data = {0};
++
++  context = g_option_context_new (NULL);
++  g_option_context_set_summary (context, "Show display configuration");
++  group = g_option_group_new ("show",
++                              "Show options",
++                              "Show display options",
++                              &data,
++                              NULL);
++  g_option_group_add_entries (group, show_options);
++  g_option_context_set_main_group (context, group);
++
++  if (!g_option_context_parse (context, &argc, &argv, error))
++    return FALSE;
++
++  if (argc > 1)
++    {
++      g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_UNKNOWN_OPTION,
++                   "Unknown argument %s", argv[1]);
++      return FALSE;
++    }
++
++  *modes = data.modes;
++  *properties = data.properties;
++  return TRUE;
++}
++
++static gboolean
++parse_set_option (const char  *option_name,
++                  const char  *value,
++                  gpointer     user_data,
++                  GError     **error)
++{
++  SetParseData *data = user_data;
++  SetArguments *args = data->args;
++
++  if (option_name_is (option_name, "--persistent", 'P') ||
++      option_name_is (option_name, "--verify", 'V') ||
++      option_name_is (option_name, "--verbose", 'v') ||
++      option_name_is (option_name, "--layout-mode", 'l'))
++    {
++      if (data->logical_monitor)
++        {
++          g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_FAILED,
++                       "%s must be passed in global scope", option_name);
++          return FALSE;
++        }
++
++      if (option_name_is (option_name, "--persistent", 'P'))
++        args->persistent = TRUE;
++      else if (option_name_is (option_name, "--verify", 'V'))
++        args->verify = TRUE;
++      else if (option_name_is (option_name, "--verbose", 'v'))
++        args->verbose = TRUE;
++      else
++        {
++          if (!parse_layout_mode (value, &args->layout_mode, error))
++            return FALSE;
++          args->has_layout_mode = TRUE;
++        }
++    }
++  else if (option_name_is (option_name, "--logical-monitor", 'L'))
++    {
++      data->logical_monitor = g_new0 (LogicalMonitorArguments, 1);
++      data->logical_monitor->monitors =
++        g_ptr_array_new_with_free_func (
++          (GDestroyNotify) monitor_arguments_free);
++      data->logical_monitor->transform = TRANSFORM_NORMAL;
++      g_ptr_array_add (args->logical_monitor_args, data->logical_monitor);
++      data->monitor = NULL;
++    }
++  else if (option_name_is (option_name, "--for-lease-monitor", 'e'))
++    {
++      g_ptr_array_add (args->monitor_lease_connectors, g_strdup (value));
++    }
++  else if (option_name_is (option_name, "--monitor", 'M'))
++    {
++      if (!data->logical_monitor)
++        goto no_logical_monitor;
++
++      data->monitor = g_new0 (MonitorArguments, 1);
++      data->monitor->connector = g_strdup (value);
++      data->monitor->color_mode = -1;
++      data->monitor->rgb_range = -1;
++      g_ptr_array_add (data->logical_monitor->monitors, data->monitor);
++    }
++  else if (option_name_is (option_name, "--mode", 'm') ||
++           option_name_is (option_name, "--color-mode", 'c') ||
++           option_name_is (option_name, "--rgb-range", 'r'))
++    {
++      if (!data->monitor)
++        {
++          g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_FAILED,
++                       "No current monitor for %s", option_name);
++          return FALSE;
++        }
++
++      if (option_name_is (option_name, "--mode", 'm'))
++        {
++          g_free (data->monitor->mode);
++          data->monitor->mode = g_strdup (value);
++        }
++      else if (option_name_is (option_name, "--color-mode", 'c'))
++        {
++          if (!parse_named_value (value,
++                                  color_mode_names,
++                                  G_N_ELEMENTS (color_mode_names),
++                                  &data->monitor->color_mode,
++                                  error))
++            return FALSE;
++        }
++      else if (!parse_named_value (value,
++                                   rgb_range_names,
++                                   G_N_ELEMENTS (rgb_range_names),
++                                   &data->monitor->rgb_range,
++                                   error))
++        {
++          return FALSE;
++        }
++    }
++  else
++    {
++      char **relative_position = NULL;
++
++      if (!data->logical_monitor)
++        goto no_logical_monitor;
++
++      if (option_name_is (option_name, "--primary", 'p'))
++        data->logical_monitor->is_primary = TRUE;
++      else if (option_name_is (option_name, "--scale", 's'))
++        {
++          if (!parse_double (value, &data->logical_monitor->scale, error))
++            return FALSE;
++        }
++      else if (option_name_is (option_name, "--transform", 't'))
++        {
++          if (!parse_transform (value,
++                                &data->logical_monitor->transform,
++                                error))
++            return FALSE;
++        }
++      else if (option_name_is (option_name, "--x", 'x'))
++        {
++          if (!parse_int (value, &data->logical_monitor->x, error))
++            return FALSE;
++          data->logical_monitor->has_x = TRUE;
++        }
++      else if (option_name_is (option_name, "--y", 'y'))
++        {
++          if (!parse_int (value, &data->logical_monitor->y, error))
++            return FALSE;
++          data->logical_monitor->has_y = TRUE;
++        }
++      else if (g_str_equal (option_name, "--right-of"))
++        relative_position = &data->logical_monitor->right_of;
++      else if (g_str_equal (option_name, "--left-of"))
++        relative_position = &data->logical_monitor->left_of;
++      else if (g_str_equal (option_name, "--above"))
++        relative_position = &data->logical_monitor->above;
++      else if (g_str_equal (option_name, "--below"))
++        relative_position = &data->logical_monitor->below;
++      else
++        g_assert_not_reached ();
++
++      if (relative_position)
++        {
++          g_free (*relative_position);
++          *relative_position = g_strdup (value);
++        }
++    }
++
++  return TRUE;
++
++no_logical_monitor:
++  g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_FAILED,
++               "No current logical monitor for %s", option_name);
++  return FALSE;
++}
++
++static gboolean
++parse_set_arguments (int            argc,
++                     char         **argv,
++                     SetArguments  *args,
++                     GError       **error)
++{
++  g_autoptr (GOptionContext) context = NULL;
++  GOptionGroup *global_group;
++  SetParseData data = {
++    .args = args,
++  };
++
++  args->logical_monitor_args =
++    g_ptr_array_new_with_free_func (
++      (GDestroyNotify) logical_monitor_arguments_free);
++  args->monitor_lease_connectors = g_ptr_array_new_with_free_func (g_free);
++
++  context = g_option_context_new (NULL);
++  g_option_context_set_summary (context, "Set display configuration");
++  g_option_context_set_description (
++    context,
++    "Logical monitor options apply after --logical-monitor; monitor options "
++    "apply after --monitor.");
++
++  global_group = g_option_group_new ("set",
++                                     "Options",
++                                     "Show all options",
++                                     &data,
++                                     NULL);
++  g_option_group_add_entries (global_group, set_global_options);
++  g_option_group_add_entries (global_group, set_logical_monitor_options);
++  g_option_group_add_entries (global_group, set_monitor_options);
++  g_option_context_set_main_group (context, global_group);
++
++  if (!g_option_context_parse (context, &argc, &argv, error))
++    return FALSE;
++
++  if (argc > 1)
++    {
++      g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_UNKNOWN_OPTION,
++                   "Unknown argument %s", argv[1]);
++      return FALSE;
++    }
++
++  return TRUE;
++}
++
++static gboolean
++resolve_set_arguments (MonitorsState  *state,
++                       SetArguments   *args,
++                       GError        **error)
++{
++  unsigned int i;
++
++  args->logical_monitors =
++    g_ptr_array_new_with_free_func ((GDestroyNotify) logical_monitor_free);
++  args->monitors_for_lease = g_ptr_array_new ();
++
++  for (i = 0; i < args->monitor_lease_connectors->len; i++)
++    {
++      const char *connector =
++        g_ptr_array_index (args->monitor_lease_connectors, i);
++      Monitor *monitor =
++        g_hash_table_lookup (state->monitors_by_connector, connector);
++
++      if (!monitor)
++        {
++          g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_BAD_VALUE,
++                       "Monitor %s not found", connector);
++          return FALSE;
++        }
++      g_ptr_array_add (args->monitors_for_lease, monitor);
++    }
++
++  for (i = 0; i < args->logical_monitor_args->len; i++)
++    {
++      LogicalMonitorArguments *logical_monitor_args =
++        g_ptr_array_index (args->logical_monitor_args, i);
++      LogicalMonitor *logical_monitor = g_new0 (LogicalMonitor, 1);
++      unsigned int j;
++
++      logical_monitor->monitors = g_ptr_array_new ();
++      logical_monitor->x = logical_monitor_args->x;
++      logical_monitor->y = logical_monitor_args->y;
++      logical_monitor->scale = logical_monitor_args->scale;
++      logical_monitor->transform = logical_monitor_args->transform;
++      logical_monitor->is_primary = logical_monitor_args->is_primary;
++      logical_monitor->has_x = logical_monitor_args->has_x;
++      logical_monitor->has_y = logical_monitor_args->has_y;
++      logical_monitor->right_of = g_strdup (logical_monitor_args->right_of);
++      logical_monitor->left_of = g_strdup (logical_monitor_args->left_of);
++      logical_monitor->above = g_strdup (logical_monitor_args->above);
++      logical_monitor->below = g_strdup (logical_monitor_args->below);
++      g_ptr_array_add (args->logical_monitors, logical_monitor);
++
++      for (j = 0; j < logical_monitor_args->monitors->len; j++)
++        {
++          MonitorArguments *monitor_args =
++            g_ptr_array_index (logical_monitor_args->monitors, j);
++          Monitor *monitor =
++            g_hash_table_lookup (state->monitors_by_connector,
++                                 monitor_args->connector);
++
++          if (!monitor)
++            {
++              g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_BAD_VALUE,
++                           "Monitor %s not found", monitor_args->connector);
++              return FALSE;
++            }
++
++          monitor->configured_mode = NULL;
++          if (monitor_args->mode)
++            {
++              monitor->configured_mode =
++                find_monitor_mode (monitor, monitor_args->mode);
++              if (!monitor->configured_mode)
++                {
++                  g_set_error (error,
++                               G_OPTION_ERROR,
++                               G_OPTION_ERROR_BAD_VALUE,
++                               "No mode %s available for %s",
++                               monitor_args->mode,
++                               monitor->connector);
++                  return FALSE;
++                }
++            }
++          monitor->color_mode = monitor_args->color_mode;
++          monitor->rgb_range = monitor_args->rgb_range;
++          g_ptr_array_add (logical_monitor->monitors, monitor);
++        }
++    }
++
++  return TRUE;
++}
++
++static gboolean
++find_closest_scale (MonitorMode  *mode,
++                    double        requested_scale,
++                    double       *scale,
++                    GError      **error)
++{
++  gboolean found = FALSE;
++  double best_distance = 0.0;
++  unsigned int i;
++
++  for (i = 0; i < mode->supported_scales->len; i++)
++    {
++      double supported_scale =
++        g_array_index (mode->supported_scales, double, i);
++      double distance = fabs (requested_scale - supported_scale);
++
++      if (distance > 0.1)
++        continue;
++      if (!found || distance < best_distance)
++        {
++          *scale = supported_scale;
++          best_distance = distance;
++          found = TRUE;
++        }
++    }
++
++  if (!found)
++    {
++      g_autofree char *scale_string = format_double (requested_scale);
++
++      g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_BAD_VALUE,
++                   "Scale %s not supported by mode", scale_string);
++      return FALSE;
++    }
++
++  return TRUE;
++}
++
++static gboolean
++prepare_logical_monitor (LogicalMonitor  *logical_monitor,
++                         GError         **error)
++{
++  MonitorMode *common_mode = NULL;
++  unsigned int i;
++
++  if (logical_monitor->monitors->len == 0)
++    {
++      g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_FAILED,
++                   "Logical monitor empty");
++      return FALSE;
++    }
++
++  for (i = 0; i < logical_monitor->monitors->len; i++)
++    {
++      Monitor *monitor = g_ptr_array_index (logical_monitor->monitors, i);
++      MonitorMode *mode = monitor->configured_mode;
++
++      if (!mode)
++        mode = monitor->preferred_mode;
++      if (!mode)
++        {
++          g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_FAILED,
++                       "No preferred mode available for %s",
++                       monitor->connector);
++          return FALSE;
++        }
++      monitor->configured_mode = mode;
++
++      if (!common_mode)
++        {
++          common_mode = mode;
++          if (logical_monitor->scale == 0.0)
++            logical_monitor->scale = mode->preferred_scale;
++          else if (!find_closest_scale (mode,
++                                        logical_monitor->scale,
++                                        &logical_monitor->scale,
++                                        error))
++            return FALSE;
++        }
++      else if (mode->width != common_mode->width ||
++               mode->height != common_mode->height)
++        {
++          g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_FAILED,
++                       "Different monitor resolutions within the same "
++                       "logical monitor");
++          return FALSE;
++        }
++    }
++
++  return TRUE;
++}
++
++static void
++get_logical_monitor_size (LogicalMonitor *logical_monitor,
++                          LayoutMode      layout_mode,
++                          int            *width,
++                          int            *height)
++{
++  Monitor *monitor = g_ptr_array_index (logical_monitor->monitors, 0);
++  MonitorMode *mode = monitor->configured_mode;
++
++  *width = mode->width;
++  *height = mode->height;
++  if (logical_monitor->transform == TRANSFORM_90 ||
++      logical_monitor->transform == TRANSFORM_270 ||
++      logical_monitor->transform == TRANSFORM_FLIPPED_90 ||
++      logical_monitor->transform == TRANSFORM_FLIPPED_270)
++    {
++      int tmp = *width;
++
++      *width = *height;
++      *height = tmp;
++    }
++  if (layout_mode == LAYOUT_MODE_LOGICAL)
++    {
++      *width = rint (*width / logical_monitor->scale);
++      *height = rint (*height / logical_monitor->scale);
++    }
++}
++
++static LogicalMonitor *
++lookup_logical_monitor (GHashTable  *monitor_mappings,
++                        const char  *connector,
++                        const char  *option,
++                        GError     **error)
++{
++  LogicalMonitor *logical_monitor =
++    g_hash_table_lookup (monitor_mappings, connector);
++
++  if (!logical_monitor)
++    {
++      g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_BAD_VALUE,
++                   "Invalid connector %s passed to %s", connector, option);
++      return NULL;
++    }
++  if (!logical_monitor->position_calculated)
++    {
++      g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_FAILED,
++                   "Logical monitor position configured before %s",
++                   connector);
++      return NULL;
++    }
++
++  return logical_monitor;
++}
++
++static gboolean
++calculate_logical_monitor_position (LogicalMonitor  *logical_monitor,
++                                    LayoutMode       layout_mode,
++                                    GHashTable      *monitor_mappings,
++                                    PositionType    *position_types,
++                                    GError         **error)
++{
++  int horizontal_args;
++  int vertical_args;
++  int width;
++  int height;
++
++  horizontal_args = !!logical_monitor->right_of +
++                    !!logical_monitor->left_of +
++                    logical_monitor->has_x;
++  vertical_args = !!logical_monitor->above +
++                  !!logical_monitor->below +
++                  logical_monitor->has_y;
++  if (horizontal_args > 1)
++    {
++      g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_FAILED,
++                   "Multiple horizontal placement instructions used");
++      return FALSE;
++    }
++  if (vertical_args > 1)
++    {
++      g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_FAILED,
++                   "Multiple vertical placement instructions used");
++      return FALSE;
++    }
++
++  get_logical_monitor_size (logical_monitor, layout_mode, &width, &height);
++  if (logical_monitor->has_x)
++    {
++      if (vertical_args == 0)
++        logical_monitor->y = 0;
++      *position_types |= POSITION_ABSOLUTE_X;
++    }
++  else if (logical_monitor->right_of)
++    {
++      LogicalMonitor *other =
++        lookup_logical_monitor (monitor_mappings,
++                                logical_monitor->right_of,
++                                "--right-of",
++                                error);
++      int other_width;
++      int other_height;
++
++      if (!other)
++        return FALSE;
++      get_logical_monitor_size (other,
++                                layout_mode,
++                                &other_width,
++                                &other_height);
++      logical_monitor->x = other->x + other_width;
++      if (vertical_args == 0)
++        logical_monitor->y = other->y;
++      *position_types |= POSITION_RELATIVE_X;
++    }
++  else if (logical_monitor->left_of)
++    {
++      LogicalMonitor *other =
++        lookup_logical_monitor (monitor_mappings,
++                                logical_monitor->left_of,
++                                "--left-of",
++                                error);
++
++      if (!other)
++        return FALSE;
++      logical_monitor->x = other->x - width;
++      if (vertical_args == 0)
++        logical_monitor->y = other->y;
++      *position_types |= POSITION_RELATIVE_X;
++    }
++  else
++    {
++      logical_monitor->x = 0;
++    }
++
++  if (logical_monitor->has_y)
++    {
++      if (horizontal_args == 0)
++        logical_monitor->x = 0;
++      *position_types |= POSITION_ABSOLUTE_Y;
++    }
++  else if (logical_monitor->below)
++    {
++      LogicalMonitor *other =
++        lookup_logical_monitor (monitor_mappings,
++                                logical_monitor->below,
++                                "--below",
++                                error);
++      int other_width;
++      int other_height;
++
++      if (!other)
++        return FALSE;
++      get_logical_monitor_size (other,
++                                layout_mode,
++                                &other_width,
++                                &other_height);
++      logical_monitor->y = other->y + other_height;
++      if (horizontal_args == 0)
++        logical_monitor->x = other->x;
++      *position_types |= POSITION_RELATIVE_Y;
++    }
++  else if (logical_monitor->above)
++    {
++      LogicalMonitor *other =
++        lookup_logical_monitor (monitor_mappings,
++                                logical_monitor->above,
++                                "--above",
++                                error);
++
++      if (!other)
++        return FALSE;
++      logical_monitor->y = other->y - height;
++      if (horizontal_args == 0)
++        logical_monitor->x = other->x;
++      *position_types |= POSITION_RELATIVE_Y;
++    }
++  else if (vertical_args == 0)
++    {
++      logical_monitor->y = 0;
++    }
++
++  logical_monitor->position_calculated = TRUE;
++  return TRUE;
++}
++
++static gboolean
++calculate_positions (GPtrArray   *logical_monitors,
++                     LayoutMode   layout_mode,
++                     GHashTable  *monitor_mappings,
++                     GError     **error)
++{
++  PositionType position_types = POSITION_NONE;
++  unsigned int i;
++
++  for (i = 0; i < logical_monitors->len; i++)
++    {
++      LogicalMonitor *logical_monitor =
++        g_ptr_array_index (logical_monitors, i);
++
++      if (!calculate_logical_monitor_position (logical_monitor,
++                                               layout_mode,
++                                               monitor_mappings,
++                                               &position_types,
++                                               error))
++        return FALSE;
++    }
++
++  if (!(position_types & POSITION_ABSOLUTE_X) && logical_monitors->len > 0)
++    {
++      int min_x = G_MAXINT;
++
++      for (i = 0; i < logical_monitors->len; i++)
++        {
++          LogicalMonitor *logical_monitor =
++            g_ptr_array_index (logical_monitors, i);
++
++          min_x = MIN (min_x, logical_monitor->x);
++        }
++      for (i = 0; i < logical_monitors->len; i++)
++        {
++          LogicalMonitor *logical_monitor =
++            g_ptr_array_index (logical_monitors, i);
++
++          logical_monitor->x -= min_x;
++        }
++    }
++
++  if (!(position_types & POSITION_ABSOLUTE_Y) && logical_monitors->len > 0)
++    {
++      int min_y = G_MAXINT;
++
++      for (i = 0; i < logical_monitors->len; i++)
++        {
++          LogicalMonitor *logical_monitor =
++            g_ptr_array_index (logical_monitors, i);
++
++          min_y = MIN (min_y, logical_monitor->y);
++        }
++      for (i = 0; i < logical_monitors->len; i++)
++        {
++          LogicalMonitor *logical_monitor =
++            g_ptr_array_index (logical_monitors, i);
++
++          logical_monitor->y -= min_y;
++        }
++    }
++
++  return TRUE;
++}
++
++static Config *
++create_config (MonitorsState  *state,
++               SetArguments  *args,
++               GError       **error)
++{
++  g_autoptr (GHashTable) monitor_mappings =
++    g_hash_table_new (g_str_hash, g_str_equal);
++  Config *config;
++  unsigned int i;
++
++  config = g_new0 (Config, 1);
++  config->state = state;
++  config->layout_mode = args->has_layout_mode ?
++    args->layout_mode : state->layout_mode;
++  if (args->has_layout_mode && !state->supports_changing_layout_mode)
++    {
++      g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_FAILED,
++                   "Configuring layout mode not supported by the server");
++      goto fail;
++    }
++
++  config->logical_monitors = g_steal_pointer (&args->logical_monitors);
++  config->monitors_for_lease =
++    g_steal_pointer (&args->monitors_for_lease);
++  if (config->logical_monitors->len == 0)
++    {
++      g_set_error_literal (error,
++                           G_OPTION_ERROR,
++                           G_OPTION_ERROR_FAILED,
++                           "No logical monitors configured");
++      goto fail;
++    }
++
++  for (i = 0; i < config->logical_monitors->len; i++)
++    {
++      LogicalMonitor *logical_monitor =
++        g_ptr_array_index (config->logical_monitors, i);
++      unsigned int j;
++
++      if (!prepare_logical_monitor (logical_monitor, error))
++        goto fail;
++      for (j = 0; j < logical_monitor->monitors->len; j++)
++        {
++          Monitor *monitor = g_ptr_array_index (logical_monitor->monitors, j);
++
++          g_hash_table_insert (monitor_mappings,
++                               monitor->connector,
++                               logical_monitor);
++        }
++    }
++
++  if (!calculate_positions (config->logical_monitors,
++                            config->layout_mode,
++                            monitor_mappings,
++                            error))
++    goto fail;
++
++  return config;
++
++fail:
++  config_free (config);
++  return NULL;
++}
++
++static gboolean
++get_config_method (SetArguments  *args,
++                   ConfigMethod  *method,
++                   GError       **error)
++{
++  if (args->persistent && args->verify)
++    {
++      g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_FAILED,
++                   "Configuration can't be both persistent and verify-only");
++      return FALSE;
++    }
++  if (args->persistent)
++    *method = CONFIG_METHOD_PERSISTENT;
++  else if (args->verify)
++    *method = CONFIG_METHOD_VERIFY;
++  else
++    *method = CONFIG_METHOD_TEMPORARY;
++
++  return TRUE;
++}
++
++static void
++print_config (Config *config)
++{
++  g_autoptr (GArray) levels = g_array_new (FALSE, FALSE, sizeof (int));
++  g_autofree char *layout_mode =
++    g_strdup_printf ("Layout mode: %s",
++                     layout_mode_to_string (config->layout_mode));
++  g_autofree char *logical_monitors =
++    g_strdup_printf ("Logical monitors (%u)",
++                     config->logical_monitors->len);
++  g_autofree char *monitors_for_lease =
++    g_strdup_printf ("Monitors for lease (%u)",
++                     config->monitors_for_lease->len);
++  unsigned int i;
++
++  g_print ("Configuration:\n");
++  print_data (0, FALSE, levels, layout_mode);
++  print_data (0, FALSE, levels, logical_monitors);
++  for (i = 0; i < config->logical_monitors->len; i++)
++    {
++      LogicalMonitor *logical_monitor =
++        g_ptr_array_index (config->logical_monitors, i);
++      g_autofree char *title =
++        g_strdup_printf ("Logical monitor #%u", i + 1);
++      g_autofree char *position =
++        g_strdup_printf ("Position: (%d, %d)",
++                         logical_monitor->x,
++                         logical_monitor->y);
++      g_autofree char *scale_value = format_double (logical_monitor->scale);
++      g_autofree char *scale = g_strdup_printf ("Scale: %s", scale_value);
++      g_autofree char *transform =
++        g_strdup_printf ("Transform: %s",
++                         transform_names[logical_monitor->transform]);
++      g_autofree char *primary =
++        g_strdup_printf ("Primary: %s",
++                         logical_monitor->is_primary ? "yes" : "no");
++      g_autofree char *monitors =
++        g_strdup_printf ("Monitors: (%u)", logical_monitor->monitors->len);
++      unsigned int j;
++
++      print_data (1, i == config->logical_monitors->len - 1, levels, title);
++      print_data (2, FALSE, levels, position);
++      print_data (2, FALSE, levels, scale);
++      print_data (2, FALSE, levels, transform);
++      print_data (2, FALSE, levels, primary);
++      print_data (2, TRUE, levels, monitors);
++      for (j = 0; j < logical_monitor->monitors->len; j++)
++        {
++          Monitor *monitor = g_ptr_array_index (logical_monitor->monitors, j);
++          gboolean has_color_mode = monitor->color_mode >= 0;
++          gboolean has_rgb_range = monitor->rgb_range >= 0;
++          g_autofree char *monitor_title = format_monitor_title (monitor, TRUE);
++          g_autofree char *mode =
++            g_strdup_printf ("Mode: %s", monitor->configured_mode->id);
++
++          print_data (3,
++                      j == logical_monitor->monitors->len - 1,
++                      levels,
++                      monitor_title);
++          print_data (4,
++                      !has_color_mode && !has_rgb_range,
++                      levels,
++                      mode);
++          if (has_color_mode)
++            {
++              g_autofree char *line =
++                g_strdup_printf ("Color mode: %s",
++                                 color_mode_names[monitor->color_mode]);
++              print_data (4, !has_rgb_range, levels, line);
++            }
++          if (has_rgb_range)
++            {
++              g_autofree char *line =
++                g_strdup_printf ("RGB mode: %s",
++                                 rgb_range_names[monitor->rgb_range]);
++              print_data (4, TRUE, levels, line);
++            }
++        }
++    }
++
++  print_data (0, TRUE, levels, monitors_for_lease);
++  for (i = 0; i < config->monitors_for_lease->len; i++)
++    {
++      Monitor *monitor = g_ptr_array_index (config->monitors_for_lease, i);
++      g_autofree char *title = format_monitor_title (monitor, TRUE);
++
++      print_data (1,
++                  i == config->monitors_for_lease->len - 1,
++                  levels,
++                  title);
++    }
++}
++
++static GVariant *
++create_apply_parameters (Config       *config,
++                         ConfigMethod  method)
++{
++  GVariantBuilder logical_monitors;
++  GVariantBuilder properties;
++  unsigned int i;
++
++  g_variant_builder_init (&logical_monitors,
++                          G_VARIANT_TYPE ("a(iiduba(ssa{sv}))"));
++  for (i = 0; i < config->logical_monitors->len; i++)
++    {
++      LogicalMonitor *logical_monitor =
++        g_ptr_array_index (config->logical_monitors, i);
++      GVariantBuilder monitors;
++      unsigned int j;
++
++      g_variant_builder_init (&monitors, G_VARIANT_TYPE ("a(ssa{sv})"));
++      for (j = 0; j < logical_monitor->monitors->len; j++)
++        {
++          Monitor *monitor = g_ptr_array_index (logical_monitor->monitors, j);
++          GVariantBuilder monitor_properties;
++
++          g_variant_builder_init (&monitor_properties,
++                                  G_VARIANT_TYPE_VARDICT);
++          if (monitor->color_mode >= 0)
++            g_variant_builder_add (&monitor_properties,
++                                   "{sv}",
++                                   "color-mode",
++                                   g_variant_new_uint32 (monitor->color_mode));
++          if (monitor->rgb_range >= 0)
++            g_variant_builder_add (&monitor_properties,
++                                   "{sv}",
++                                   "rgb-range",
++                                   g_variant_new_uint32 (monitor->rgb_range));
++          g_variant_builder_add (&monitors,
++                                 "(ss@a{sv})",
++                                 monitor->connector,
++                                 monitor->configured_mode->id,
++                                 g_variant_builder_end (&monitor_properties));
++        }
++      g_variant_builder_add (&logical_monitors,
++                             "(iidub@a(ssa{sv}))",
++                             logical_monitor->x,
++                             logical_monitor->y,
++                             logical_monitor->scale,
++                             logical_monitor->transform,
++                             logical_monitor->is_primary,
++                             g_variant_builder_end (&monitors));
++    }
++
++  g_variant_builder_init (&properties, G_VARIANT_TYPE_VARDICT);
++  if (config->state->supports_changing_layout_mode)
++    g_variant_builder_add (&properties,
++                           "{sv}",
++                           "layout-mode",
++                           g_variant_new_uint32 (config->layout_mode));
++  if (config->monitors_for_lease->len > 0)
++    {
++      GVariantBuilder monitors_for_lease;
++
++      g_variant_builder_init (&monitors_for_lease,
++                              G_VARIANT_TYPE ("a(ssss)"));
++      for (i = 0; i < config->monitors_for_lease->len; i++)
++        {
++          Monitor *monitor = g_ptr_array_index (config->monitors_for_lease, i);
++
++          g_variant_builder_add (&monitors_for_lease,
++                                 "(ssss)",
++                                 monitor->connector,
++                                 monitor->vendor,
++                                 monitor->product,
++                                 monitor->serial);
++        }
++      g_variant_builder_add (&properties,
++                             "{sv}",
++                             "monitors-for-lease",
++                             g_variant_builder_end (&monitors_for_lease));
++    }
++
++  return g_variant_new ("(uu@a(iiduba(ssa{sv}))@a{sv})",
++                        config->state->serial,
++                        method,
++                        g_variant_builder_end (&logical_monitors),
++                        g_variant_builder_end (&properties));
++}
++
++static gboolean
++apply_config (Config        *config,
++              ConfigMethod   method,
++              GError       **error)
++{
++  g_autoptr (GVariant) parameters = NULL;
++  g_autoptr (GVariant) result = NULL;
++
++  parameters = g_variant_ref_sink (create_apply_parameters (config, method));
++  result = g_dbus_proxy_call_sync (config->state->proxy,
++                                   "ApplyMonitorsConfig",
++                                   parameters,
++                                   G_DBUS_CALL_FLAGS_NO_AUTO_START,
++                                   -1,
++                                   NULL,
++                                   error);
++
++  return result != NULL;
++}
++
++static gboolean
++set_backlight (MonitorsState  *state,
++               Monitor        *monitor,
++               int             value,
++               GError        **error)
++{
++  g_autoptr (GVariant) backlight = NULL;
++  g_autoptr (GVariant) result = NULL;
++  unsigned int serial = 0;
++
++  backlight = find_backlight (state, monitor, &serial);
++
++  result = g_dbus_proxy_call_sync (state->proxy,
++                                   "SetBacklight",
++                                   g_variant_new ("(usi)",
++                                                  serial,
++                                                  monitor->connector,
++                                                  value),
++                                   G_DBUS_CALL_FLAGS_NO_AUTO_START,
++                                   -1,
++                                   NULL,
++                                   error);
++  return result != NULL;
++}
++
++static gboolean
++parse_prefs_option (const char  *option_name,
++                    const char  *value,
++                    gpointer     user_data,
++                    GError     **error)
++{
++  PrefsParseData *data = user_data;
++
++  if (option_name_is (option_name, "--monitor", 'M'))
++    {
++      data->monitor = g_new0 (MonitorPrefs, 1);
++      data->monitor->connector = g_strdup (value);
++      g_ptr_array_add (data->args->monitors, data->monitor);
++    }
++  else if (option_name_is (option_name, "--backlight", 'b'))
++    {
++      if (!data->monitor)
++        {
++          g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_FAILED,
++                       "No current monitor for %s", option_name);
++          return FALSE;
++        }
++      if (!parse_double (value, &data->monitor->backlight, error))
++        return FALSE;
++      data->monitor->has_backlight = TRUE;
++    }
++  else
++    {
++      g_assert_not_reached ();
++    }
++
++  return TRUE;
++}
++
++static gboolean
++parse_prefs_arguments (int             argc,
++                       char          **argv,
++                       PrefsArguments *args,
++                       GError        **error)
++{
++  g_autoptr (GOptionContext) context = NULL;
++  GOptionGroup *group;
++  PrefsParseData data = {
++    .args = args,
++  };
++
++  args->monitors =
++    g_ptr_array_new_with_free_func ((GDestroyNotify) monitor_prefs_free);
++
++  context = g_option_context_new (NULL);
++  g_option_context_set_summary (context, "Set display preferences");
++  group = g_option_group_new ("prefs",
++                              "Preference options",
++                              "Show preference options",
++                              &data,
++                              NULL);
++  g_option_group_add_entries (group, prefs_options);
++  g_option_context_set_main_group (context, group);
++
++  if (!g_option_context_parse (context, &argc, &argv, error))
++    return FALSE;
++
++  if (argc > 1)
++    {
++      g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_UNKNOWN_OPTION,
++                   "Unknown argument %s", argv[1]);
++      return FALSE;
++    }
++
++  return TRUE;
++}
++
++static gboolean
++apply_prefs (MonitorsState  *state,
++             PrefsArguments *args,
++             GError        **error)
++{
++  unsigned int i;
++
++  for (i = 0; i < args->monitors->len; i++)
++    {
++      MonitorPrefs *monitor_prefs = g_ptr_array_index (args->monitors, i);
++      Monitor *monitor =
++        g_hash_table_lookup (state->monitors_by_connector,
++                             monitor_prefs->connector);
++
++      if (!monitor)
++        {
++          g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_BAD_VALUE,
++                       "Monitor with connector %s not found",
++                       monitor_prefs->connector);
++          return FALSE;
++        }
++      if (monitor_prefs->has_backlight &&
++          !set_backlight (state,
++                          monitor,
++                          round (monitor_prefs->backlight),
++                          error))
++        return FALSE;
++    }
++
++  return TRUE;
++}
++
++static void
++print_completion_values (const char * const *values,
++                          size_t              n_values)
++{
++  size_t i;
++
++  for (i = 0; i < n_values; i++)
++    {
++      if (values[i])
++        g_print ("%s\n", values[i]);
++    }
++}
++
++static void
++print_option_entry (const GOptionEntry *entry)
++{
++  if (entry->short_name)
++    g_print ("-%c\n", entry->short_name);
++  g_print ("--%s\n", entry->long_name);
++}
++
++static void
++print_option_entries (const GOptionEntry *entries)
++{
++  const GOptionEntry *entry;
++
++  for (entry = entries; entry->long_name; entry++)
++    print_option_entry (entry);
++}
++
++static const GOptionEntry *
++find_option_in_entries (const GOptionEntry *entries,
++                        const char         *long_name)
++{
++  const GOptionEntry *entry;
++
++  for (entry = entries; entry->long_name; entry++)
++    {
++      if (g_str_equal (entry->long_name, long_name))
++        return entry;
++    }
++
++  return NULL;
++}
++
++static const GOptionEntry *
++find_option_entry (const char *command,
++                   const char *option_name)
++{
++  const GOptionEntry *option_sets[3];
++  size_t n_option_sets;
++  size_t i;
++
++  if (g_str_equal (command, "show"))
++    {
++      option_sets[0] = show_options;
++      n_option_sets = 1;
++    }
++  else if (g_str_equal (command, "set"))
++    {
++      option_sets[0] = set_global_options;
++      option_sets[1] = set_logical_monitor_options;
++      option_sets[2] = set_monitor_options;
++      n_option_sets = 3;
++    }
++  else if (g_str_equal (command, "prefs"))
++    {
++      option_sets[0] = prefs_options;
++      n_option_sets = 1;
++    }
++  else
++    {
++      return NULL;
++    }
++
++  for (i = 0; i < n_option_sets; i++)
++    {
++      const GOptionEntry *entry;
++
++      for (entry = option_sets[i]; entry->long_name; entry++)
++        {
++          if ((g_str_has_prefix (option_name, "--") &&
++               g_str_equal (option_name + 2, entry->long_name)) ||
++              (entry->short_name &&
++               option_name[0] == '-' &&
++               option_name[1] == entry->short_name &&
++               option_name[2] == '\0'))
++            return entry;
++        }
++    }
++
++  return NULL;
++}
++
++static int
++complete_option_names (int    argc,
++                       char **argv)
++{
++  const char *command = argc > 0 ? argv[0] : "";
++  const char *scope = argc > 1 ? argv[1] : "global";
++
++  if (*command)
++    g_print ("-h\n--help\n");
++
++  if (g_str_equal (command, "show"))
++    print_option_entries (show_options);
++  else if (g_str_equal (command, "prefs"))
++    {
++      print_option_entry (find_option_in_entries (prefs_options, "monitor"));
++      if (g_str_equal (scope, "monitor"))
++        print_option_entry (find_option_in_entries (prefs_options,
++                                                    "backlight"));
++    }
++  else if (g_str_equal (command, "set"))
++    {
++      if (g_str_equal (scope, "global"))
++        print_option_entries (set_global_options);
++      else
++        {
++          print_option_entry (find_option_in_entries (set_global_options,
++                                                      "logical-monitor"));
++          print_option_entry (find_option_in_entries (set_global_options,
++                                                      "for-lease-monitor"));
++          print_option_entries (set_logical_monitor_options);
++          if (g_str_equal (scope, "monitor"))
++            print_option_entries (set_monitor_options);
++        }
++    }
++  else
++    {
++      const char *commands[] = { "show", "set", "prefs" };
++
++      print_completion_values (commands, G_N_ELEMENTS (commands));
++    }
++
++  return EXIT_SUCCESS;
++}
++
++static int run_completion (int    argc,
++                           char **argv);
++
++static int
++complete_option_value (int    argc,
++                       char **argv)
++{
++  const GOptionEntry *entry;
++  const char *completion;
++  char *completion_argv[3];
++  int completion_argc;
++
++  if (argc < 2)
++    return EXIT_FAILURE;
++
++  entry = find_option_entry (argv[0], argv[1]);
++  if (!entry || !entry->arg_description)
++    return EXIT_FAILURE;
++
++  if (g_str_equal (entry->long_name, "monitor") ||
++      g_str_equal (entry->long_name, "for-lease-monitor") ||
++      g_str_equal (entry->long_name, "right-of") ||
++      g_str_equal (entry->long_name, "left-of") ||
++      g_str_equal (entry->long_name, "above") ||
++      g_str_equal (entry->long_name, "below"))
++    completion = "monitors";
++  else if (g_str_equal (entry->long_name, "layout-mode"))
++    completion = "layout-modes";
++  else if (g_str_equal (entry->long_name, "mode"))
++    completion = "modes";
++  else if (g_str_equal (entry->long_name, "scale"))
++    completion = "scales";
++  else if (g_str_equal (entry->long_name, "transform"))
++    completion = "transforms";
++  else if (g_str_equal (entry->long_name, "color-mode"))
++    completion = "color-modes";
++  else if (g_str_equal (entry->long_name, "rgb-range"))
++    completion = "rgb-ranges";
++  else
++    return EXIT_SUCCESS;
++
++  completion_argv[0] = (char *) completion;
++  completion_argc = 1;
++  if ((g_str_equal (completion, "modes") ||
++       g_str_equal (completion, "scales")) && argc > 2)
++    completion_argv[completion_argc++] = argv[2];
++  if (g_str_equal (completion, "scales") && argc > 3 && argv[3][0])
++    completion_argv[completion_argc++] = argv[3];
++
++  return run_completion (completion_argc, completion_argv);
++}
++
++typedef struct
++{
++  double value;
++  unsigned int order;
++} CompletionScale;
++
++static int
++compare_completion_scales (gconstpointer a,
++                           gconstpointer b,
++                           gpointer      user_data)
++{
++  const CompletionScale *scale_a = a;
++  const CompletionScale *scale_b = b;
++  double preferred_scale = *(double *) user_data;
++  double distance_a = fabs (scale_a->value - preferred_scale);
++  double distance_b = fabs (scale_b->value - preferred_scale);
++
++  if (distance_a < distance_b)
++    return -1;
++  if (distance_a > distance_b)
++    return 1;
++
++  return (scale_a->order > scale_b->order) -
++         (scale_a->order < scale_b->order);
++}
++
++static int
++run_completion (int    argc,
++                char **argv)
++{
++  g_autoptr (MonitorsState) state = NULL;
++  g_autoptr (GError) error = NULL;
++
++  if (argc < 1)
++    return EXIT_SUCCESS;
++
++  if (g_str_equal (argv[0], "options"))
++    return complete_option_names (argc - 1, argv + 1);
++  if (g_str_equal (argv[0], "value"))
++    return complete_option_value (argc - 1, argv + 1);
++
++  if (g_str_equal (argv[0], "layout-modes"))
++    {
++      const char *values[] = { "logical", "physical" };
++
++      print_completion_values (values, G_N_ELEMENTS (values));
++      return EXIT_SUCCESS;
++    }
++  if (g_str_equal (argv[0], "transforms"))
++    {
++      print_completion_values (transform_names,
++                               G_N_ELEMENTS (transform_names));
++      return EXIT_SUCCESS;
++    }
++  if (g_str_equal (argv[0], "color-modes"))
++    {
++      print_completion_values (color_mode_names,
++                               G_N_ELEMENTS (color_mode_names));
++      return EXIT_SUCCESS;
++    }
++  if (g_str_equal (argv[0], "rgb-ranges"))
++    {
++      print_completion_values (rgb_range_names,
++                               G_N_ELEMENTS (rgb_range_names));
++      return EXIT_SUCCESS;
++    }
++
++  state = monitors_state_new (&error);
++  if (!state)
++    return EXIT_SUCCESS;
++
++  if (g_str_equal (argv[0], "monitors"))
++    {
++      unsigned int i;
++
++      for (i = 0; i < state->monitors->len; i++)
++        {
++          Monitor *monitor = g_ptr_array_index (state->monitors, i);
++
++          g_print ("%s\n", monitor->connector);
++        }
++    }
++  else if (g_str_equal (argv[0], "modes") && argc >= 2)
++    {
++      Monitor *monitor =
++        g_hash_table_lookup (state->monitors_by_connector, argv[1]);
++      unsigned int i;
++
++      if (!monitor)
++        return EXIT_SUCCESS;
++      for (i = 0; i < monitor->modes->len; i++)
++        {
++          MonitorMode *mode = g_ptr_array_index (monitor->modes, i);
++
++          g_print ("%s\n", mode->id);
++        }
++    }
++  else if (g_str_equal (argv[0], "scales") && argc >= 2)
++    {
++      Monitor *monitor =
++        g_hash_table_lookup (state->monitors_by_connector, argv[1]);
++      MonitorMode *mode;
++      g_autoptr (GArray) sorted_scales = NULL;
++      unsigned int i;
++
++      if (!monitor)
++        return EXIT_SUCCESS;
++      if (argc >= 3)
++        mode = find_monitor_mode (monitor, argv[2]);
++      else
++        mode = monitor->preferred_mode;
++      if (!mode)
++        return EXIT_SUCCESS;
++
++      sorted_scales = g_array_sized_new (FALSE,
++                                         FALSE,
++                                         sizeof (CompletionScale),
++                                         mode->supported_scales->len);
++      for (i = 0; i < mode->supported_scales->len; i++)
++        {
++          CompletionScale completion_scale = {
++            .value = g_array_index (mode->supported_scales, double, i),
++            .order = i,
++          };
++
++          g_array_append_val (sorted_scales, completion_scale);
++        }
++      g_array_sort_with_data (sorted_scales,
++                              compare_completion_scales,
++                              &mode->preferred_scale);
++      for (i = 0; i < sorted_scales->len; i++)
++        {
++          CompletionScale *completion_scale =
++            &g_array_index (sorted_scales, CompletionScale, i);
++          g_autofree char *scale_string =
++            format_double (completion_scale->value);
++
++          g_print ("%s\n", scale_string);
++        }
++    }
++
++  return EXIT_SUCCESS;
++}
++
++static void
++strip_remote_error (GError *error)
++{
++  if (error && g_dbus_error_is_remote_error (error))
++    g_dbus_error_strip_remote_error (error);
++}
++
++static void
++print_main_help (void)
++{
++  g_print ("Usage: gdctl COMMAND [OPTIONS]\n\n"
++           "Display control utility\n\n"
++           "Commands:\n"
++           "  show    Show display configuration\n"
++           "  set     Set display configuration\n"
++           "  prefs   Set display preferences\n");
++}
++
++static int
++report_argument_error (const char *command,
++                       GError     *error)
++{
++  g_printerr ("gdctl%s%s: error: %s\n",
++              command ? " " : "",
++              command ? command : "",
++              error->message);
++  return 2;
++}
++
++int
++main (int    argc,
++      char **argv)
++{
++  g_autoptr (MonitorsState) state = NULL;
++  g_autoptr (GError) error = NULL;
++  g_auto (SetArguments) set_args = {0};
++  g_auto (PrefsArguments) prefs_args = {0};
++  g_autoptr (Config) config = NULL;
++  const char *command = NULL;
++  gboolean show_modes = FALSE;
++  gboolean show_properties = FALSE;
++  ConfigMethod method;
++
++  if (!setlocale (LC_ALL, ""))
++    g_warning ("Locale not understood by C library");
++
++  if (argc < 2)
++    {
++      g_set_error_literal (&error,
++                           G_OPTION_ERROR,
++                           G_OPTION_ERROR_BAD_VALUE,
++                           "the following argument is required: COMMAND");
++      return report_argument_error (NULL, error);
++    }
++
++  command = argv[1];
++  if (g_str_equal (command, "-h") || g_str_equal (command, "--help"))
++    {
++      print_main_help ();
++      return EXIT_SUCCESS;
++    }
++  if (g_str_equal (command, "complete"))
++    return run_completion (argc - 2, argv + 2);
++
++  if (!g_str_equal (command, "show") &&
++      !g_str_equal (command, "set") &&
++      !g_str_equal (command, "prefs"))
++    {
++      g_set_error (&error,
++                   G_OPTION_ERROR,
++                   G_OPTION_ERROR_BAD_VALUE,
++                   "argument COMMAND: invalid choice: '%s'",
++                   command);
++      return report_argument_error (NULL, error);
++    }
++
++  {
++    g_autofree char *program_name = g_strdup_printf ("gdctl %s", command);
++
++    g_set_prgname (program_name);
++
++    if (g_str_equal (command, "show"))
++      {
++        if (!parse_show_arguments (argc - 1,
++                                   argv + 1,
++                                   &show_modes,
++                                   &show_properties,
++                                   &error))
++          return report_argument_error (command, error);
++      }
++    else if (g_str_equal (command, "set"))
++      {
++        if (!parse_set_arguments (argc - 1,
++                                  argv + 1,
++                                  &set_args,
++                                  &error))
++          return report_argument_error (command, error);
++      }
++    else
++      {
++        if (!parse_prefs_arguments (argc - 1,
++                                    argv + 1,
++                                    &prefs_args,
++                                    &error))
++          return report_argument_error (command, error);
++      }
++  }
++
++  state = monitors_state_new (&error);
++  if (!state)
++    {
++      strip_remote_error (error);
++      g_printerr ("Failed to retrieve current state: %s\n", error->message);
++      return EXIT_FAILURE;
++    }
++
++  if (g_str_equal (command, "show"))
++    {
++      print_current_state (state, show_modes, show_properties);
++      return EXIT_SUCCESS;
++    }
++  else if (g_str_equal (command, "set"))
++    {
++      if (!resolve_set_arguments (state, &set_args, &error))
++        goto create_config_error;
++      config = create_config (state, &set_args, &error);
++      if (!config)
++        goto create_config_error;
++      if (!get_config_method (&set_args, &method, &error))
++        goto create_config_error;
++      if (set_args.verbose)
++        print_config (config);
++      if (!apply_config (config, method, &error))
++        {
++          strip_remote_error (error);
++          g_printerr ("Failed to apply configuration: %s\n", error->message);
++          return EXIT_FAILURE;
++        }
++      return EXIT_SUCCESS;
++
++create_config_error:
++      g_printerr ("Failed to create configuration: %s\n", error->message);
++      return EXIT_FAILURE;
++    }
++  else
++    {
++      if (!apply_prefs (state, &prefs_args, &error))
++        {
++          strip_remote_error (error);
++          g_printerr ("Failed to set preferences: %s\n", error->message);
++          return EXIT_FAILURE;
++        }
++      return EXIT_SUCCESS;
++    }
++}
+diff --git a/tools/meson.build b/tools/meson.build
+index 639e0cf..eca887b 100644
+--- a/tools/meson.build
++++ b/tools/meson.build
+@@ -1,5 +1,15 @@
+-install_data(
++gdctl = executable(
+   'gdctl',
++  'gdctl.c',
++  dependencies: [
++    gio_dep,
++    m_dep,
++  ],
++  include_directories: top_includepath,
++  c_args: [
++    '-DG_LOG_DOMAIN="gdctl"',
++  ],
++  install: true,
+   install_dir: bindir,
+ )
+ 
+@@ -8,33 +18,20 @@ install_data(
+   install_dir: bindir,
+ )
+ 
+-if have_bash_completion
+-  bash_completion = dependency('bash-completion', required: false)
+-  if bash_completion.found()
+-    bash_completion_dir = bash_completion.get_variable(
+-      pkgconfig: 'completionsdir',
+-      pkgconfig_define: ['datadir', datadir],
+-    )
+-  else
+-    bash_completion_dir = get_option('sysconfdir') / 'bash_completion.d'
+-  endif
+-
+-  register_python_argcomplete = find_program('register-python-argcomplete')
+-
+-  custom_target(
+-    'gdctl-bash-completion',
+-    output: 'gdctl',
+-    command: [
+-      register_python_argcomplete,
+-      'gdctl',
+-      '--complete-arguments',
+-      '-o nosort',
+-    ],
+-    capture: true,
+-    install_dir: bash_completion_dir,
+-    install: true,
++bash_completion = dependency('bash-completion', required: false)
++if bash_completion.found()
++  bash_completion_dir = bash_completion.get_variable(
++    pkgconfig: 'completionsdir',
++    pkgconfig_define: ['datadir', datadir],
+   )
++else
++  bash_completion_dir = get_option('sysconfdir') / 'bash_completion.d'
+ endif
+ 
+-gdctl = find_program('gdctl')
++install_data(
++  'gdctl-bash-completion',
++  rename: 'gdctl',
++  install_dir: bash_completion_dir,
++)
++
+ get_state_tool = find_program('get-state.py')
+-- 
+2.54.0
+
