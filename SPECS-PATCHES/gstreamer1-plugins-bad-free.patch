@@ -1,0 +1,60 @@
+diff --git OLD/gstreamer1-plugins-bad-free.spec NEW/gstreamer1-plugins-bad-free.spec
+index e10c92f..98e5dfd 100644
+--- OLD/gstreamer1-plugins-bad-free.spec
++++ NEW/gstreamer1-plugins-bad-free.spec
+@@ -57,6 +57,7 @@ Source:         https://gstreamer.freedesktop.org/src/gst-plugins-bad/gst-plugin
+ 
+ # https://gitlab.freedesktop.org/gstreamer/gstreamer/-/merge_requests/5622
+ Patch0:          openh264-add-license-file.patch
++Patch1:          gstreamer1-plugins-bad-move-play-to-base.patch
+ 
+ BuildRequires:  meson >= 0.48.0
+ BuildRequires:  gcc-c++
+@@ -795,7 +796,6 @@ EOF
+ %{_libdir}/libgstisoff-%{majorminor}.so.0{,.*}
+ %{_libdir}/libgstmpegts-%{majorminor}.so.0{,.*}
+ %{_libdir}/libgstmse-%{majorminor}.so.0{,.*}
+-%{_libdir}/libgstplay-%{majorminor}.so.0{,.*}
+ %{_libdir}/libgstplayer-%{majorminor}.so.0{,.*}
+ %{_libdir}/libgstphotography-%{majorminor}.so.0{,.*}
+ %{_libdir}/libgstsctp-%{majorminor}.so.0{,.*}
+@@ -821,7 +821,6 @@ EOF
+ %{_libdir}/girepository-1.0/GstInsertBin-1.0.typelib
+ %{_libdir}/girepository-1.0/GstMpegts-1.0.typelib
+ %{_libdir}/girepository-1.0/GstMse-1.0.typelib
+-%{_libdir}/girepository-1.0/GstPlay-1.0.typelib
+ %{_libdir}/girepository-1.0/GstPlayer-1.0.typelib
+ %{_libdir}/girepository-1.0/GstTranscoder-1.0.typelib
+ %{_libdir}/girepository-1.0/GstVa-1.0.typelib
+@@ -847,7 +846,6 @@ EOF
+ %{_datadir}/gir-1.0/GstInsertBin-%{majorminor}.gir
+ %{_datadir}/gir-1.0/GstMpegts-%{majorminor}.gir
+ %{_datadir}/gir-1.0/GstMse-%{majorminor}.gir
+-%{_datadir}/gir-1.0/GstPlay-%{majorminor}.gir
+ %{_datadir}/gir-1.0/GstPlayer-%{majorminor}.gir
+ %{_datadir}/gir-1.0/GstTranscoder-%{majorminor}.gir
+ %{_datadir}/gir-1.0/GstVa-%{majorminor}.gir
+@@ -868,7 +866,6 @@ EOF
+ %{_libdir}/libgstisoff-%{majorminor}.so
+ %{_libdir}/libgstmpegts-%{majorminor}.so
+ %{_libdir}/libgstmse-%{majorminor}.so
+-%{_libdir}/libgstplay-%{majorminor}.so
+ %{_libdir}/libgstplayer-%{majorminor}.so
+ %{_libdir}/libgstphotography-%{majorminor}.so
+ %{_libdir}/libgstsctp-%{majorminor}.so
+@@ -893,7 +890,6 @@ EOF
+ %{_includedir}/gstreamer-%{majorminor}/gst/isoff/
+ %{_includedir}/gstreamer-%{majorminor}/gst/mpegts
+ %{_includedir}/gstreamer-%{majorminor}/gst/mse/
+-%{_includedir}/gstreamer-%{majorminor}/gst/play
+ %{_includedir}/gstreamer-%{majorminor}/gst/player
+ %{_includedir}/gstreamer-%{majorminor}/gst/sctp
+ %{_includedir}/gstreamer-%{majorminor}/gst/transcoder
+@@ -914,7 +910,6 @@ EOF
+ %{_libdir}/pkgconfig/gstreamer-mpegts-%{majorminor}.pc
+ %{_libdir}/pkgconfig/gstreamer-mse-%{majorminor}.pc
+ %{_libdir}/pkgconfig/gstreamer-photography-%{majorminor}.pc
+-%{_libdir}/pkgconfig/gstreamer-play-%{majorminor}.pc
+ %{_libdir}/pkgconfig/gstreamer-player-%{majorminor}.pc
+ %{_libdir}/pkgconfig/gstreamer-plugins-bad-%{majorminor}.pc
+ %{_libdir}/pkgconfig/gstreamer-sctp-%{majorminor}.pc
