@@ -1,5 +1,5 @@
 diff --git OLD/gstreamer1-plugins-base.spec NEW/gstreamer1-plugins-base.spec
-index eafca42..b8cc808 100644
+index 22f27f8..5b5c023 100644
 --- OLD/gstreamer1-plugins-base.spec
 +++ NEW/gstreamer1-plugins-base.spec
 @@ -1,5 +1,6 @@
@@ -11,6 +11,24 @@ index eafca42..b8cc808 100644
  
  %global         majorminor      1.0
  
+@@ -22,6 +23,7 @@ Source0:        gst-plugins-base-%{version}.tar.xz
+ Source0:        http://gstreamer.freedesktop.org/src/gst-plugins-base/gst-plugins-base-%{version}.tar.xz
+ %endif
+ Patch0:         0001-missing-plugins-Remove-the-mpegaudioversion-field.patch
++Patch1:         gstreamer1-plugins-base-add-play.patch
+ 
+ BuildRequires:  meson >= 0.48.0
+ BuildRequires:  gcc
+@@ -122,8 +124,7 @@ for the GStreamer Base Plugins library.
+ 
+ 
+ %prep
+-%setup -q -n gst-plugins-base-%{version}
+-%patch -P 0 -p1
++%autosetup -n gst-plugins-base-%{version} -p1
+ 
+ %build
+ %meson \
 @@ -149,8 +150,8 @@ for the GStreamer Base Plugins library.
  #
  # See http://www.freedesktop.org/software/appstream/docs/ for more details.
@@ -18,7 +36,7 @@ index eafca42..b8cc808 100644
 -mkdir -p $RPM_BUILD_ROOT%{_datadir}/appdata
 -cat > $RPM_BUILD_ROOT%{_datadir}/appdata/gstreamer-base.appdata.xml <<EOF
 +mkdir -p $RPM_BUILD_ROOT%{_datadir}/metainfo
-+cat > $RPM_BUILD_ROOT%{_datadir}/metainfo/gstreamer-base.appdata.xml <<EOF
++cat > $RPM_BUILD_ROOT%{_datadir}/metainfo/gstreamer-base.metainfo.xml <<EOF
  <?xml version="1.0" encoding="UTF-8"?>
  <!-- Copyright 2013 Richard Hughes <richard@hughsie.com> -->
  <component type="codec">
@@ -27,7 +45,47 @@ index eafca42..b8cc808 100644
  %license COPYING
  %doc README.md README.static-linking RELEASE
 -%{_datadir}/appdata/*.appdata.xml
-+%{_datadir}/metainfo/*.appdata.xml
++%{_datadir}/metainfo/*.metainfo.xml
  %{_libdir}/libgstallocators-%{majorminor}.so.*
  %{_libdir}/libgstaudio-%{majorminor}.so.*
  %{_libdir}/libgstfft-%{majorminor}.so.*
+@@ -243,6 +244,7 @@ chrpath --delete $RPM_BUILD_ROOT%{_bindir}/gst-play-1.0
+ %{_libdir}/libgstrtp-%{majorminor}.so.*
+ %{_libdir}/libgstvideo-%{majorminor}.so.*
+ %{_libdir}/libgstpbutils-%{majorminor}.so.*
++%{_libdir}/libgstplay-%{majorminor}.so.*
+ %{_libdir}/libgstrtsp-%{majorminor}.so.*
+ %{_libdir}/libgstsdp-%{majorminor}.so.*
+ %{_libdir}/libgstapp-%{majorminor}.so.*
+@@ -254,6 +256,7 @@ chrpath --delete $RPM_BUILD_ROOT%{_bindir}/gst-play-1.0
+ %{_libdir}/girepository-1.0/GstAudio-%{majorminor}.typelib
+ %{_libdir}/girepository-1.0/GstGL-%{majorminor}.typelib
+ %{_libdir}/girepository-1.0/GstPbutils-%{majorminor}.typelib
++%{_libdir}/girepository-1.0/GstPlay-%{majorminor}.typelib
+ %{_libdir}/girepository-1.0/GstRtp-%{majorminor}.typelib
+ %{_libdir}/girepository-1.0/GstRtsp-%{majorminor}.typelib
+ %{_libdir}/girepository-1.0/GstSdp-%{majorminor}.typelib
+@@ -382,6 +385,7 @@ chrpath --delete $RPM_BUILD_ROOT%{_bindir}/gst-play-1.0
+ %{_includedir}/gstreamer-%{majorminor}/gst/pbutils/pbutils-enumtypes.h
+ %{_includedir}/gstreamer-%{majorminor}/gst/pbutils/pbutils.h
+ %{_includedir}/gstreamer-%{majorminor}/gst/pbutils/pbutils-prelude.h
++%{_includedir}/gstreamer-%{majorminor}/gst/play
+ %dir %{_includedir}/gstreamer-%{majorminor}/gst/riff
+ %{_includedir}/gstreamer-%{majorminor}/gst/riff/riff.h
+ %{_includedir}/gstreamer-%{majorminor}/gst/riff/riff-prelude.h
+@@ -474,6 +478,7 @@ chrpath --delete $RPM_BUILD_ROOT%{_bindir}/gst-play-1.0
+ %{_libdir}/libgsttag-%{majorminor}.so
+ %{_libdir}/libgstvideo-%{majorminor}.so
+ %{_libdir}/libgstpbutils-%{majorminor}.so
++%{_libdir}/libgstplay-%{majorminor}.so
+ %{_libdir}/libgstrtsp-%{majorminor}.so
+ %{_libdir}/libgstsdp-%{majorminor}.so
+ %{_libdir}/libgstfft-%{majorminor}.so
+@@ -488,6 +493,7 @@ chrpath --delete $RPM_BUILD_ROOT%{_bindir}/gst-play-1.0
+ %{_datadir}/gir-1.0/GstAudio-%{majorminor}.gir
+ %{_datadir}/gir-1.0/GstGL-%{majorminor}.gir
+ %{_datadir}/gir-1.0/GstPbutils-%{majorminor}.gir
++%{_datadir}/gir-1.0/GstPlay-%{majorminor}.gir
+ %{_datadir}/gir-1.0/GstRtp-%{majorminor}.gir
+ %{_datadir}/gir-1.0/GstRtsp-%{majorminor}.gir
+ %{_datadir}/gir-1.0/GstSdp-%{majorminor}.gir
