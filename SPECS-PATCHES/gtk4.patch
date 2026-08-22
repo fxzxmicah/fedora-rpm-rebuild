@@ -1,0 +1,21 @@
+diff --git OLD/gtk4.spec NEW/gtk4.spec
+index c5096b6..17e2b90 100644
+--- OLD/gtk4.spec
++++ NEW/gtk4.spec
+@@ -96,7 +96,7 @@ BuildRequires:  pkgconfig(gdk-pixbuf-2.0) >= %{gdk_pixbuf_version}
+ BuildRequires:  pkgconfig(glib-2.0) >= %{glib2_version}
+ BuildRequires:  pkgconfig(gobject-introspection-1.0)
+ BuildRequires:  pkgconfig(graphene-gobject-1.0)
+-BuildRequires:  pkgconfig(gstreamer-player-1.0) >= %{gstreamer_version}
++BuildRequires:  pkgconfig(gstreamer-play-1.0) >= %{gstreamer_version}
+ BuildRequires:  pkgconfig(harfbuzz) >= %{harfbuzz_version}
+ BuildRequires:  pkgconfig(json-glib-1.0)
+ BuildRequires:  pkgconfig(libjpeg)
+@@ -137,7 +137,6 @@ Requires: cairo-gobject%{?_isa} >= %{cairo_version}
+ Requires: glib2%{?_isa} >= %{glib2_version}
+ Requires: harfbuzz%{?_isa} >= %{harfbuzz_version}
+ Requires: libepoxy%{?_isa} >= %{epoxy_version}
+-Requires: gstreamer1-plugins-bad-free-libs%{?_isa} >= %{gstreamer_version}
+ Requires: libwayland-client%{?_isa} >= %{wayland_version}
+ Requires: libwayland-cursor%{?_isa} >= %{wayland_version}
+ Requires: pango%{?_isa} >= %{pango_version}
