@@ -1,0 +1,189 @@
+diff --git a/src/Microsoft365/camel/camel-m365-transport.c b/src/Microsoft365/camel/camel-m365-transport.c
+index 2d8d9f0..711fcd8 100644
+--- a/src/Microsoft365/camel/camel-m365-transport.c
++++ b/src/Microsoft365/camel/camel-m365-transport.c
+@@ -114,6 +114,35 @@ m365_transport_is_server_side_sent_folder (CamelService *service,
+ 	return is_server_side;
+ }
+ 
++static gchar *
++m365_transport_dup_account_address (CamelService *service)
++{
++	CamelSettings *settings;
++	gchar *account_address = NULL;
++
++	g_return_val_if_fail (CAMEL_IS_M365_TRANSPORT (service), NULL);
++
++	settings = camel_service_ref_settings (service);
++
++	if (CAMEL_IS_M365_SETTINGS (settings)) {
++		CamelM365Settings *m365_settings = CAMEL_M365_SETTINGS (settings);
++
++		if (camel_m365_settings_get_use_impersonation (m365_settings)) {
++			account_address = camel_m365_settings_dup_impersonate_user (m365_settings);
++
++			if (account_address && !*account_address)
++				g_clear_pointer (&account_address, g_free);
++		}
++
++		if (!account_address)
++			account_address = camel_network_settings_dup_user (CAMEL_NETWORK_SETTINGS (settings));
++	}
++
++	g_clear_object (&settings);
++
++	return account_address;
++}
++
+ static EM365Connection *
+ m365_transport_ref_connection (CamelM365Transport *m365_transport)
+ {
+@@ -253,6 +282,78 @@ m365_transport_get_name (CamelService *service,
+ 	return name;
+ }
+ 
++static gboolean
++m365_transport_send_json_sync (EM365Connection *cnc,
++				CamelMimeMessage *message,
++				CamelAddress *from,
++				CamelAddress *recipients,
++				gboolean save_to_sent_items,
++				GCancellable *cancellable,
++				GError **error)
++{
++	JsonBuilder *builder;
++	gboolean success;
++
++	builder = json_builder_new_immutable ();
++	e_m365_json_begin_object_member (builder, NULL);
++	e_m365_json_begin_object_member (builder, "message");
++
++	success = camel_m365_utils_fill_message_object_sync (builder, message, NULL, from, recipients, TRUE, NULL, cancellable, error);
++
++	e_m365_json_end_object_member (builder); /* message */
++
++	if (!save_to_sent_items)
++		e_m365_json_add_boolean_member (builder, "saveToSentItems", FALSE);
++
++	e_m365_json_end_object_member (builder);
++
++	if (success)
++		success = e_m365_connection_send_mail_sync (cnc, NULL, builder, cancellable, error);
++
++	g_object_unref (builder);
++
++	return success;
++}
++
++static gboolean
++m365_transport_send_mime_sync (EM365Connection *cnc,
++				CamelMimeMessage *message,
++				GCancellable *cancellable,
++				GError **error)
++{
++	CamelStream *mem_stream;
++	gboolean success;
++
++	/* The server re-encodes the HTML messages into base64, but as of 2024-07-11 they do not
++	   decode quoted-printable encoding properly, thus re-encode to base64 instead.
++	   The multipart/signed messages are not affected, luckily (it would break the signature anyway). */
++	if (!e_m365_connection_util_reencode_parts_to_base64_sync (CAMEL_MIME_PART (message), cancellable, error)) {
++		g_prefix_error (error, "%s", _("Failed to re-encode parts to base64: "));
++		return FALSE;
++	}
++
++	mem_stream = camel_stream_mem_new ();
++
++	success = camel_data_wrapper_write_to_stream_sync (CAMEL_DATA_WRAPPER (message), mem_stream, cancellable, error) >= 0 &&
++		camel_stream_flush (mem_stream, cancellable, error) != -1;
++
++	if (success) {
++		GByteArray *mime_data;
++		gchar *base64_data;
++
++		mime_data = camel_stream_mem_get_byte_array (CAMEL_STREAM_MEM (mem_stream));
++		base64_data = g_base64_encode (mime_data->data, mime_data->len);
++
++		success = e_m365_connection_send_mail_mime_sync (cnc, NULL, base64_data, strlen (base64_data), cancellable, error);
++
++		g_free (base64_data);
++	}
++
++	g_object_unref (mem_stream);
++
++	return success;
++}
++
+ static gboolean
+ m365_send_to_sync (CamelTransport *transport,
+ 		   CamelMimeMessage *message,
+@@ -264,8 +365,9 @@ m365_send_to_sync (CamelTransport *transport,
+ {
+ 	CamelInternetAddress *use_from;
+ 	CamelService *service;
+-	CamelStream *mem_stream;
+ 	EM365Connection *cnc;
++	gchar *account_address = NULL;
++	const gchar *used_email = NULL;
+ 	gboolean is_server_side_sent;
+ 	gboolean success = FALSE;
+ 
+@@ -289,9 +391,7 @@ m365_send_to_sync (CamelTransport *transport,
+ 		return FALSE;
+ 
+ 	} else {
+-		const gchar *used_email = NULL;
+-
+-		if (!camel_internet_address_get (use_from, 0, NULL, &used_email)) {
++		if (!camel_internet_address_get (use_from, 0, NULL, &used_email) || !used_email || !*used_email) {
+ 			g_set_error_literal (
+ 				error, CAMEL_ERROR, CAMEL_ERROR_GENERIC,
+ 				_("Failed to read From address"));
+@@ -308,38 +408,21 @@ m365_send_to_sync (CamelTransport *transport,
+ 		return FALSE;
+ 	}
+ 
+-	/* The server re-encodes the HTML messages into base64, but as of 2024-07-11 they do not
+-	   decode quoted-printable encoding properly, thus re-encode to base64 instead.
+-	   The multipart/signed messages are not affected, luckily (it would break the signature anyway). */
+-	if (!e_m365_connection_util_reencode_parts_to_base64_sync (CAMEL_MIME_PART (message), cancellable, error)) {
+-		g_prefix_error (error, "%s", _("Failed to re-encode parts to base64: "));
+-		g_object_unref (cnc);
+-		return FALSE;
+-	}
+-
+ 	is_server_side_sent = m365_transport_is_server_side_sent_folder (service, cancellable);
++	account_address = m365_transport_dup_account_address (service);
+ 
+ 	if (is_server_side_sent && out_sent_message_saved)
+ 		*out_sent_message_saved = TRUE;
+ 
+-	mem_stream = camel_stream_mem_new ();
+-
+-	success = camel_data_wrapper_write_to_stream_sync (CAMEL_DATA_WRAPPER (message), mem_stream, cancellable, error) >= 0 &&
+-		camel_stream_flush (mem_stream, cancellable, error) != -1;
+-
+-	if (success) {
+-		GByteArray *mime_data;
+-		gchar *base64_data;
+-
+-		mime_data = camel_stream_mem_get_byte_array (CAMEL_STREAM_MEM (mem_stream));
+-		base64_data = g_base64_encode (mime_data->data, mime_data->len);
+-
+-		success = e_m365_connection_send_mail_mime_sync (cnc, NULL, base64_data, strlen (base64_data), cancellable, error);
+-
+-		g_free (base64_data);
+-	}
++	/* MIME submission preserves the complete message, but the server does not honor an
++	   alternate From address there.  The JSON form carries From as a mailMessage property,
++	   which is required for aliases and other Send As identities. */
++	if (!account_address || !*account_address || g_ascii_strcasecmp (account_address, used_email) == 0)
++		success = m365_transport_send_mime_sync (cnc, message, cancellable, error);
++	else
++		success = m365_transport_send_json_sync (cnc, message, CAMEL_ADDRESS (use_from), recipients, is_server_side_sent, cancellable, error);
+ 
+-	g_clear_object (&mem_stream);
++	g_free (account_address);
+ 	g_object_unref (cnc);
+ 
+ 	return success;
