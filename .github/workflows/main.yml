@@ -24,7 +24,7 @@ jobs:
     - name: Install Dependencies
       run: |
         rm /etc/yum.repos.d/fedora-cisco-openh264.repo
-        dnf install -y git-core rpmdevtools copr-cli
+        dnf install -y git-core rpmdevtools python3-copr
 
     - name: Checkout Code
       uses: actions/checkout@v4
@@ -95,12 +95,285 @@ jobs:
           echo "failure=${failure[@]}" >> ${GITHUB_ENV}
         fi
 
+    - name: Export API
+      if: env.success
+      run: echo "${{ secrets.COPR_API }}" > copr-api
+
     - name: Upload Copr
       if: env.success
       run: |
-        echo "${{ secrets.COPR_API }}" > copr-api
-        . /etc/os-release
-        copr-cli --config copr-api build --nowait --timeout 86400 --chroot ${ID}-${VERSION_ID}-$(uname -m) $(echo ${GITHUB_REPOSITORY} | cut -d "-" -f 2-) SRPMS/*.src.rpm
+        from collections import defaultdict
+        from pathlib import Path
+        from copr.v3 import Client
+        import platform
+        import re
+        import subprocess
+
+
+        RICH_DEP_WORDS = {
+            "and", "else", "if", "or", "unless", "with", "without",
+        }
+        CAPABILITY_RE = re.compile(
+            r"/?[A-Za-z_][A-Za-z0-9_+./:-]*(?:\([^()\s]+\))*"
+        )
+        HOUR = 60 * 60
+        DEFAULT_TIMEOUT = 24 * HOUR
+        TIMEOUT_MARGIN = 2 * HOUR
+
+
+        def query_lines(*args):
+            return {
+                line.strip()
+                for line in subprocess.check_output(args, text=True).splitlines()
+                if line.strip()
+            }
+
+
+        def capabilities(expression):
+            """Extract capability names from simple and rich RPM dependencies."""
+            expression = expression.strip()
+            if not expression:
+                return set()
+            if not expression.startswith("("):
+                return {expression.split()[0]}
+            return {
+                token
+                for token in CAPABILITY_RE.findall(expression)
+                if token.lower() not in RICH_DEP_WORDS
+                and not token.startswith("rpmlib(")
+            }
+
+
+        def queried_capabilities(*args):
+            result = set()
+            for expression in query_lines(*args):
+                result.update(capabilities(expression))
+            return result
+
+
+        def repository_sources(expressions):
+            """Resolve dependencies recursively through repository RPM data."""
+            selectors = set()
+            for expression in expressions:
+                if not expression or expression.startswith("rpmlib("):
+                    continue
+                if expression.startswith("("):
+                    selectors.update(capabilities(expression))
+                else:
+                    selectors.add(expression)
+            if not selectors:
+                return set()
+
+            return query_lines(
+                "dnf", "--quiet", "repoquery",
+                "--providers-of=requires", "--recursive",
+                "--qf", "%{source_name}\\n",
+                f"--whatprovides={','.join(sorted(selectors))}",
+            )
+
+
+        def package_metadata(srpm):
+            source_name = subprocess.check_output(
+                ("rpm", "-qp", "--qf", "%{NAME}\\n", str(srpm)),
+                text=True,
+            ).strip()
+            if not source_name:
+                raise RuntimeError(f"Cannot determine source package name: {srpm}")
+
+            spec = Path("SPECS") / f"{source_name}.spec"
+            if not spec.is_file():
+                raise RuntimeError(f"Spec file not found for {source_name}: {spec}")
+
+            # BuildRequires become regular Requires in the source RPM.
+            requirements = query_lines(
+                "rpm", "-qp", "--requires", str(srpm)
+            )
+
+            # rpmspec evaluates the spec through RPM; this is not textual spec
+            # parsing.  These are the explicit Requires of all binary outputs.
+            requirements.update(
+                query_lines(
+                    "rpmspec", "-q", "--builtrpms", "--requires", str(spec)
+                )
+            )
+
+            providers = {source_name}
+            providers.update(
+                query_lines(
+                    "rpmspec", "-q", "--builtrpms", "--qf", "%{NAME}\\n",
+                    str(spec),
+                )
+            )
+            providers.update(
+                queried_capabilities(
+                    "rpmspec", "-q", "--builtrpms", "--provides", str(spec)
+                )
+            )
+            return source_name, requirements, providers
+
+
+        def build_batches(requirements, providers, repository_dependencies):
+            capability_owners = defaultdict(set)
+            for package, provided in providers.items():
+                for capability in provided:
+                    capability_owners[capability].add(package)
+
+            selected = set(providers)
+            dependencies = {package: set() for package in selected}
+            for package, required in requirements.items():
+                for expression in required:
+                    for capability in capabilities(expression):
+                        dependencies[package].update(
+                            capability_owners.get(capability, set())
+                        )
+                dependencies[package].update(
+                    repository_dependencies[package] & selected
+                )
+                dependencies[package].discard(package)
+
+            remaining = {
+                package: set(deps) for package, deps in dependencies.items()
+            }
+            batches = []
+            while remaining:
+                batch = sorted(
+                    package for package, deps in remaining.items() if not deps
+                )
+                if not batch:
+                    cycle = "; ".join(
+                        f"{package} -> {', '.join(sorted(deps))}"
+                        for package, deps in sorted(remaining.items())
+                    )
+                    raise RuntimeError(
+                        f"Dependency cycle among selected packages: {cycle}"
+                    )
+
+                batches.append(batch)
+                completed = set(batch)
+                remaining = {
+                    package: deps - completed
+                    for package, deps in remaining.items()
+                    if package not in completed
+                }
+
+            return batches, dependencies
+
+
+        def build_timeout(client, owner, project, package):
+            longest = None
+            builds = client.build_proxy.get_list(owner, project, package)
+            for build in builds:
+                try:
+                    started = int(build.get("started_on"))
+                    ended = int(build.get("ended_on"))
+                except (TypeError, ValueError):
+                    continue
+                if ended >= started:
+                    longest = max(longest or 0, ended - started)
+
+            if longest is None:
+                print(
+                    f"Build timeout: {package}: {DEFAULT_TIMEOUT // HOUR}h "
+                    "(no completed history)"
+                )
+                return DEFAULT_TIMEOUT
+
+            timeout = longest + TIMEOUT_MARGIN
+            print(
+                f"Build timeout: {package}: {timeout}s "
+                f"(longest historical runtime {longest}s "
+                f"+ {TIMEOUT_MARGIN // HOUR}h)"
+            )
+            return timeout
+
+
+        def submit_batches(
+            client, owner, project, chroot, batches, srpms, timeouts
+        ):
+            previous_batch_id = None
+            for number, batch in enumerate(batches, start=1):
+                print(f"Copr batch {number}: {', '.join(batch)}")
+                current_batch_id = None
+                for package in batch:
+                    buildopts = {
+                        "chroots": [chroot],
+                        "timeout": timeouts[package],
+                    }
+                    if current_batch_id is not None:
+                        buildopts["with_build_id"] = current_batch_id
+                    elif previous_batch_id is not None:
+                        buildopts["after_build_id"] = previous_batch_id
+
+                    build = client.build_proxy.create_from_file(
+                        ownername=owner,
+                        projectname=project,
+                        path=str(srpms[package]),
+                        buildopts=buildopts,
+                    )
+                    print(f"Submitted {package} as build {build.id}")
+                    if current_batch_id is None:
+                        current_batch_id = build.id
+
+                previous_batch_id = current_batch_id
+
+
+        def repository_info(client):
+            repository = "${{ github.repository }}".split("/", 1)[1]
+            parts = repository.split("-")
+            project = "-".join(parts[1:])
+            os_release = platform.freedesktop_os_release()
+            chroot = "-".join(
+                (os_release["ID"], os_release["VERSION_ID"], platform.machine())
+            )
+            return client.config["username"], project, chroot
+
+
+        def main():
+            srpms = {}
+            requirements = {}
+            providers = {}
+            for srpm in sorted(Path("SRPMS").glob("*.src.rpm")):
+                source_name, required, provided = package_metadata(srpm)
+                if source_name in srpms:
+                    raise RuntimeError(
+                        f"Multiple SRPMs for source package {source_name}"
+                    )
+                srpms[source_name] = srpm
+                requirements[source_name] = required
+                providers[source_name] = provided
+
+            if not srpms:
+                raise RuntimeError("No SRPMs found")
+
+            # Resolve every direct dependency recursively against repository
+            # RPM metadata, then project that closure back onto the selected
+            # source packages.  Therefore pkg -> meson -> gcc still creates
+            # pkg -> gcc when meson itself is not selected for this run.
+            repository_dependencies = {
+                package: repository_sources(required)
+                for package, required in requirements.items()
+            }
+
+            batches, dependencies = build_batches(
+                requirements, providers, repository_dependencies
+            )
+            for package in sorted(dependencies):
+                deps = ", ".join(sorted(dependencies[package])) or "none"
+                print(f"Internal dependencies: {package}: {deps}")
+
+            client = Client.create_from_config_file("copr-api")
+            owner, project, chroot = repository_info(client)
+            timeouts = {
+                package: build_timeout(client, owner, project, package)
+                for package in srpms
+            }
+            submit_batches(
+                client, owner, project, chroot, batches, srpms, timeouts
+            )
+
+
+        main()
+      shell: python
 
     - name: Open Issue
       if: env.failure
