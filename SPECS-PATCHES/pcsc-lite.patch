@@ -1,0 +1,12 @@
+diff --git OLD/pcsc-lite.spec NEW/pcsc-lite.spec
+index 09ef90d..46b6e21 100644
+--- OLD/pcsc-lite.spec
++++ NEW/pcsc-lite.spec
+@@ -41,7 +41,6 @@ Requires:       %{name}-libs = %{version}-%{release}
+ %if %{with_polkit}
+ Requires:       polkit
+ %endif
+-Requires:       python3
+ Recommends:     pcsc-lite-ccid
+ # This is bundled in upstream without simple way to remove
+ Provides:       bundled(simclist) = 1.6

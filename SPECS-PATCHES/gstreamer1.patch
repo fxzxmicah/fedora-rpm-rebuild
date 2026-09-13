@@ -1,8 +1,8 @@
 diff --git OLD/gstreamer1.spec NEW/gstreamer1.spec
-index 7d784ba..717cdd2 100644
+index ea924e8..0f6cfe6 100644
 --- OLD/gstreamer1.spec
 +++ NEW/gstreamer1.spec
-@@ -66,12 +66,21 @@ types or processing capabilities can be added simply by installing new
+@@ -62,12 +62,21 @@ types or processing capabilities can be added simply by installing new
  plugins.
  
  
@@ -24,7 +24,16 @@ index 7d784ba..717cdd2 100644
  # file /usr/include/gstreamer-1.0/gst/base/gstaggregator.h conflicts between attempted installs of gstreamer1-plugins-bad-free-devel-1.12.4-3.fc28.x86_64 and gstreamer1-devel-1.13.1-1.fc29.x86_64
  Conflicts:      gstreamer1-plugins-bad-free-devel < 1.13
  
-@@ -149,9 +158,6 @@ install -m0644 -D %{SOURCE2} $RPM_BUILD_ROOT%{_rpmconfigdir}/fileattrs/gstreamer
+@@ -124,8 +133,6 @@ install -m0644 -D %{SOURCE2} $RPM_BUILD_ROOT%{_rpmconfigdir}/fileattrs/gstreamer
+ 
+ %dir %{_libexecdir}/gstreamer-%{majorminor}/
+ %{_libexecdir}/gstreamer-%{majorminor}/gst-completion-helper
+-%{_libexecdir}/gstreamer-%{majorminor}/gst-hotdoc-plugins-scanner
+-%{_libexecdir}/gstreamer-%{majorminor}/gst-plugins-doc-cache-generator
+ %{_libexecdir}/gstreamer-%{majorminor}/gst-plugin-scanner
+ %attr(755,root,root) %caps(cap_net_bind_service,cap_net_admin,cap_sys_nice=ep) %{_libexecdir}/gstreamer-%{majorminor}/gst-ptp-helper
+ #%%{_libexecdir}/gstreamer-%%{majorminor}/gst-ptp-helper-test
+@@ -145,9 +152,6 @@ install -m0644 -D %{SOURCE2} $RPM_BUILD_ROOT%{_rpmconfigdir}/fileattrs/gstreamer
  %{_bindir}/gst-stats-%{majorminor}
  %{_bindir}/gst-typefind-%{majorminor}
  
@@ -34,7 +43,7 @@ index 7d784ba..717cdd2 100644
  %doc %{_mandir}/man1/gst-inspect-%{majorminor}.*
  %doc %{_mandir}/man1/gst-launch-%{majorminor}.*
  %doc %{_mandir}/man1/gst-stats-%{majorminor}.*
-@@ -161,6 +167,10 @@ install -m0644 -D %{SOURCE2} $RPM_BUILD_ROOT%{_rpmconfigdir}/fileattrs/gstreamer
+@@ -157,6 +161,10 @@ install -m0644 -D %{SOURCE2} $RPM_BUILD_ROOT%{_rpmconfigdir}/fileattrs/gstreamer
  %{_datadir}/bash-completion/completions/gst-launch-1.0
  %{_datadir}/bash-completion/helpers/gst
  
@@ -45,3 +54,13 @@ index 7d784ba..717cdd2 100644
  %files devel
  %dir %{_includedir}/gstreamer-%{majorminor}
  %dir %{_includedir}/gstreamer-%{majorminor}/gst
+@@ -170,6 +178,9 @@ install -m0644 -D %{SOURCE2} $RPM_BUILD_ROOT%{_rpmconfigdir}/fileattrs/gstreamer
+ %{_includedir}/gstreamer-%{majorminor}/gst/controller/*.h
+ %{_includedir}/gstreamer-%{majorminor}/gst/net/*.h
+ 
++%{_libexecdir}/gstreamer-%{majorminor}/gst-hotdoc-plugins-scanner
++%{_libexecdir}/gstreamer-%{majorminor}/gst-plugins-doc-cache-generator
++
+ %{_libdir}/libgstreamer-%{majorminor}.so
+ %{_libdir}/libgstbase-%{majorminor}.so
+ %{_libdir}/libgstcheck-%{majorminor}.so
