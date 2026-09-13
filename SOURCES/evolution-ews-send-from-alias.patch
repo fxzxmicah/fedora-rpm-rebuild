@@ -1,5 +1,14 @@
+From 61ce3f34e65686e99df6d5b2d664b2fb55019b7c Mon Sep 17 00:00:00 2001
+From: Fxzx micah <48860358+fxzxmicah@users.noreply.github.com>
+Date: Mon, 24 Aug 2026 20:36:13 +0800
+Subject: [PATCH] M365: Honor alternate From identities when sending
+
+---
+ src/Microsoft365/camel/camel-m365-transport.c | 146 ++++++++++++++----
+ 1 file changed, 116 insertions(+), 30 deletions(-)
+
 diff --git a/src/Microsoft365/camel/camel-m365-transport.c b/src/Microsoft365/camel/camel-m365-transport.c
-index 2d8d9f0..711fcd8 100644
+index 2d8d9f0..adaba86 100644
 --- a/src/Microsoft365/camel/camel-m365-transport.c
 +++ b/src/Microsoft365/camel/camel-m365-transport.c
 @@ -114,6 +114,35 @@ m365_transport_is_server_side_sent_folder (CamelService *service,
@@ -38,7 +47,7 @@ index 2d8d9f0..711fcd8 100644
  static EM365Connection *
  m365_transport_ref_connection (CamelM365Transport *m365_transport)
  {
-@@ -253,6 +282,78 @@ m365_transport_get_name (CamelService *service,
+@@ -253,6 +282,81 @@ m365_transport_get_name (CamelService *service,
  	return name;
  }
  
@@ -52,13 +61,16 @@ index 2d8d9f0..711fcd8 100644
 +				GError **error)
 +{
 +	JsonBuilder *builder;
++	CamelMessageInfo *info;
 +	gboolean success;
 +
 +	builder = json_builder_new_immutable ();
 +	e_m365_json_begin_object_member (builder, NULL);
 +	e_m365_json_begin_object_member (builder, "message");
 +
-+	success = camel_m365_utils_fill_message_object_sync (builder, message, NULL, from, recipients, TRUE, NULL, cancellable, error);
++	info = camel_message_info_new_from_message (NULL, message);
++	success = camel_m365_utils_fill_message_object_sync (builder, message, info, from, recipients, TRUE, NULL, cancellable, error);
++	g_clear_object (&info);
 +
 +	e_m365_json_end_object_member (builder); /* message */
 +
@@ -117,7 +129,7 @@ index 2d8d9f0..711fcd8 100644
  static gboolean
  m365_send_to_sync (CamelTransport *transport,
  		   CamelMimeMessage *message,
-@@ -264,8 +365,9 @@ m365_send_to_sync (CamelTransport *transport,
+@@ -264,8 +368,9 @@ m365_send_to_sync (CamelTransport *transport,
  {
  	CamelInternetAddress *use_from;
  	CamelService *service;
@@ -128,7 +140,7 @@ index 2d8d9f0..711fcd8 100644
  	gboolean is_server_side_sent;
  	gboolean success = FALSE;
  
-@@ -289,9 +391,7 @@ m365_send_to_sync (CamelTransport *transport,
+@@ -289,9 +394,7 @@ m365_send_to_sync (CamelTransport *transport,
  		return FALSE;
  
  	} else {
@@ -139,7 +151,7 @@ index 2d8d9f0..711fcd8 100644
  			g_set_error_literal (
  				error, CAMEL_ERROR, CAMEL_ERROR_GENERIC,
  				_("Failed to read From address"));
-@@ -308,38 +408,21 @@ m365_send_to_sync (CamelTransport *transport,
+@@ -308,38 +411,21 @@ m365_send_to_sync (CamelTransport *transport,
  		return FALSE;
  	}
  
