@@ -1,0 +1,429 @@
+From e934b4460b41aa22790e3d41f6296f6519b20683 Mon Sep 17 00:00:00 2001
+From: Fxzx micah <48860358+fxzxmicah@users.noreply.github.com>
+Date: Sat, 19 Sep 2026 21:16:42 +0800
+Subject: [PATCH] switcherooctl: Replace Python client with native
+ implementation
+
+---
+ src/meson.build     |  17 +-
+ src/switcherooctl.c | 383 ++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 388 insertions(+), 12 deletions(-)
+ create mode 100644 src/switcherooctl.c
+
+diff --git a/src/meson.build b/src/meson.build
+index 22d69e7..4427715 100644
+--- a/src/meson.build
++++ b/src/meson.build
+@@ -21,18 +21,11 @@ executable('switcheroo-control',
+   install_dir: libexecdir,
+ )
+ 
+-python = import('python')
+-py_installation = python.find_installation('python3', required: true)
+-
+-switcherooctl_conf = configuration_data()
+-switcherooctl_conf.set('VERSION', meson.project_version())
+-switcherooctl_conf.set('PYTHON3', py_installation.path())
+-
+-configure_file(
+-  input: 'switcherooctl.in',
+-  output: 'switcherooctl',
+-  configuration: switcherooctl_conf,
+-  install_dir: get_option('bindir')
++executable('switcherooctl',
++  'switcherooctl.c',
++  dependencies: [glib, gio],
++  c_args: ['-DSWITCHEROO_CONTROL_VERSION="@0@"'.format(meson.project_version())],
++  install: true,
+ )
+ 
+ subdir('discrete-detection')
+diff --git a/src/switcherooctl.c b/src/switcherooctl.c
+new file mode 100644
+index 0000000..9b5b3d2
+--- /dev/null
++++ b/src/switcherooctl.c
+@@ -0,0 +1,383 @@
++/* SPDX-License-Identifier: GPL-3.0-or-later */
++
++#include <errno.h>
++#include <gio/gio.h>
++#include <glib.h>
++#include <string.h>
++#include <unistd.h>
++
++#define CONTROL_PROXY_DBUS_NAME "net.hadess.SwitcherooControl"
++#define CONTROL_PROXY_DBUS_PATH "/net/hadess/SwitcherooControl"
++#define CONTROL_PROXY_IFACE_NAME CONTROL_PROXY_DBUS_NAME
++#define DBUS_PROPERTIES_INTERFACE "org.freedesktop.DBus.Properties"
++
++typedef struct
++{
++  char *name;
++  gboolean is_default;
++  gboolean is_discrete;
++  char **environment;
++} Gpu;
++
++static void
++gpu_free (Gpu *gpu)
++{
++  g_free (gpu->name);
++  g_strfreev (gpu->environment);
++  g_free (gpu);
++}
++
++static Gpu *
++gpu_new_from_variant (GVariant *properties, GError **error)
++{
++  g_autoptr(GVariant) environment = NULL;
++  Gpu *gpu = g_new0 (Gpu, 1);
++
++  if (!g_variant_lookup (properties, "Name", "s", &gpu->name) ||
++      !g_variant_lookup (properties, "Default", "b", &gpu->is_default) ||
++      !g_variant_lookup (properties, "Discrete", "b", &gpu->is_discrete))
++    goto invalid;
++  environment = g_variant_lookup_value (properties, "Environment",
++                                         G_VARIANT_TYPE_STRING_ARRAY);
++  if (environment == NULL)
++    goto invalid;
++  gpu->environment = g_variant_dup_strv (environment, NULL);
++  if (g_strv_length (gpu->environment) % 2 != 0)
++    goto invalid;
++  return gpu;
++
++invalid:
++  g_set_error_literal (error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA,
++                       "switcheroo-control returned malformed GPU data");
++  gpu_free (gpu);
++  return NULL;
++}
++
++static void
++usage_main (void)
++{
++  g_print ("Usage:\n"
++           "  switcherooctl COMMAND [ARGS…]\n\n"
++           "Commands:\n"
++           "  help     Print help\n"
++           "  version  Print version\n"
++           "  list     List the known GPUs\n"
++           "  launch   Launch a command on a specific GPU\n\n"
++           "Use “switcherooctl help COMMAND” to get detailed help.\n");
++}
++
++static void
++usage_version (void)
++{
++  g_print ("Usage:\n  switcherooctl version\n\n"
++           "Print version information and exit.\n");
++}
++
++static void
++usage_list (void)
++{
++  g_print ("Usage:\n  switcherooctl list\n\nList the known GPUs.\n");
++}
++
++static void
++usage_launch (void)
++{
++  g_print ("Usage:\n  switcherooctl launch COMMAND [ARG…]\n\n"
++           "Launch a command on a specific GPU.\n\n"
++           "Options:\n"
++           "  -g, --gpu=GPU-ID                The GPU to launch on\n\n"
++           "The default GPU to launch on will be the first non-default discrete\n"
++           "GPU, or the default GPU if there is no discrete GPU. Identifiers can\n"
++           "be found using the list command.\n");
++}
++
++static void
++usage (const char *command)
++{
++  if (g_strcmp0 (command, "list") == 0)
++    usage_list ();
++  else if (g_strcmp0 (command, "launch") == 0)
++    usage_launch ();
++  else if (g_strcmp0 (command, "version") == 0)
++    usage_version ();
++  else
++    usage_main ();
++}
++
++static GPtrArray *
++get_gpus (GError **error)
++{
++  g_autoptr(GDBusConnection) bus = NULL;
++  g_autoptr(GVariant) reply = NULL;
++  g_autoptr(GVariant) boxed = NULL;
++  g_autoptr(GVariant) array = NULL;
++  GVariantIter iter;
++  GVariant *properties;
++  GPtrArray *gpus;
++  guint default_index = 0;
++  gboolean found_default = FALSE;
++
++  bus = g_bus_get_sync (G_BUS_TYPE_SYSTEM, NULL, error);
++  if (bus == NULL)
++    return NULL;
++
++  reply = g_dbus_connection_call_sync (bus,
++                                       CONTROL_PROXY_DBUS_NAME,
++                                       CONTROL_PROXY_DBUS_PATH,
++                                       DBUS_PROPERTIES_INTERFACE, "Get",
++                                       g_variant_new ("(ss)", CONTROL_PROXY_IFACE_NAME, "GPUs"),
++                                       G_VARIANT_TYPE ("(v)"),
++                                       G_DBUS_CALL_FLAGS_NONE, -1, NULL, error);
++  if (reply == NULL)
++    return NULL;
++
++  g_variant_get (reply, "(@v)", &boxed);
++  array = g_variant_get_variant (boxed);
++  if (!g_variant_is_of_type (array, G_VARIANT_TYPE ("aa{sv}")))
++    {
++      g_set_error_literal (error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA,
++                           "switcheroo-control returned an invalid GPUs property");
++      return NULL;
++    }
++  gpus = g_ptr_array_new_with_free_func ((GDestroyNotify) gpu_free);
++  g_variant_iter_init (&iter, array);
++  while ((properties = g_variant_iter_next_value (&iter)) != NULL)
++    {
++      Gpu *gpu = gpu_new_from_variant (properties, error);
++
++      if (gpu == NULL)
++        {
++          g_variant_unref (properties);
++          g_ptr_array_unref (gpus);
++          return NULL;
++        }
++
++      if (!found_default && gpu->is_default)
++        {
++          default_index = gpus->len;
++          found_default = TRUE;
++        }
++      g_ptr_array_add (gpus, gpu);
++      g_variant_unref (properties);
++    }
++
++  if (gpus->len > 0 && default_index > 0)
++    {
++      gpointer default_gpu = gpus->pdata[default_index];
++      memmove (&gpus->pdata[1], &gpus->pdata[0],
++               default_index * sizeof (gpointer));
++      gpus->pdata[0] = default_gpu;
++    }
++
++  return gpus;
++}
++
++static char *
++environment_to_string (const Gpu *gpu)
++{
++  g_autoptr(GString) result = g_string_new (NULL);
++
++  if (gpu->environment == NULL)
++    return g_strdup ("");
++  for (gsize i = 0; gpu->environment[i] != NULL &&
++                        gpu->environment[i + 1] != NULL; i += 2)
++    {
++      if (result->len > 0)
++        g_string_append_c (result, ' ');
++      g_string_append_printf (result, "%s=%s",
++                              gpu->environment[i], gpu->environment[i + 1]);
++    }
++  return g_string_free (g_steal_pointer (&result), FALSE);
++}
++
++static void
++print_gpu (const Gpu *gpu, guint index)
++{
++  g_autofree char *environment = environment_to_string (gpu);
++
++  if (index > 0)
++    g_print ("\n");
++  g_print ("Device: %u\n"
++           "  Name:        %s\n"
++           "  Default:     %s\n"
++           "  Discrete:    %s\n"
++           "  Environment: %s\n",
++           index, gpu->name ? gpu->name : "", gpu->is_default ? "yes" : "no",
++           gpu->is_discrete ? "yes" : "no", environment);
++}
++
++static gboolean
++apply_environment (const Gpu *gpu)
++{
++  if (gpu == NULL || gpu->environment == NULL)
++    return TRUE;
++  for (gsize i = 0; gpu->environment[i] != NULL &&
++                        gpu->environment[i + 1] != NULL; i += 2)
++    {
++      if (!g_setenv (gpu->environment[i], gpu->environment[i + 1], TRUE))
++        {
++          g_printerr ("Invalid environment variable from switcheroo-control: %s\n",
++                      gpu->environment[i]);
++          return FALSE;
++        }
++    }
++  return TRUE;
++}
++
++static int
++list_gpus (void)
++{
++  g_autoptr(GError) error = NULL;
++  g_autoptr(GPtrArray) gpus = get_gpus (&error);
++
++  /* An unavailable service is equivalent to having no switchable GPUs. */
++  if (gpus == NULL)
++    {
++      if (g_error_matches (error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA))
++        {
++          g_printerr ("Could not query GPUs: %s\n", error->message);
++          return 1;
++        }
++      return 0;
++    }
++  for (guint i = 0; i < gpus->len; i++)
++    print_gpu (g_ptr_array_index (gpus, i), i);
++  return 0;
++}
++
++static int
++launch (int argc, char **argv)
++{
++  g_autoptr(GOptionContext) context = NULL;
++  g_autoptr(GError) error = NULL;
++  g_autoptr(GPtrArray) gpus = NULL;
++  g_autofree char *gpu_option = NULL;
++  gint64 requested_gpu = -1;
++  gboolean gpu_requested = FALSE;
++  Gpu *gpu = NULL;
++  GOptionEntry entries[] = {
++    { "gpu", 'g', 0, G_OPTION_ARG_STRING, &gpu_option,
++      "GPU to use", "GPU-ID" },
++    { NULL }
++  };
++
++  context = g_option_context_new ("COMMAND [ARG…]");
++  g_option_context_set_summary (context, "Launch a command on a specific GPU.");
++  g_option_context_set_strict_posix (context, TRUE);
++  g_option_context_add_main_entries (context, entries, NULL);
++  if (!g_option_context_parse (context, &argc, &argv, &error))
++    {
++      g_printerr ("%s\n", error->message);
++      return 2;
++    }
++  if (argc < 2)
++    {
++      g_printerr ("No command to launch.\n");
++      return 2;
++    }
++  if (gpu_option != NULL)
++    {
++      char *end = NULL;
++
++      errno = 0;
++      requested_gpu = g_ascii_strtoll (gpu_option, &end, 10);
++      if (*gpu_option == '\0' || *end != '\0' || errno == ERANGE || requested_gpu < 0)
++        {
++          g_printerr ("Invalid GPU identifier: %s\n", gpu_option);
++          return 1;
++        }
++      gpu_requested = TRUE;
++    }
++
++  gpus = get_gpus (&error);
++  if (gpus == NULL)
++    {
++      if (gpu_requested)
++        {
++          g_printerr ("Could not query GPU %" G_GINT64_FORMAT ": %s\n",
++                      requested_gpu, error->message);
++          return 1;
++        }
++    }
++  else if (gpu_requested)
++    {
++      if ((guint64) requested_gpu >= gpus->len)
++        {
++          g_printerr ("GPU %" G_GINT64_FORMAT " does not exist\n", requested_gpu);
++          return 1;
++        }
++      gpu = g_ptr_array_index (gpus, requested_gpu);
++    }
++  else
++    {
++      for (guint i = 0; i < gpus->len; i++)
++        {
++          Gpu *candidate = g_ptr_array_index (gpus, i);
++          if (candidate->is_discrete && !candidate->is_default)
++            {
++              gpu = candidate;
++              break;
++            }
++        }
++    }
++
++  if (!apply_environment (gpu))
++    return 1;
++  execvp (argv[1], &argv[1]);
++  g_printerr ("Failed to launch %s: %s\n", argv[1], g_strerror (errno));
++  return 1;
++}
++
++int
++main (int argc, char **argv)
++{
++  const char *command;
++  int arg_offset;
++
++  if (argc == 1)
++    return list_gpus ();
++
++  command = argv[1];
++  arg_offset = 2;
++  if (g_strcmp0 (command, "--help") == 0)
++    command = "help";
++  else if (g_strcmp0 (command, "--version") == 0)
++    command = "version";
++  else if (!g_str_equal (command, "help") && !g_str_equal (command, "launch") &&
++           !g_str_equal (command, "list") && !g_str_equal (command, "version"))
++    {
++      command = "launch";
++      arg_offset = 1;
++    }
++
++  if (g_str_equal (command, "help"))
++    {
++      if (argc > 3)
++        {
++          g_printerr ("Too many arguments for help.\n");
++          return 2;
++        }
++      usage (argc > 2 ? argv[2] : NULL);
++    }
++  else if (g_str_equal (command, "version"))
++    {
++      if (argc != 2)
++        {
++          g_printerr ("The version command takes no arguments.\n");
++          return 2;
++        }
++      g_print ("%s\n", SWITCHEROO_CONTROL_VERSION);
++    }
++  else if (g_str_equal (command, "list"))
++    {
++      if (argc != 2)
++        {
++          g_printerr ("The list command takes no arguments.\n");
++          return 2;
++        }
++      return list_gpus ();
++    }
++  else
++    return arg_offset == 2 ? launch (argc - 1, argv + 1) : launch (argc, argv);
++  return 0;
++}

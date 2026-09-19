@@ -1,8 +1,29 @@
 diff --git OLD/power-profiles-daemon.spec NEW/power-profiles-daemon.spec
-index ceb16bb..d1f3d98 100644
+index ceb16bb..06ded2a 100644
 --- OLD/power-profiles-daemon.spec
 +++ NEW/power-profiles-daemon.spec
-@@ -29,6 +29,8 @@ BuildRequires:  umockdev
+@@ -11,17 +11,18 @@ License:        GPL-3.0-or-later
+ URL:            %{forgeurl}
+ Source0:        %{forgesource}
+ 
++# Replace powerprofilesctl with a native executable
++Patch0:         power-profiles-daemon-native-powerprofilesctl.patch
++
+ BuildRequires:  meson
+ BuildRequires:  gcc
+ BuildRequires:  gtk-doc
+-BuildRequires:  argparse-manpage
+ BuildRequires:  pkgconfig(bash-completion)
+ BuildRequires:  pkgconfig(gio-2.0)
+ BuildRequires:  pkgconfig(gudev-1.0)
+ BuildRequires:  pkgconfig(polkit-gobject-1)
+ BuildRequires:  pkgconfig(systemd)
+ BuildRequires:  pkgconfig(upower-glib)
+-BuildRequires:  python3dist(shtab)
+ BuildRequires:  systemd-rpm-macros
+ 
+ # Test dependencies
+@@ -29,6 +30,8 @@ BuildRequires:  umockdev
  BuildRequires:  python3dist(python-dbusmock)
  BuildRequires:  python3dist(pygobject)
  
@@ -11,7 +32,7 @@ index ceb16bb..d1f3d98 100644
  # This is an implementation of the power-profiles-daemon service
  Provides:       ppd-service
  Conflicts:      ppd-service
-@@ -36,6 +38,16 @@ Conflicts:      ppd-service
+@@ -36,6 +39,16 @@ Conflicts:      ppd-service
  %description
  %{summary}.
  
@@ -28,7 +49,16 @@ index ceb16bb..d1f3d98 100644
  %package docs
  Summary:        Documentation for %{name}
  BuildArch:      noarch
-@@ -85,8 +97,9 @@ mkdir -p %{buildroot}/%{_localstatedir}/lib/power-profiles-daemon
+@@ -44,7 +57,7 @@ BuildArch:      noarch
+ This package contains the documentation for %{name}.
+ 
+ %prep
+-%forgeautosetup
++%forgeautosetup -p1
+ 
+ %build
+ %meson \
+@@ -85,8 +98,9 @@ mkdir -p %{buildroot}/%{_localstatedir}/lib/power-profiles-daemon
  %dir %{_localstatedir}/lib/power-profiles-daemon/
  %{_mandir}/man1/powerprofilesctl.1.gz
  %{bash_completions_dir}/powerprofilesctl

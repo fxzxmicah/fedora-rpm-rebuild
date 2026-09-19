@@ -1,0 +1,1059 @@
+From 4c3fabb2d15fe87f40168bd019bff901368ad368 Mon Sep 17 00:00:00 2001
+From: Fxzx micah <48860358+fxzxmicah@users.noreply.github.com>
+Date: Sat, 19 Sep 2026 21:16:42 +0800
+Subject: [PATCH] powerprofilesctl: Replace Python client with native
+ implementation
+
+---
+ meson.build                       | 100 ++----
+ meson_options.txt                 |   4 +-
+ src/completions/_powerprofilesctl |  27 ++
+ src/completions/meson.build       |  24 +-
+ src/completions/powerprofilesctl  |  19 +
+ src/meson.build                   |  53 +--
+ src/powerprofilesctl.1            |  80 +++++
+ src/powerprofilesctl.c            | 566 ++++++++++++++++++++++++++++++
+ tests/integration_test.py         |  18 +-
+ tests/meson.build                 |  10 -
+ 10 files changed, 742 insertions(+), 159 deletions(-)
+ create mode 100644 src/completions/_powerprofilesctl
+ create mode 100644 src/completions/powerprofilesctl
+ create mode 100644 src/powerprofilesctl.1
+ create mode 100644 src/powerprofilesctl.c
+
+diff --git a/meson.build b/meson.build
+index 73fe27b..f217e3e 100644
+--- a/meson.build
++++ b/meson.build
+@@ -44,31 +44,13 @@ upower_dep = dependency('upower-glib')
+ polkit_gobject_dep = dependency('polkit-gobject-1', version: '>= 0.99')
+ polkit_policy_directory = polkit_gobject_dep.get_variable('policydir')
+ 
+-python3_required_modules = []
+-gi_required_modules = {}
+-
+-powerprofilesctl_required_gi_modules = {
+-  'GLib': '2.0',
+-  'Gio': '2.0',
+-}
+-
+ gnome = import('gnome')
+ 
+ add_global_arguments('-D_GNU_SOURCE=1', language: 'c')
+ add_global_arguments(common_cflags, language: 'c')
+ 
+-pylint = find_program('pylint-3', 'pylint3', 'pylint', required: get_option('pylint'))
+-if pylint.found()
+-    nomalloc = environment({'MALLOC_PERTURB_': '0'})
+-    pylint_flags = ['-d', 'C0116', '-d', 'C0114', '-d', 'W0707', '-d', 'W0706' ]
+-endif
+ xmllint = find_program('xmllint', required: false)
+ 
+-argparse_manpage = find_program('argparse-manpage', required: get_option('manpage'))
+-if argparse_manpage.found()
+-  gi_required_modules += powerprofilesctl_required_gi_modules
+-endif
+-
+ bus_names = {
+   'org.freedesktop.UPower.PowerProfiles': '/org/freedesktop/UPower/PowerProfiles',
+   'net.hadess.PowerProfiles': '/net/hadess/PowerProfiles',
+@@ -78,58 +60,50 @@ address_sanitizer = get_option('b_sanitize') == 'address' or \
+   get_option('b_sanitize') == 'address,undefined' or \
+   get_option('b_sanitize') == 'leak'
+ 
+-python = import('python')
+-python3 = python.find_installation('python3')
+-
+-script = 'import importlib.util; import sys; exit(1) if importlib.util.find_spec(\''+ 'shtab' +'\') is None else exit(0)'
+-if run_command(python3, '-c', script, check: false).returncode() == 0
+-  has_shtab = true
+-else
+-  has_shtab = false
+-endif
+-
+-bashcomp = dependency('bash-completion', required: get_option('bashcomp').disable_auto_if(not has_shtab))
++bashcomp = dependency('bash-completion', required: get_option('bashcomp'))
+ zshcomp = get_option('zshcomp') != ''
+-
+-if bashcomp.found() or zshcomp
+-  python3_required_modules += 'shtab'
+-  gi_required_modules += powerprofilesctl_required_gi_modules
+-endif
++python_test_linting = false
+ 
+ if get_option('tests')
+-  python3_required_modules += [
++  pylint = find_program('pylint-3', 'pylint3', 'pylint', required: get_option('pylint'))
++  if pylint.found()
++    nomalloc = environment({'MALLOC_PERTURB_': '0'})
++    pylint_flags = ['-d', 'C0116', '-d', 'C0114', '-d', 'W0707', '-d', 'W0706' ]
++    python_test_linting = true
++  endif
++
++  python = import('python')
++  python3 = python.find_installation('python3')
++  python3_required_modules = [
+     'dbusmock',
+   ]
+-  gi_required_modules += powerprofilesctl_required_gi_modules
+-  gi_required_modules += {
++  gi_required_modules = {
++    'GLib': '2.0',
++    'Gio': '2.0',
+     'UMockdev': '1.0',
+   }
+-endif
+-
+-# Python 3 required modules
+-if gi_required_modules.keys().length() > 0
+   python3_required_modules += 'gi'
+-endif
+ 
+-foreach p : python3_required_modules
+-  # Source: https://docs.python.org/3/library/importlib.html#checking-if-a-module-can-be-imported
+-  script = 'import importlib.util; import sys; exit(1) if importlib.util.find_spec(\''+ p +'\') is None else exit(0)'
+-  if run_command(python3, '-c', script, check: false).returncode() == 0
+-    message('Python3 module \'@0@\' found: YES'.format(p))
+-  else
+-    error('Python3 module \'@0@\' required but not found'.format(p))
+-  endif
+-endforeach
+-
+-foreach module, version : gi_required_modules
+-  script = 'import gi; gi.require_version("@0@", "@1@")'.format(module, version)
+-  if run_command(python3, '-c', script, check: false).returncode() == 0
+-    message('Python3 module \'@0@\' found: YES @1@'.format(module, version))
+-  else
+-    error('''GObject Introspection module '@0@' version @1@ required but not found'''.format(
+-      module, version))
+-  endif
+-endforeach
++  foreach p : python3_required_modules
++    # Source: https://docs.python.org/3/library/importlib.html#checking-if-a-module-can-be-imported
++    script = 'import importlib.util; import sys; exit(1) if importlib.util.find_spec(\''+ p +'\') is None else exit(0)'
++    if run_command(python3, '-c', script, check: false).returncode() == 0
++      message('Python3 module \'@0@\' found: YES'.format(p))
++    else
++      error('Python3 module \'@0@\' required but not found'.format(p))
++    endif
++  endforeach
++
++  foreach module, version : gi_required_modules
++    script = 'import gi; gi.require_version("@0@", "@1@")'.format(module, version)
++    if run_command(python3, '-c', script, check: false).returncode() == 0
++      message('Python3 module \'@0@\' found: YES @1@'.format(module, version))
++    else
++      error('''GObject Introspection module '@0@' version @1@ required but not found'''.format(
++        module, version))
++    endif
++  endforeach
++endif
+ 
+ subdir('src')
+ subdir('data')
+@@ -157,7 +131,7 @@ summary({
+   'tests': get_option('tests'),
+   'bash-completion': bashcomp,
+   'zsh-completion': zshcomp,
+-  'manpages': argparse_manpage.found(),
+-  'python linting': pylint.found(),
++  'manpages': get_option('manpage').allowed(),
++  'python test linting': python_test_linting,
+   'gtk_doc': get_option('gtk_doc'),
+ })
+diff --git a/meson_options.txt b/meson_options.txt
+index 37c21b4..41df5ac 100644
+--- a/meson_options.txt
++++ b/meson_options.txt
+@@ -9,13 +9,13 @@ option('gtk_doc',
+ option('pylint',
+        type: 'feature',
+        value: 'auto',
+-       description: 'Run pylint checks, for developers only')
++       description: 'Run pylint checks for Python tests, for developers only')
+ option('tests',
+        description: 'Whether to run tests',
+        type: 'boolean',
+        value: true)
+ option('manpage',
+-       description: 'generate powerprofilesctl man page',
++       description: 'install powerprofilesctl man page',
+        type: 'feature',
+        value: 'auto')
+ option('bashcomp',
+diff --git a/src/completions/_powerprofilesctl b/src/completions/_powerprofilesctl
+new file mode 100644
+index 0000000..01b842e
+--- /dev/null
++++ b/src/completions/_powerprofilesctl
+@@ -0,0 +1,27 @@
++#compdef powerprofilesctl
++
++local -a commands profiles
++commands=(
++  'list:List available power profiles'
++  'list-holds:List current power profile holds'
++  'list-actions:List available power profile actions'
++  'get:Print the active profile'
++  'set:Set the active profile'
++  'configure-action:Configure a profile action'
++  'configure-battery-aware:Configure dynamic battery changes'
++  'query-battery-aware:Query dynamic battery changes'
++  'launch:Launch a command with a profile hold'
++  'version:Print version information'
++)
++profiles=(power-saver balanced performance)
++
++if (( CURRENT == 2 )); then
++  _describe command commands
++  return
++fi
++
++case $words[2] in
++  set) _values profile $profiles ;;
++  configure-action|configure-battery-aware) _arguments '--enable[enable]' '--disable[disable]' ;;
++  launch) _arguments '-p[profile]:profile:($profiles)' '-r[reason]:reason:' '-i[application ID]:application ID:' '*::command:_normal' ;;
++esac
+diff --git a/src/completions/meson.build b/src/completions/meson.build
+index 10001f1..f7d7a26 100644
+--- a/src/completions/meson.build
++++ b/src/completions/meson.build
+@@ -1,36 +1,16 @@
+-generate_completion = [python3, powerprofilesctl, '--print-completion']
+-
+-completions_common = {
+-  'env': {'PPD_COMPLETIONS_GENERATION': '1'},
+-  'capture': true,
+-  'install': true,
+-}
+-
+ if bashcomp.found()
+   completions_dir = bashcomp.get_variable(pkgconfig: 'completionsdir',
+     pkgconfig_define: bashcomp.version().version_compare('>= 2.10') ?
+       ['datadir', get_option('datadir')] : ['prefix', prefix],
+   )
+ 
+-  custom_target('bash-completion',
+-    output: 'powerprofilesctl',
+-    command: [
+-      generate_completion,
+-      'bash',
+-    ],
++  install_data('powerprofilesctl',
+     install_dir: completions_dir,
+-    kwargs: completions_common,
+   )
+ endif
+ 
+ if zshcomp
+-  custom_target('zsh-completion',
+-    output: '_powerprofilesctl',
+-    command: [
+-      generate_completion,
+-      'zsh',
+-    ],
++  install_data('_powerprofilesctl',
+     install_dir: get_option('zshcomp'),
+-    kwargs: completions_common,
+   )
+ endif
+diff --git a/src/completions/powerprofilesctl b/src/completions/powerprofilesctl
+new file mode 100644
+index 0000000..14a0bb3
+--- /dev/null
++++ b/src/completions/powerprofilesctl
+@@ -0,0 +1,19 @@
++_powerprofilesctl()
++{
++    local cur commands profiles
++    COMPREPLY=()
++    cur="${COMP_WORDS[COMP_CWORD]}"
++    commands="list list-holds list-actions get set configure-action configure-battery-aware query-battery-aware launch version"
++    profiles="power-saver balanced performance"
++
++    if (( COMP_CWORD == 1 )); then
++        COMPREPLY=( $(compgen -W "$commands" -- "$cur") )
++    elif [[ ${COMP_WORDS[1]} == set ]]; then
++        COMPREPLY=( $(compgen -W "$profiles" -- "$cur") )
++    elif [[ ${COMP_WORDS[1]} == configure-action || ${COMP_WORDS[1]} == configure-battery-aware ]]; then
++        COMPREPLY=( $(compgen -W "--enable --disable" -- "$cur") )
++    elif [[ ${COMP_WORDS[1]} == launch ]]; then
++        COMPREPLY=( $(compgen -W "--profile --reason --appid" -- "$cur") )
++    fi
++}
++complete -F _powerprofilesctl powerprofilesctl
+diff --git a/src/meson.build b/src/meson.build
+index 0056466..7f036b9 100644
+--- a/src/meson.build
++++ b/src/meson.build
+@@ -105,52 +105,15 @@ executable('power-profiles-daemon',
+   install_dir: libexecdir
+ )
+ 
+-powerprofilesctl = configure_file(
+-  input: files('powerprofilesctl'),
+-  output: 'powerprofilesctl',
+-  configuration: {
+-    'VERSION': meson.project_version(),
+-  },
+-  install_dir: get_option('bindir')
++powerprofilesctl = executable(
++  'powerprofilesctl',
++  'powerprofilesctl.c',
++  dependencies: [gio_dep],
++  install: true,
+ )
+ 
+-if pylint.found()
+-  test('pylint-powerprofilesctl',
+-       pylint,
+-       args: pylint_flags + [ powerprofilesctl ],
+-       env: nomalloc,
+-       )
+-endif
+-
+-if argparse_manpage.found()
+-  argparse_features = run_command(argparse_manpage, '--help',
+-    check: true).stdout().strip()
+-
+-  install_man(configure_file(
+-    command: [
+-      argparse_manpage,
+-      '--pyfile', powerprofilesctl,
+-      '--function', 'get_parser',
+-      argparse_features.contains('--author') ?
+-        ['--author', 'Bastien Nocera', '--author', 'Mario Limonciello'] : [],
+-      argparse_features.contains('--author-email') ?
+-        ['--author-email', 'hadess@hadess.net', '--author-email', 'mario.limonciello@amd.com'] : [],
+-      argparse_features.contains('--project-name') ?
+-        ['--project-name', meson.project_name()] : [],
+-      argparse_features.contains('--version') ?
+-        ['--version', meson.project_version()] : [],
+-      argparse_features.contains('--url') ?
+-        ['--url', 'https://gitlab.freedesktop.org/upower/power-profiles-daemon'] : [],
+-      argparse_features.contains('--description') ?
+-        ['--manual-title', 'Power Profiles Daemon Control Program'] : [],
+-      argparse_features.contains('--description') ?
+-        ['--description', 'Command line utility to control Power Profiles Daemon'] : [],
+-      argparse_features.contains('--format') ?
+-        ['--format', 'single-commands-section'] : [],
+-    ],
+-    capture: true,
+-    output: 'powerprofilesctl.1',
+-  ))
++if get_option('manpage').allowed()
++  install_man('powerprofilesctl.1')
+ endif
+ 
+-subdir('completions')
+\ No newline at end of file
++subdir('completions')
+diff --git a/src/powerprofilesctl.1 b/src/powerprofilesctl.1
+new file mode 100644
+index 0000000..5486352
+--- /dev/null
++++ b/src/powerprofilesctl.1
+@@ -0,0 +1,80 @@
++.TH POWERPROFILESCTL 1 "power-profiles-daemon 0.30"
++.SH NAME
++powerprofilesctl \- command line utility for power-profiles-daemon
++.SH SYNOPSIS
++.B powerprofilesctl
++.RI [ COMMAND ]
++.br
++.B powerprofilesctl set
++.I PROFILE
++.br
++.B powerprofilesctl configure-action
++.I ACTION
++.RB ( --enable | --disable )
++.br
++.B powerprofilesctl configure-battery-aware
++.RB ( --enable | --disable )
++.br
++.B powerprofilesctl launch
++.RI [ OPTIONS ]
++.I COMMAND
++.RI [ ARG ...]
++.SH DESCRIPTION
++.B powerprofilesctl
++queries and controls power-profiles-daemon. With no command it lists the
++available power profiles.
++.SH COMMANDS
++.TP
++.B list
++List available power profiles (the default command).
++.TP
++.B list-holds
++List current profile holds.
++.TP
++.B list-actions
++List available power profile actions.
++.TP
++.B get
++Print the active profile.
++.TP
++.BI "set " PROFILE
++Set the active profile.
++.TP
++.BI "configure-action " ACTION " (--enable|--disable)"
++Enable or disable an action.
++.TP
++.B configure-battery-aware (--enable|--disable)
++Enable or disable dynamic profile changes from battery events.
++.TP
++.B query-battery-aware
++Print whether battery-aware changes are enabled.
++.TP
++.B launch [-p PROFILE] [-r REASON] [-i APPID] COMMAND ...
++Run a command while holding a power profile.
++.TP
++.B version
++Print client and daemon versions.
++.SH LAUNCH OPTIONS
++.TP
++.BR -p " " PROFILE ", " --profile = PROFILE
++Hold the selected profile while the command is running. The default is
++.BR performance .
++.TP
++.BR -r " " REASON ", " --reason = REASON
++Set the reason associated with the profile hold.
++.TP
++.BR -i " " APPID ", " --appid = APPID
++Set the application identifier associated with the profile hold. By default,
++the command name is used.
++.PP
++Launch options must precede
++.IR COMMAND .
++All arguments following
++.I COMMAND
++are passed to it unchanged.
++.SH EXIT STATUS
++Commands return zero on success and non-zero on failure. The
++.B launch
++command normally returns the launched command's exit status. If the command
++terminates because of a signal, powerprofilesctl releases the profile hold and
++then terminates from the same signal.
+diff --git a/src/powerprofilesctl.c b/src/powerprofilesctl.c
+new file mode 100644
+index 0000000..d26d6a1
+--- /dev/null
++++ b/src/powerprofilesctl.c
+@@ -0,0 +1,566 @@
++/* SPDX-License-Identifier: GPL-3.0-or-later */
++
++#include "config.h"
++
++#include <errno.h>
++#include <gio/gio.h>
++#include <glib.h>
++#include <signal.h>
++#include <spawn.h>
++#include <sys/wait.h>
++#include <unistd.h>
++
++#define POWER_PROFILES_DBUS_NAME "org.freedesktop.UPower.PowerProfiles"
++#define POWER_PROFILES_DBUS_PATH "/org/freedesktop/UPower/PowerProfiles"
++#define POWER_PROFILES_IFACE_NAME POWER_PROFILES_DBUS_NAME
++#define DBUS_PROPERTIES_INTERFACE "org.freedesktop.DBus.Properties"
++
++extern char **environ;
++
++static volatile sig_atomic_t child_pid = -1;
++static const int forwarded_signals[] = { SIGTERM, SIGINT, SIGABRT };
++
++static void
++forward_signal (int signo)
++{
++  if (child_pid > 0)
++    kill (child_pid, signo);
++}
++
++static gboolean
++install_signal_handlers (struct sigaction *previous)
++{
++  struct sigaction action = { 0 };
++
++  action.sa_handler = forward_signal;
++  sigemptyset (&action.sa_mask);
++  for (guint i = 0; i < G_N_ELEMENTS (forwarded_signals); i++)
++    {
++      if (sigaction (forwarded_signals[i], &action, &previous[i]) < 0)
++        {
++          int saved_errno = errno;
++
++          while (i > 0)
++            {
++              i--;
++              sigaction (forwarded_signals[i], &previous[i], NULL);
++            }
++          errno = saved_errno;
++          return FALSE;
++        }
++    }
++  return TRUE;
++}
++
++static void
++restore_signal_handlers (const struct sigaction *previous)
++{
++  for (guint i = 0; i < G_N_ELEMENTS (forwarded_signals); i++)
++    sigaction (forwarded_signals[i], &previous[i], NULL);
++}
++
++static int
++spawn_and_wait (char **argv)
++{
++  struct sigaction previous[G_N_ELEMENTS (forwarded_signals)];
++  int status = 1 << 8;
++  int spawn_error;
++  pid_t pid;
++  pid_t waited;
++
++  if (!install_signal_handlers (previous))
++    {
++      g_printerr ("Failed to install signal handlers: %s\n", g_strerror (errno));
++      return status;
++    }
++
++  spawn_error = posix_spawnp (&pid, argv[0], NULL, NULL, argv, environ);
++  if (spawn_error != 0)
++    g_printerr ("Failed to launch %s: %s\n", argv[0], g_strerror (spawn_error));
++  else
++    {
++      child_pid = pid;
++      do
++        waited = waitpid (pid, &status, 0);
++      while (waited < 0 && errno == EINTR);
++      child_pid = -1;
++      if (waited < 0)
++        {
++          g_printerr ("Failed to wait for %s: %s\n", argv[0], g_strerror (errno));
++          status = 1 << 8;
++        }
++    }
++
++  restore_signal_handlers (previous);
++  return status;
++}
++
++static GDBusConnection *
++get_system_bus (GError **error)
++{
++  return g_bus_get_sync (G_BUS_TYPE_SYSTEM, NULL, error);
++}
++
++static GVariant *
++get_property (const char *property, GError **error)
++{
++  g_autoptr(GDBusConnection) bus = get_system_bus (error);
++  g_autoptr(GVariant) reply = NULL;
++  g_autoptr(GVariant) boxed = NULL;
++
++  if (bus == NULL)
++    return NULL;
++  reply = g_dbus_connection_call_sync (bus,
++                                       POWER_PROFILES_DBUS_NAME,
++                                       POWER_PROFILES_DBUS_PATH,
++                                       DBUS_PROPERTIES_INTERFACE, "Get",
++                                       g_variant_new ("(ss)", POWER_PROFILES_IFACE_NAME,
++                                                      property),
++                                       G_VARIANT_TYPE ("(v)"),
++                                       G_DBUS_CALL_FLAGS_NONE, -1, NULL, error);
++  if (reply == NULL)
++    return NULL;
++  g_variant_get (reply, "(@v)", &boxed);
++  return g_variant_get_variant (boxed);
++}
++
++static gboolean
++set_property (const char *property, GVariant *value, GError **error)
++{
++  g_autoptr(GDBusConnection) bus = get_system_bus (error);
++  g_autoptr(GVariant) reply = NULL;
++
++  if (bus == NULL)
++    return FALSE;
++  reply = g_dbus_connection_call_sync (bus,
++                                       POWER_PROFILES_DBUS_NAME,
++                                       POWER_PROFILES_DBUS_PATH,
++                                       DBUS_PROPERTIES_INTERFACE, "Set",
++                                       g_variant_new ("(ssv)", POWER_PROFILES_IFACE_NAME,
++                                                      property, value),
++                                       NULL, G_DBUS_CALL_FLAGS_NONE, -1, NULL, error);
++  return reply != NULL;
++}
++
++static int
++report_error (GError *error)
++{
++  g_printerr ("Failed to communicate with power-profiles-daemon: %s\n",
++              error->message);
++  return 1;
++}
++
++static void
++print_usage (const char *command)
++{
++  if (command == NULL)
++    {
++      g_print ("usage: powerprofilesctl [-h] COMMAND ...\n\n"
++               "commands:\n"
++               "  list                     List available power profiles\n"
++               "  list-holds               List current power profile holds\n"
++               "  list-actions             List available power profile actions\n"
++               "  get                      Print the currently active power profile\n"
++               "  set PROFILE              Set the currently active power profile\n"
++               "  configure-action ACTION  Configure a profile action\n"
++               "  configure-battery-aware  Configure dynamic battery changes\n"
++               "  query-battery-aware      Query dynamic battery changes\n"
++               "  launch [OPTIONS] COMMAND Launch with a profile hold\n"
++               "  version                  Print version information and exit\n\n"
++               "Use “powerprofilesctl COMMAND --help” for detailed help.\n");
++    }
++  else if (g_str_equal (command, "launch"))
++    g_print ("usage: powerprofilesctl launch [-p PROFILE] [-r REASON] "
++             "[-i APPID] COMMAND ...\n");
++  else if (g_str_equal (command, "set"))
++    g_print ("usage: powerprofilesctl set PROFILE\n");
++  else if (g_str_equal (command, "configure-action"))
++    g_print ("usage: powerprofilesctl configure-action ACTION "
++             "(--enable | --disable)\n");
++  else if (g_str_equal (command, "configure-battery-aware"))
++    g_print ("usage: powerprofilesctl configure-battery-aware "
++             "(--enable | --disable)\n");
++  else
++    g_print ("usage: powerprofilesctl %s\n", command);
++}
++
++static int
++command_version (void)
++{
++  g_autoptr(GError) error = NULL;
++  g_autoptr(GVariant) value = get_property ("Version", &error);
++  const char *daemon_version = "unknown";
++
++  if (value != NULL)
++    daemon_version = g_variant_get_string (value, NULL);
++  g_print ("client: %s\ndaemon: %s\n", VERSION, daemon_version);
++  return 0;
++}
++
++static int
++command_get (void)
++{
++  g_autoptr(GError) error = NULL;
++  g_autoptr(GVariant) value = get_property ("ActiveProfile", &error);
++
++  if (value == NULL)
++    return report_error (error);
++  g_print ("%s\n", g_variant_get_string (value, NULL));
++  return 0;
++}
++
++static int
++command_set (const char *profile)
++{
++  g_autoptr(GError) error = NULL;
++  g_autoptr(GVariant) profiles = get_property ("Profiles", &error);
++  gboolean found = FALSE;
++
++  if (profiles == NULL)
++    {
++      g_printerr ("Unable to query available power profiles: %s\n", error->message);
++      return 2;
++    }
++  for (gsize i = 0; i < g_variant_n_children (profiles); i++)
++    {
++      g_autoptr(GVariant) candidate = g_variant_get_child_value (profiles, i);
++      const char *name = NULL;
++
++      if (g_variant_lookup (candidate, "Profile", "&s", &name) &&
++          g_str_equal (name, profile))
++        {
++          found = TRUE;
++          break;
++        }
++    }
++  if (!found)
++    {
++      g_printerr ("Unknown power profile: %s\n", profile);
++      return 2;
++    }
++
++  if (!set_property ("ActiveProfile", g_variant_new_string (profile), &error))
++    return report_error (error);
++  return 0;
++}
++
++static int
++command_list (void)
++{
++  g_autoptr(GError) error = NULL;
++  g_autoptr(GVariant) profiles = get_property ("Profiles", &error);
++  g_autoptr(GVariant) reason_value = NULL;
++  g_autoptr(GVariant) active_value = NULL;
++  const char *reason;
++  const char *active;
++  gsize count;
++
++  if (profiles == NULL)
++    return report_error (error);
++  reason_value = get_property ("PerformanceDegraded", &error);
++  if (reason_value == NULL)
++    return report_error (error);
++  active_value = get_property ("ActiveProfile", &error);
++  if (active_value == NULL)
++    return report_error (error);
++  reason = g_variant_get_string (reason_value, NULL);
++  active = g_variant_get_string (active_value, NULL);
++
++  count = g_variant_n_children (profiles);
++  for (gsize n = count; n > 0; n--)
++    {
++      g_autoptr(GVariant) profile = g_variant_get_child_value (profiles, n - 1);
++      const char *name = "";
++      const char *driver;
++
++      g_variant_lookup (profile, "Profile", "&s", &name);
++      if (n != count)
++        g_print ("\n");
++      g_print ("%c %s:\n", g_str_equal (name, active) ? '*' : ' ', name);
++      if (g_variant_lookup (profile, "CpuDriver", "&s", &driver))
++        g_print ("    CpuDriver:\t%s\n", driver);
++      if (g_variant_lookup (profile, "PlatformDriver", "&s", &driver))
++        g_print ("    PlatformDriver:\t%s\n", driver);
++      if (g_str_equal (name, "performance"))
++        g_print ("    Degraded:   %s%s%s\n", *reason ? "yes (" : "no",
++                 *reason ? reason : "", *reason ? ")" : "");
++    }
++  return 0;
++}
++
++static int
++command_list_holds (void)
++{
++  g_autoptr(GError) error = NULL;
++  g_autoptr(GVariant) holds = get_property ("ActiveProfileHolds", &error);
++
++  if (holds == NULL)
++    return report_error (error);
++  for (gsize i = 0; i < g_variant_n_children (holds); i++)
++    {
++      g_autoptr(GVariant) hold = g_variant_get_child_value (holds, i);
++      const char *profile = "", *appid = "", *reason = "";
++      g_variant_lookup (hold, "Profile", "&s", &profile);
++      g_variant_lookup (hold, "ApplicationId", "&s", &appid);
++      g_variant_lookup (hold, "Reason", "&s", &reason);
++      if (i > 0)
++        g_print ("\n");
++      g_print ("Hold:\n  Profile:         %s\n"
++               "  Application ID:  %s\n  Reason:          %s\n",
++               profile, appid, reason);
++    }
++  return 0;
++}
++
++static void
++print_action_value (const char *key, GVariant *value)
++{
++  if (g_variant_is_of_type (value, G_VARIANT_TYPE_STRING))
++    g_print ("%s: %s\n", key, g_variant_get_string (value, NULL));
++  else if (g_variant_is_of_type (value, G_VARIANT_TYPE_BOOLEAN))
++    g_print ("%s: %s\n", key, g_variant_get_boolean (value) ? "True" : "False");
++  else
++    {
++      g_autofree char *printed = g_variant_print (value, FALSE);
++      g_print ("%s: %s\n", key, printed);
++    }
++}
++
++static int
++command_list_actions (void)
++{
++  g_autoptr(GError) error = NULL;
++  g_autoptr(GVariant) actions = get_property ("ActionsInfo", &error);
++
++  if (actions == NULL)
++    return report_error (error);
++  for (gsize i = 0; i < g_variant_n_children (actions); i++)
++    {
++      g_autoptr(GVariant) action = g_variant_get_child_value (actions, i);
++      GVariantIter iter;
++      const char *key;
++      GVariant *value;
++
++      g_variant_iter_init (&iter, action);
++      while (g_variant_iter_next (&iter, "{&sv}", &key, &value))
++        {
++          print_action_value (key, value);
++          g_variant_unref (value);
++        }
++      if (i + 1 < g_variant_n_children (actions))
++        g_print ("\n");
++    }
++  return 0;
++}
++
++static int
++command_battery_aware (gboolean enable)
++{
++  g_autoptr(GError) error = NULL;
++
++  if (!set_property ("BatteryAware", g_variant_new_boolean (enable), &error))
++    return report_error (error);
++  return 0;
++}
++
++static int
++command_query_battery_aware (void)
++{
++  g_autoptr(GError) error = NULL;
++  g_autoptr(GVariant) value = get_property ("BatteryAware", &error);
++
++  if (value == NULL)
++    return report_error (error);
++  g_print ("Dynamic changes from charger and battery events: %s\n",
++           g_variant_get_boolean (value) ? "True" : "False");
++  return 0;
++}
++
++static int
++command_configure_action (const char *action, gboolean enable)
++{
++  g_autoptr(GError) error = NULL;
++  g_autoptr(GDBusConnection) bus = get_system_bus (&error);
++  g_autoptr(GVariant) reply = NULL;
++
++  if (bus == NULL)
++    return report_error (error);
++  g_print ("action: %s, enable: %s\n", action, enable ? "True" : "False");
++  reply = g_dbus_connection_call_sync (bus,
++                                       POWER_PROFILES_DBUS_NAME,
++                                       POWER_PROFILES_DBUS_PATH,
++                                       POWER_PROFILES_IFACE_NAME,
++                                       "SetActionEnabled",
++                                       g_variant_new ("(sb)", action, enable),
++                                       NULL, G_DBUS_CALL_FLAGS_NONE, -1,
++                                       NULL, &error);
++  if (reply == NULL)
++    return report_error (error);
++  return 0;
++}
++
++static int
++command_launch (int argc, char **argv)
++{
++  g_autoptr(GOptionContext) context = NULL;
++  g_autofree char *profile_option = NULL;
++  g_autofree char *reason_option = NULL;
++  g_autofree char *appid_option = NULL;
++  g_autofree char *default_reason = NULL;
++  g_autoptr(GError) error = NULL;
++  g_autoptr(GDBusConnection) bus = NULL;
++  g_autoptr(GVariant) reply = NULL;
++  const char *profile;
++  const char *reason;
++  const char *appid;
++  guint cookie;
++  int status;
++  GOptionEntry entries[] = {
++    { "profile", 'p', 0, G_OPTION_ARG_STRING, &profile_option,
++      "Power profile to hold", "PROFILE" },
++    { "reason", 'r', 0, G_OPTION_ARG_STRING, &reason_option,
++      "Reason for the profile hold", "REASON" },
++    { "appid", 'i', 0, G_OPTION_ARG_STRING, &appid_option,
++      "Application identifier for the hold", "APPID" },
++    { NULL }
++  };
++
++  context = g_option_context_new ("COMMAND [ARG…]");
++  g_option_context_set_summary (context,
++                                "Launch a command while holding a power profile.");
++  g_option_context_set_strict_posix (context, TRUE);
++  g_option_context_add_main_entries (context, entries, NULL);
++  if (!g_option_context_parse (context, &argc, &argv, &error))
++    {
++      g_printerr ("Error: %s\n", error->message);
++      return 2;
++    }
++  if (argc < 2)
++    {
++      g_printerr ("Error: No command to launch\n");
++      return 1;
++    }
++
++  profile = profile_option == NULL || *profile_option == '\0' ?
++            "performance" : profile_option;
++  appid = appid_option == NULL || *appid_option == '\0' ? argv[1] : appid_option;
++  if (reason_option == NULL || *reason_option == '\0')
++    {
++      default_reason = g_strdup_printf ("Running %s", appid);
++      reason = default_reason;
++    }
++  else
++    reason = reason_option;
++
++  bus = get_system_bus (&error);
++  if (bus == NULL)
++    return report_error (error);
++  reply = g_dbus_connection_call_sync (bus,
++                                       POWER_PROFILES_DBUS_NAME,
++                                       POWER_PROFILES_DBUS_PATH,
++                                       POWER_PROFILES_IFACE_NAME,
++                                       "HoldProfile",
++                                       g_variant_new ("(sss)", profile, reason, appid),
++                                       G_VARIANT_TYPE ("(u)"),
++                                       G_DBUS_CALL_FLAGS_NONE, -1, NULL, &error);
++  if (reply == NULL)
++    return report_error (error);
++  g_variant_get (reply, "(u)", &cookie);
++
++  status = spawn_and_wait (&argv[1]);
++
++  g_clear_pointer (&reply, g_variant_unref);
++  reply = g_dbus_connection_call_sync (bus,
++                                       POWER_PROFILES_DBUS_NAME,
++                                       POWER_PROFILES_DBUS_PATH,
++                                       POWER_PROFILES_IFACE_NAME,
++                                       "ReleaseProfile", g_variant_new ("(u)", cookie),
++                                       NULL, G_DBUS_CALL_FLAGS_NONE, -1, NULL, &error);
++  if (reply == NULL)
++    return report_error (error);
++  if (WIFSIGNALED (status))
++    {
++      int signo = WTERMSIG (status);
++      struct sigaction action = { .sa_handler = SIG_DFL };
++
++      sigemptyset (&action.sa_mask);
++      sigaction (signo, &action, NULL);
++      raise (signo);
++      return 128 + signo;
++    }
++  return WIFEXITED (status) ? WEXITSTATUS (status) : 1;
++}
++
++static gboolean
++parse_toggle_arguments (int          argc,
++                        char       **argv,
++                        const char **action,
++                        gboolean    *enable)
++{
++  gboolean seen_enable = FALSE, seen_disable = FALSE;
++
++  if (action != NULL)
++    *action = NULL;
++  for (int i = 0; i < argc; i++)
++    {
++      if (g_str_equal (argv[i], "--enable"))
++        seen_enable = TRUE;
++      else if (g_str_equal (argv[i], "--disable"))
++        seen_disable = TRUE;
++      else if (action == NULL || argv[i][0] == '-' || *action != NULL)
++        return FALSE;
++      else
++        *action = argv[i];
++    }
++  if ((action != NULL && *action == NULL) || seen_enable == seen_disable)
++    return FALSE;
++  *enable = seen_enable;
++  return TRUE;
++}
++
++int
++main (int argc, char **argv)
++{
++  const char *command = argc > 1 ? argv[1] : "list";
++  const char *action;
++  gboolean enable;
++
++  if (g_str_equal (command, "-h") || g_str_equal (command, "--help"))
++    {
++      print_usage (NULL);
++      return 0;
++    }
++  if (argc > 2 && (g_str_equal (argv[2], "-h") || g_str_equal (argv[2], "--help")))
++    {
++      print_usage (command);
++      return 0;
++    }
++  if (g_str_equal (command, "list") && (argc == 1 || argc == 2))
++    return command_list ();
++  if (g_str_equal (command, "list-holds") && argc == 2)
++    return command_list_holds ();
++  if (g_str_equal (command, "list-actions") && argc == 2)
++    return command_list_actions ();
++  if (g_str_equal (command, "get") && argc == 2)
++    return command_get ();
++  if (g_str_equal (command, "version") && argc == 2)
++    return command_version ();
++  if (g_str_equal (command, "set") && argc == 3)
++    return command_set (argv[2]);
++  if (g_str_equal (command, "query-battery-aware") && argc == 2)
++    return command_query_battery_aware ();
++  if (g_str_equal (command, "configure-battery-aware") &&
++      parse_toggle_arguments (argc - 2, argv + 2, NULL, &enable))
++    return command_battery_aware (enable);
++  if (g_str_equal (command, "configure-action") &&
++      parse_toggle_arguments (argc - 2, argv + 2, &action, &enable))
++    return command_configure_action (action, enable);
++  if (g_str_equal (command, "launch"))
++    return command_launch (argc - 1, argv + 1);
++
++  g_printerr ("Error: invalid arguments\n");
++  print_usage (g_str_equal (command, "configure-action") ||
++               g_str_equal (command, "configure-battery-aware") ? command : NULL);
++  return g_str_equal (command, "configure-action") ||
++         g_str_equal (command, "configure-battery-aware") ? 1 : 2;
++}
+diff --git a/tests/integration_test.py b/tests/integration_test.py
+index 0994cf2..8f68646 100644
+--- a/tests/integration_test.py
++++ b/tests/integration_test.py
+@@ -396,24 +396,8 @@ class Tests(dbusmock.DBusTestCase):
+         builddir = os.getenv("top_builddir", ".")
+         return os.path.join(builddir, "src", "powerprofilesctl")
+ 
+-    def python_coverage_commands(self):
+-        coverage = os.getenv("PPD_PYTHON_COVERAGE")
+-        if not coverage:
+-            return []
+-
+-        builddir = os.getenv("top_builddir", ".")
+-        data_file = os.path.join(builddir, "python-coverage", self.id() + ".coverage")
+-        # We also may need to use "--parallel-mode" if running with
+-        # meson test --repeat, but this is not a priority for now.
+-        return [
+-            coverage,
+-            "run",
+-            f"--data-file={data_file}",
+-            f"--include={builddir}/*",
+-        ]
+-
+     def powerprofilesctl_command(self):
+-        return self.python_coverage_commands() + [self.powerprofilesctl_path()]
++        return [self.powerprofilesctl_path()]
+ 
+     def assert_eventually(self, condition, message=None, timeout=5000, keep_checking=0):
+         """Assert that condition function eventually returns True.
+diff --git a/tests/meson.build b/tests/meson.build
+index 6dfa86e..3e42287 100644
+--- a/tests/meson.build
++++ b/tests/meson.build
+@@ -64,16 +64,6 @@ endforeach
+ 
+ envs.set('PPD_LD_PRELOAD', ' '.join(ppd_tests_ld_preload))
+ 
+-coverage_args = []
+-python3_coverage = find_program([
+-    'python3-coverage',
+-    'coverage3',
+-    'coverage',
+-    ], required: false)
+-if python3_coverage.found()
+-    envs.set('PPD_PYTHON_COVERAGE', python3_coverage.full_path())
+-endif
+-
+ foreach ut: unit_tests
+     test(ut,
+          python3,

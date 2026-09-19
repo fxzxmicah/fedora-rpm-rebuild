@@ -1,0 +1,1056 @@
+From 84d586cd973e9cdbe2ce8ad9666a852d802e0a34 Mon Sep 17 00:00:00 2001
+From: Fxzx micah <48860358+fxzxmicah@users.noreply.github.com>
+Date: Sat, 19 Sep 2026 21:16:42 +0800
+Subject: [PATCH] app: Build native flatpak-bisect and flatpak-coredumpctl
+
+---
+ app/flatpak-bisect.c      | 694 ++++++++++++++++++++++++++++++++++++++
+ app/flatpak-coredumpctl.c | 300 ++++++++++++++++
+ app/meson.build           |  14 +
+ scripts/meson.build       |   7 -
+ 4 files changed, 1008 insertions(+), 7 deletions(-)
+ create mode 100644 app/flatpak-bisect.c
+ create mode 100644 app/flatpak-coredumpctl.c
+
+diff --git a/app/flatpak-bisect.c b/app/flatpak-bisect.c
+new file mode 100644
+index 0000000..bca826e
+--- /dev/null
++++ b/app/flatpak-bisect.c
+@@ -0,0 +1,694 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++
++#include <errno.h>
++#include <flatpak.h>
++#include <gio/gio.h>
++#include <glib.h>
++#include <glib/gstdio.h>
++#include <json-glib/json-glib.h>
++#include <string.h>
++
++typedef struct
++{
++  char *good;
++  char *bad;
++  char *log;
++  GPtrArray *refs;
++  GHashTable *messages;
++} BisectState;
++
++typedef struct
++{
++  char *name;
++  char *branch;
++  gboolean runtime;
++  char *cache_path;
++  BisectState *state;
++  FlatpakInstallation *installation;
++  FlatpakInstalledRef *installed_ref;
++} BisectContext;
++
++typedef enum
++{
++  BISECT_COMMAND_START,
++  BISECT_COMMAND_BAD,
++  BISECT_COMMAND_GOOD,
++  BISECT_COMMAND_LOG,
++  BISECT_COMMAND_CHECKOUT,
++  BISECT_COMMAND_RESET,
++} BisectCommand;
++
++static void
++bisect_state_free (BisectState *state)
++{
++  if (state == NULL)
++    return;
++  g_free (state->good);
++  g_free (state->bad);
++  g_free (state->log);
++  g_ptr_array_unref (state->refs);
++  g_hash_table_unref (state->messages);
++  g_free (state);
++}
++
++static void
++bisect_context_clear (BisectContext *bisector)
++{
++  g_clear_object (&bisector->installed_ref);
++  g_clear_object (&bisector->installation);
++  g_clear_pointer (&bisector->state, bisect_state_free);
++  g_clear_pointer (&bisector->cache_path, g_free);
++  g_clear_pointer (&bisector->branch, g_free);
++  g_clear_pointer (&bisector->name, g_free);
++}
++
++G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC (BisectContext, bisect_context_clear)
++
++static BisectState *
++bisect_state_new (void)
++{
++  BisectState *state = g_new0 (BisectState, 1);
++
++  state->refs = g_ptr_array_new_with_free_func (g_free);
++  state->messages = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
++  return state;
++}
++
++static gboolean
++load_nullable_string (JsonObject  *object,
++                      const char  *member,
++                      char       **value)
++{
++  JsonNode *node = json_object_get_member (object, member);
++
++  if (node == NULL || JSON_NODE_HOLDS_NULL (node))
++    {
++      *value = NULL;
++      return TRUE;
++    }
++  if (!JSON_NODE_HOLDS_VALUE (node) ||
++      json_node_get_value_type (node) != G_TYPE_STRING)
++    return FALSE;
++  *value = g_strdup (json_node_get_string (node));
++  return TRUE;
++}
++
++static gboolean
++load_state (BisectContext *bisector)
++{
++  g_autofree char *directory = g_build_filename (g_get_user_cache_dir (), "flatpak", NULL);
++  g_autoptr(JsonParser) parser = json_parser_new ();
++  g_autoptr(GError) error = NULL;
++  JsonObject *root;
++  JsonArray *refs;
++  JsonObject *messages;
++  GList *members = NULL;
++  gboolean valid = TRUE;
++
++  if (g_mkdir_with_parents (directory, 0700) < 0)
++    {
++      g_printerr ("Could not create %s: %s\n", directory, g_strerror (errno));
++      return FALSE;
++    }
++  bisector->cache_path = g_strdup_printf ("%s/%s-%s-bisect.status",
++                                          directory, bisector->name, bisector->branch);
++  if (!json_parser_load_from_file (parser, bisector->cache_path, &error))
++    {
++      if (!g_error_matches (error, G_FILE_ERROR, G_FILE_ERROR_NOENT))
++        {
++          g_printerr ("Could not read %s: %s\n", bisector->cache_path, error->message);
++          return FALSE;
++        }
++      return TRUE;
++    }
++  if (!JSON_NODE_HOLDS_OBJECT (json_parser_get_root (parser)))
++    {
++      g_printerr ("Invalid bisection state in %s\n", bisector->cache_path);
++      return FALSE;
++    }
++  root = json_node_get_object (json_parser_get_root (parser));
++  bisector->state = bisect_state_new ();
++  valid = load_nullable_string (root, "good", &bisector->state->good) &&
++          load_nullable_string (root, "bad", &bisector->state->bad) &&
++          load_nullable_string (root, "log", &bisector->state->log);
++  if (valid && json_object_has_member (root, "refs"))
++    {
++      JsonNode *node = json_object_get_member (root, "refs");
++      if (!JSON_NODE_HOLDS_ARRAY (node))
++        valid = FALSE;
++      else
++        {
++          refs = json_object_get_array_member (root, "refs");
++          for (guint i = 0; i < json_array_get_length (refs); i++)
++            {
++              JsonNode *element = json_array_get_element (refs, i);
++
++              if (!JSON_NODE_HOLDS_VALUE (element) ||
++                  json_node_get_value_type (element) != G_TYPE_STRING)
++                {
++                  valid = FALSE;
++                  break;
++                }
++              g_ptr_array_add (bisector->state->refs,
++                               g_strdup (json_node_get_string (element)));
++            }
++        }
++    }
++  else
++    valid = FALSE;
++  if (valid && json_object_has_member (root, "messages"))
++    {
++      JsonNode *node = json_object_get_member (root, "messages");
++      if (!JSON_NODE_HOLDS_OBJECT (node))
++        valid = FALSE;
++      else
++        {
++          messages = json_object_get_object_member (root, "messages");
++          members = json_object_get_members (messages);
++          for (GList *l = members; l != NULL; l = l->next)
++            {
++              JsonNode *value = json_object_get_member (messages, l->data);
++
++              if (!JSON_NODE_HOLDS_VALUE (value) ||
++                  json_node_get_value_type (value) != G_TYPE_STRING)
++                {
++                  valid = FALSE;
++                  break;
++                }
++              g_hash_table_insert (bisector->state->messages, g_strdup (l->data),
++                                   g_strdup (json_node_get_string (value)));
++            }
++          g_list_free (members);
++        }
++    }
++  else
++    valid = FALSE;
++  if (!valid)
++    {
++      g_printerr ("Invalid bisection state in %s\n", bisector->cache_path);
++      g_clear_pointer (&bisector->state, bisect_state_free);
++      return FALSE;
++    }
++  return TRUE;
++}
++
++static void
++add_nullable_string (JsonBuilder *builder, const char *name, const char *value)
++{
++  json_builder_set_member_name (builder, name);
++  if (value != NULL)
++    json_builder_add_string_value (builder, value);
++  else
++    json_builder_add_null_value (builder);
++}
++
++static gboolean
++save_state (BisectContext *bisector)
++{
++  g_autoptr(JsonBuilder) builder = json_builder_new ();
++  g_autoptr(JsonGenerator) generator = json_generator_new ();
++  g_autoptr(JsonNode) root = NULL;
++  g_autoptr(GError) error = NULL;
++  g_autofree char *contents = NULL;
++  gsize contents_length;
++  GHashTableIter iter;
++  gpointer key, value;
++
++  json_builder_begin_object (builder);
++  add_nullable_string (builder, "good", bisector->state->good);
++  add_nullable_string (builder, "bad", bisector->state->bad);
++  add_nullable_string (builder, "log", bisector->state->log);
++  json_builder_set_member_name (builder, "refs");
++  json_builder_begin_array (builder);
++  for (guint i = 0; i < bisector->state->refs->len; i++)
++    json_builder_add_string_value (builder, g_ptr_array_index (bisector->state->refs, i));
++  json_builder_end_array (builder);
++  json_builder_set_member_name (builder, "messages");
++  json_builder_begin_object (builder);
++  g_hash_table_iter_init (&iter, bisector->state->messages);
++  while (g_hash_table_iter_next (&iter, &key, &value))
++    {
++      json_builder_set_member_name (builder, key);
++      json_builder_add_string_value (builder, value);
++    }
++  json_builder_end_object (builder);
++  json_builder_end_object (builder);
++  root = json_builder_get_root (builder);
++  json_generator_set_root (generator, root);
++  contents = json_generator_to_data (generator, &contents_length);
++  if (!g_file_set_contents (bisector->cache_path, contents, contents_length, &error))
++    {
++      g_printerr ("Could not write %s: %s\n", bisector->cache_path, error->message);
++      return FALSE;
++    }
++  return TRUE;
++}
++
++static gboolean
++load_installed_ref (BisectContext *bisector)
++{
++  g_autoptr(GError) error = NULL;
++
++  bisector->installation = flatpak_installation_new_user (NULL, &error);
++  if (bisector->installation != NULL)
++    bisector->installed_ref = flatpak_installation_get_installed_ref (
++      bisector->installation,
++      bisector->runtime ? FLATPAK_REF_KIND_RUNTIME : FLATPAK_REF_KIND_APP,
++      bisector->name, NULL, bisector->branch, NULL, &error);
++  if (bisector->installed_ref == NULL)
++    {
++      g_printerr ("%s\n\nMake sure %s is installed as a user "
++                  "(flatpak install --user) and specify `--runtime` if it is a runtime.\n",
++                  error->message, bisector->name);
++      return FALSE;
++    }
++  return TRUE;
++}
++
++static int
++spawn_command (char **argv, gboolean capture, char **output)
++{
++  g_autoptr(GError) error = NULL;
++  int status = 0;
++
++  if (!g_spawn_sync (NULL, argv, NULL, G_SPAWN_SEARCH_PATH,
++                     NULL, NULL, capture ? output : NULL, NULL, &status, &error))
++    {
++      g_printerr ("Failed to run %s: %s\n", argv[0], error->message);
++      return 1;
++    }
++  if (!g_spawn_check_wait_status (status, &error))
++    {
++      g_printerr ("%s failed: %s\n", argv[0], error->message);
++      return 1;
++    }
++  return 0;
++}
++
++static char *
++ref_name (BisectContext *bisector, gboolean include_origin)
++{
++  const char *kind = bisector->runtime ? "runtime" : "app";
++  if (include_origin)
++    return g_strdup_printf ("%s:%s/%s/%s/%s",
++      flatpak_installed_ref_get_origin (bisector->installed_ref), kind,
++      flatpak_ref_get_name (FLATPAK_REF (bisector->installed_ref)),
++      flatpak_ref_get_arch (FLATPAK_REF (bisector->installed_ref)),
++      flatpak_ref_get_branch (FLATPAK_REF (bisector->installed_ref)));
++  return g_strdup_printf ("%s/%s/%s",
++      flatpak_ref_get_name (FLATPAK_REF (bisector->installed_ref)),
++      flatpak_ref_get_arch (FLATPAK_REF (bisector->installed_ref)),
++      flatpak_ref_get_branch (FLATPAK_REF (bisector->installed_ref)));
++}
++
++static gboolean
++repository_and_ref (BisectContext *bisector, char **repository, char **remote_ref)
++{
++  const char *deploy = flatpak_installed_ref_get_deploy_dir (bisector->installed_ref);
++  const char *marker = strstr (deploy, bisector->runtime ? "/runtime/" : "/app/");
++  g_autofree char *installation = NULL;
++
++  if (marker == NULL)
++    {
++      g_printerr ("Could not determine the repository from deployment %s\n", deploy);
++      return FALSE;
++    }
++  installation = g_strndup (deploy, marker - deploy);
++  *repository = g_build_filename (installation, "repo", NULL);
++  *remote_ref = ref_name (bisector, TRUE);
++  return TRUE;
++}
++
++static gboolean
++load_history (BisectContext *bisector, char **history)
++{
++  g_autofree char *repository = NULL;
++  g_autofree char *remote_ref = NULL;
++  g_autofree char *repo_option = NULL;
++  char *pull_argv[7];
++  char *log_argv[5];
++
++  g_print ("Getting history\n");
++  if (!repository_and_ref (bisector, &repository, &remote_ref))
++    return FALSE;
++  repo_option = g_strdup_printf ("--repo=%s", repository);
++  pull_argv[0] = (char *) "ostree";
++  pull_argv[1] = (char *) "pull";
++  pull_argv[2] = (char *) "--depth=250";
++  pull_argv[3] = (char *) "--commit-metadata-only";
++  pull_argv[4] = repo_option;
++  pull_argv[5] = remote_ref;
++  pull_argv[6] = NULL;
++  /* A failed pull can still leave usable history in the local repository. */
++  spawn_command (pull_argv, FALSE, NULL);
++
++  log_argv[0] = (char *) "ostree";
++  log_argv[1] = (char *) "log";
++  log_argv[2] = repo_option;
++  log_argv[3] = remote_ref;
++  log_argv[4] = NULL;
++  return spawn_command (log_argv, TRUE, history) == 0;
++}
++
++static gboolean
++load_refs (BisectContext *bisector)
++{
++  g_autofree char *history = NULL;
++  g_auto(GStrv) lines = NULL;
++  g_autoptr(GString) message = g_string_new (NULL);
++  g_autofree char *hash = NULL;
++
++  if (!load_history (bisector, &history))
++    return FALSE;
++
++  lines = g_strsplit (history, "\n", -1);
++  for (guint i = 0; lines[i] != NULL; i++)
++    {
++      if (g_str_has_prefix (lines[i], "commit "))
++        {
++          if (hash != NULL)
++            g_hash_table_insert (bisector->state->messages, g_steal_pointer (&hash),
++                                 g_strdup (message->str));
++          hash = g_strdup (lines[i] + strlen ("commit "));
++          g_ptr_array_insert (bisector->state->refs, 0, g_strdup (hash));
++          g_string_truncate (message, 0);
++        }
++      g_string_append_printf (message, "%s\n", lines[i]);
++    }
++  if (hash != NULL)
++    g_hash_table_insert (bisector->state->messages, g_steal_pointer (&hash),
++                         g_strdup (message->str));
++  bisector->state->log = g_steal_pointer (&history);
++  return TRUE;
++}
++
++static int
++update_ref (BisectContext *bisector, const char *commit)
++{
++  g_autofree char *ref = ref_name (bisector, FALSE);
++  g_autofree char *commit_option = commit ? g_strdup_printf ("--commit=%s", commit) : NULL;
++  char *argv[] = { (char *) "flatpak", (char *) "update", (char *) "--user",
++                   ref, commit_option, NULL };
++  if (commit != NULL)
++    g_print ("Checking out %s\n", commit);
++  if (commit == NULL)
++    argv[4] = NULL;
++  return spawn_command (argv, FALSE, NULL);
++}
++
++static gint
++find_ref (GPtrArray *refs, const char *needle)
++{
++  for (guint i = 0; i < refs->len; i++)
++    if (g_str_equal (g_ptr_array_index (refs, i), needle))
++      return i;
++  return -1;
++}
++
++static int
++show_first_bad (BisectContext *bisector)
++{
++  const char *message = g_hash_table_lookup (bisector->state->messages, bisector->state->bad);
++  g_print ("\n==========================\nFirst bad commit is:\n\n%s"
++           "==========================\n", message ? message : bisector->state->bad);
++  return 0;
++}
++
++static int
++mark_commit (BisectContext *bisector, gboolean good, gboolean *changed)
++{
++  const char *current;
++  const char *opposite;
++  gint current_index, good_index, bad_index;
++
++  *changed = FALSE;
++  if (bisector->state == NULL)
++    {
++      g_printerr ("You need to first start the bisection\n");
++      return 1;
++    }
++  if (good && bisector->state->bad == NULL)
++    {
++      g_printerr ("Set the bad commit first\n");
++      return 1;
++    }
++  current = flatpak_installed_ref_get_latest_commit (bisector->installed_ref);
++  if (current == NULL)
++    {
++      g_printerr ("Could not determine the currently installed commit.\n");
++      return 1;
++    }
++  opposite = good ? bisector->state->bad : bisector->state->good;
++  if (g_strcmp0 (current, opposite) == 0)
++    {
++      g_print ("Commit %s is already set as %s...\n",
++               current, good ? "bad" : "good");
++      return 1;
++    }
++  current_index = find_ref (bisector->state->refs, current);
++  if (current_index < 0)
++    {
++      g_printerr ("%s is not a known commit.\n", current);
++      return 1;
++    }
++  if (opposite != NULL)
++    {
++      gint opposite_index = find_ref (bisector->state->refs, opposite);
++
++      good_index = good ? current_index : opposite_index;
++      bad_index = good ? opposite_index : current_index;
++      if (good_index < 0 || bad_index < 0 || bad_index <= good_index)
++        {
++          g_printerr ("The good and bad commits do not define a valid history range.\n");
++          return 1;
++        }
++    }
++  g_print ("Setting %s as %s commit\n", current, good ? "good" : "bad");
++  if (good)
++    {
++      g_free (bisector->state->good);
++      bisector->state->good = g_strdup (current);
++    }
++  else
++    {
++      g_free (bisector->state->bad);
++      bisector->state->bad = g_strdup (current);
++    }
++  *changed = TRUE;
++  if (bisector->state->good == NULL || bisector->state->bad == NULL)
++    return 0;
++  good_index = find_ref (bisector->state->refs, bisector->state->good);
++  bad_index = find_ref (bisector->state->refs, bisector->state->bad);
++  if (bad_index - good_index == 1)
++    return show_first_bad (bisector);
++  return update_ref (bisector,
++                     g_ptr_array_index (bisector->state->refs,
++                                        good_index + (bad_index - good_index) / 2));
++}
++
++static int
++print_log (BisectContext *bisector)
++{
++  g_autofree char *history = NULL;
++  const char *text;
++
++  if (bisector->state != NULL && bisector->state->log != NULL)
++    text = bisector->state->log;
++  else
++    {
++      if (!load_history (bisector, &history))
++        return 1;
++      text = history;
++    }
++
++  if (g_getenv ("PAGER") != NULL && *g_getenv ("PAGER") != '\0')
++    {
++      g_autoptr(GError) error = NULL;
++      g_auto(GStrv) pager_argv = NULL;
++      int pager_argc;
++      g_autoptr(GSubprocess) pager = NULL;
++      if (!g_shell_parse_argv (g_getenv ("PAGER"), &pager_argc, &pager_argv, &error))
++        {
++          g_printerr ("Invalid PAGER: %s\n", error->message);
++          return 1;
++        }
++      pager = g_subprocess_newv ((const char * const *) pager_argv,
++                                 G_SUBPROCESS_FLAGS_STDIN_PIPE, &error);
++      if (pager == NULL || !g_subprocess_communicate_utf8 (pager,
++                                                            text, NULL,
++                                                            NULL, NULL, &error))
++        {
++          g_printerr ("Pager failed: %s\n", error->message);
++          return 1;
++        }
++      if (!g_subprocess_get_successful (pager))
++        {
++          g_printerr ("Pager exited unsuccessfully\n");
++          return 1;
++        }
++    }
++  else
++    g_print ("%s", text);
++  return 0;
++}
++
++static int
++start_bisection (BisectContext *bisector, gboolean *state_changed)
++{
++  *state_changed = FALSE;
++  if (bisector->state != NULL)
++    {
++      g_printerr ("Bisection already started\n");
++      return 1;
++    }
++
++  g_print ("Updating to %s latest commit\n", bisector->name);
++  if (update_ref (bisector, NULL) != 0)
++    return 1;
++
++  bisector->state = bisect_state_new ();
++  if (!load_refs (bisector))
++    return 1;
++
++  *state_changed = TRUE;
++  return 0;
++}
++
++static int
++reset_bisection (BisectContext *bisector)
++{
++  if (bisector->state == NULL)
++    {
++      g_printerr ("Not bisecting, nothing to reset\n");
++      return 1;
++    }
++
++  g_print ("Removing %s\n", bisector->cache_path);
++  if (g_unlink (bisector->cache_path) < 0)
++    {
++      g_printerr ("Could not remove %s: %s\n",
++                  bisector->cache_path, g_strerror (errno));
++      return 1;
++    }
++  g_clear_pointer (&bisector->state, bisect_state_free);
++  return update_ref (bisector, NULL);
++}
++
++static void
++print_usage (void)
++{
++  g_print ("Usage: flatpak-bisect NAME [-b BRANCH] [-r] COMMAND [COMMIT]\n\n"
++           "Commands: start, bad, good, log, checkout, reset\n");
++}
++
++static gboolean
++parse_command (const char     *name,
++               BisectCommand *command,
++               gboolean      *takes_commit)
++{
++  static const struct
++  {
++    const char *name;
++    BisectCommand command;
++    gboolean takes_commit;
++  } commands[] = {
++    { "start", BISECT_COMMAND_START, FALSE },
++    { "bad", BISECT_COMMAND_BAD, FALSE },
++    { "good", BISECT_COMMAND_GOOD, FALSE },
++    { "log", BISECT_COMMAND_LOG, FALSE },
++    { "checkout", BISECT_COMMAND_CHECKOUT, TRUE },
++    { "reset", BISECT_COMMAND_RESET, FALSE },
++  };
++
++  for (guint i = 0; i < G_N_ELEMENTS (commands); i++)
++    {
++      if (g_str_equal (name, commands[i].name))
++        {
++          *command = commands[i].command;
++          *takes_commit = commands[i].takes_commit;
++          return TRUE;
++        }
++    }
++  return FALSE;
++}
++
++int
++main (int argc, char **argv)
++{
++  g_auto(BisectContext) bisector = { 0 };
++  g_autoptr(GOptionContext) context = NULL;
++  g_autoptr(GError) error = NULL;
++  g_auto(GStrv) arguments = NULL;
++  g_autofree char *branch = NULL;
++  gboolean runtime = FALSE;
++  BisectCommand command;
++  const char *commit = NULL;
++  gboolean takes_commit;
++  gboolean state_changed = FALSE;
++  int result = 1;
++  GOptionEntry entries[] = {
++    { "branch", 'b', 0, G_OPTION_ARG_STRING, &branch,
++      "The branch to bisect", "BRANCH" },
++    { "runtime", 'r', 0, G_OPTION_ARG_NONE, &runtime,
++      "Bisect a runtime instead of an application", NULL },
++    { G_OPTION_REMAINING, 0, 0, G_OPTION_ARG_STRING_ARRAY, &arguments,
++      NULL, "NAME COMMAND [COMMIT]" },
++    { NULL }
++  };
++
++  context = g_option_context_new ("NAME COMMAND [COMMIT]");
++  g_option_context_set_summary (context, "Bisect Flatpak application or runtime builds.");
++  g_option_context_add_main_entries (context, entries, NULL);
++  if (!g_option_context_parse (context, &argc, &argv, &error))
++    {
++      g_printerr ("%s\n", error->message);
++      return 2;
++    }
++  if (arguments == NULL || g_strv_length (arguments) < 2 ||
++      g_strv_length (arguments) > 3)
++    {
++      print_usage ();
++      return 2;
++    }
++
++  bisector.name = g_strdup (arguments[0]);
++  bisector.branch = g_strdup (branch != NULL ? branch : "master");
++  bisector.runtime = runtime;
++  commit = arguments[2];
++  if (!parse_command (arguments[1], &command, &takes_commit) ||
++      takes_commit != (commit != NULL))
++    {
++      print_usage ();
++      return 2;
++    }
++  if (!load_state (&bisector))
++    goto out;
++  if (!load_installed_ref (&bisector))
++    goto out;
++
++  switch (command)
++    {
++    case BISECT_COMMAND_START:
++      result = start_bisection (&bisector, &state_changed);
++      break;
++    case BISECT_COMMAND_BAD:
++      result = mark_commit (&bisector, FALSE, &state_changed);
++      break;
++    case BISECT_COMMAND_GOOD:
++      result = mark_commit (&bisector, TRUE, &state_changed);
++      break;
++    case BISECT_COMMAND_LOG:
++      result = print_log (&bisector);
++      break;
++    case BISECT_COMMAND_CHECKOUT:
++      result = update_ref (&bisector, commit);
++      break;
++    case BISECT_COMMAND_RESET:
++      result = reset_bisection (&bisector);
++      break;
++    }
++  if (state_changed && !save_state (&bisector))
++    result = 1;
++out:
++  return result;
++}
+diff --git a/app/flatpak-coredumpctl.c b/app/flatpak-coredumpctl.c
+new file mode 100644
+index 0000000..4f74c4a
+--- /dev/null
++++ b/app/flatpak-coredumpctl.c
+@@ -0,0 +1,300 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++
++#include <errno.h>
++#include <gio/gio.h>
++#include <glib.h>
++#include <glib/gstdio.h>
++#include <string.h>
++#include <unistd.h>
++
++typedef struct
++{
++  char *build_directory;
++  char *extra_flatpak_args;
++  char *coredumpctl_matches;
++  char *gdb_arguments;
++  char **remaining;
++} Options;
++
++static void
++options_clear (Options *options)
++{
++  g_free (options->build_directory);
++  g_free (options->extra_flatpak_args);
++  g_free (options->coredumpctl_matches);
++  g_free (options->gdb_arguments);
++  g_strfreev (options->remaining);
++}
++
++G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC (Options, options_clear)
++
++static gboolean
++append_shell_words (GPtrArray   *arguments,
++                    const char  *words,
++                    GError     **error)
++{
++  g_auto(GStrv) parsed = NULL;
++  int argc = 0;
++
++  if (words == NULL || *words == '\0')
++    return TRUE;
++  if (!g_shell_parse_argv (words, &argc, &parsed, error))
++    return FALSE;
++  for (int i = 0; i < argc; i++)
++    g_ptr_array_add (arguments, g_strdup (parsed[i]));
++  return TRUE;
++}
++
++static char *
++shell_quote_for_display (const char *argument)
++{
++  g_autoptr(GString) quoted = NULL;
++
++  if (*argument != '\0' && strspn (argument,
++      "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@%_-+=:,./") == strlen (argument))
++    return g_strdup (argument);
++  quoted = g_string_new ("'");
++  for (const char *p = argument; *p != '\0'; p++)
++    {
++      if (*p == '\'')
++        g_string_append (quoted, "'\"'\"'");
++      else
++        g_string_append_c (quoted, *p);
++    }
++  g_string_append_c (quoted, '\'');
++  return g_string_free (g_steal_pointer (&quoted), FALSE);
++}
++
++static int
++subprocess_exit_status (GSubprocess *process)
++{
++  if (g_subprocess_get_if_exited (process))
++    return g_subprocess_get_exit_status (process);
++  if (g_subprocess_get_if_signaled (process))
++    return 128 + g_subprocess_get_term_sig (process);
++  return 1;
++}
++
++static char *
++find_executable (const char *diagnostics)
++{
++  g_auto(GStrv) lines = g_strsplit (diagnostics, "\n", -1);
++  char *executable = NULL;
++  guint matches = 0;
++
++  for (guint i = 0; lines[i] != NULL; i++)
++    {
++      char *marker = strstr (lines[i], "Executable: ");
++      if (marker != NULL)
++        {
++          g_free (executable);
++          executable = g_strdup (marker + strlen ("Executable: "));
++          matches++;
++        }
++    }
++  if (matches != 1)
++    {
++      g_printerr ("Could not determine executable from coredumpctl output "
++                  "(found %u 'Executable:' line(s)).\n", matches);
++      g_clear_pointer (&executable, g_free);
++    }
++  return executable;
++}
++
++static int
++run_coredumpctl (GPtrArray  *arguments,
++                 int         output_fd,
++                 char      **diagnostics)
++{
++  g_autoptr(GSubprocessLauncher) launcher = NULL;
++  g_autoptr(GSubprocess) process = NULL;
++  g_autoptr(GError) error = NULL;
++  char *stderr_text = NULL;
++  int duplicated_fd;
++
++  g_ptr_array_add (arguments, NULL);
++  duplicated_fd = dup (output_fd);
++  if (duplicated_fd < 0)
++    {
++      g_printerr ("Could not prepare the core file: %s\n", g_strerror (errno));
++      return 1;
++    }
++  launcher = g_subprocess_launcher_new (G_SUBPROCESS_FLAGS_STDERR_PIPE);
++  g_subprocess_launcher_take_stdout_fd (launcher, duplicated_fd);
++  process = g_subprocess_launcher_spawnv (launcher,
++                                          (const char * const *) arguments->pdata,
++                                          &error);
++  if (process == NULL ||
++      !g_subprocess_communicate_utf8 (process, NULL, NULL, NULL, &stderr_text, &error))
++    {
++      g_printerr ("Failed to run coredumpctl: %s\n", error->message);
++      g_free (stderr_text);
++      return 1;
++    }
++  *diagnostics = stderr_text;
++  if (!g_subprocess_get_successful (process))
++    {
++      int status = subprocess_exit_status (process);
++
++      g_printerr ("Failed to retrieve coredump via coredumpctl.\n");
++      if (**diagnostics != '\0')
++        g_printerr ("Reason:\n%s", *diagnostics);
++      return status != 0 ? status : 1;
++    }
++  return 0;
++}
++
++static int
++run_flatpak (Options *options, const char *executable, const char *core_path)
++{
++  g_autoptr(GPtrArray) command = g_ptr_array_new_with_free_func (g_free);
++  g_autoptr(GError) error = NULL;
++  g_autofree char *tmp_permission = g_strdup_printf ("--filesystem=%s", g_get_tmp_dir ());
++  g_auto(GStrv) printable = NULL;
++  g_autofree char *joined = NULL;
++  g_autoptr(GSubprocess) process = NULL;
++
++  g_ptr_array_add (command, g_strdup ("flatpak"));
++  g_ptr_array_add (command, g_strdup (options->build_directory ? "build" : "run"));
++  g_ptr_array_add (command, g_strdup ("--filesystem=home"));
++  g_ptr_array_add (command, g_strdup (tmp_permission));
++  if (!append_shell_words (command, options->extra_flatpak_args, &error))
++    {
++      g_printerr ("Invalid --extra-flatpak-args: %s\n", error->message);
++      return 1;
++    }
++  if (options->build_directory == NULL)
++    {
++      g_ptr_array_add (command, g_strdup ("--command=gdb"));
++      g_ptr_array_add (command, g_strdup ("--devel"));
++      g_ptr_array_add (command, g_strdup (options->remaining[0]));
++    }
++  else
++    {
++      g_ptr_array_add (command, g_strdup (options->build_directory));
++      g_ptr_array_add (command, g_strdup ("gdb"));
++    }
++  g_ptr_array_add (command, g_strdup (executable));
++  g_ptr_array_add (command, g_strdup (core_path));
++  if (!append_shell_words (command, options->gdb_arguments, &error))
++    {
++      g_printerr ("Invalid --gdb-arguments: %s\n", error->message);
++      return 1;
++    }
++  g_ptr_array_add (command, NULL);
++
++  printable = g_new0 (char *, command->len);
++  for (guint i = 0; i + 1 < command->len; i++)
++    printable[i] = shell_quote_for_display (g_ptr_array_index (command, i));
++  joined = g_strjoinv (" ", printable);
++  g_print ("Running: `%s`\n", joined);
++
++  process = g_subprocess_newv ((const char * const *) command->pdata,
++                               G_SUBPROCESS_FLAGS_NONE, &error);
++  if (process == NULL || !g_subprocess_wait (process, NULL, &error))
++    {
++      g_printerr ("Failed to run flatpak: %s\n", error->message);
++      return 1;
++    }
++  return subprocess_exit_status (process);
++}
++
++int
++main (int argc, char **argv)
++{
++  g_auto(Options) options = { 0 };
++  g_autoptr(GOptionContext) context = NULL;
++  g_autoptr(GError) error = NULL;
++  g_autofree char *coredumpctl = NULL;
++  g_autofree char *core_path = NULL;
++  g_autofree char *diagnostics = NULL;
++  g_autofree char *executable = NULL;
++  g_autoptr(GPtrArray) dump_command = NULL;
++  int core_fd;
++  int result;
++  GOptionEntry entries[] = {
++    { "build-directory", 'b', 0, G_OPTION_ARG_FILENAME, &options.build_directory,
++      "The build directory to use", "DIRECTORY" },
++    { "extra-flatpak-args", 0, 0, G_OPTION_ARG_STRING, &options.extra_flatpak_args,
++      "Extra arguments to pass to flatpak", "ARGS" },
++    { "coredumpctl-matches", 'm', 0, G_OPTION_ARG_STRING, &options.coredumpctl_matches,
++      "Matches passed to coredumpctl", "MATCHES" },
++    { "gdb-arguments", 0, 0, G_OPTION_ARG_STRING, &options.gdb_arguments,
++      "Arguments passed to gdb", "ARGS" },
++    { G_OPTION_REMAINING, 0, 0, G_OPTION_ARG_STRING_ARRAY, &options.remaining,
++      NULL, "APP" },
++    { NULL }
++  };
++
++  context = g_option_context_new ("[APP] - debug a crashed Flatpak application in gdb");
++  g_option_context_set_description (context,
++    "Uses coredumpctl to retrieve a core file and opens it in the application's SDK.");
++  g_option_context_add_main_entries (context, entries, NULL);
++  if (!g_option_context_parse (context, &argc, &argv, &error))
++    {
++      g_printerr ("%s\n", error->message);
++      return 2;
++    }
++  if (options.build_directory == NULL &&
++      (options.remaining == NULL || options.remaining[0] == NULL))
++    {
++      g_autofree char *help = g_option_context_get_help (context, TRUE, NULL);
++      g_printerr ("Either `--build-directory` or `APP` must be specified.\n%s", help);
++      return 1;
++    }
++  if (options.build_directory != NULL &&
++      options.remaining != NULL && options.remaining[0] != NULL)
++    {
++      g_printerr ("APP and `--build-directory` are mutually exclusive.\n");
++      return 2;
++    }
++  if (options.remaining != NULL && options.remaining[1] != NULL)
++    {
++      g_printerr ("Only one APP may be specified.\n");
++      return 2;
++    }
++
++  coredumpctl = g_find_program_in_path ("coredumpctl");
++  if (coredumpctl == NULL)
++    {
++      g_printerr ("'coredumpctl' not present on the system, can't run.\n");
++      return 1;
++    }
++  core_fd = g_file_open_tmp ("flatpak-coredumpctl-XXXXXX", &core_path, &error);
++  if (core_fd < 0)
++    {
++      g_printerr ("Could not create temporary core file: %s\n", error->message);
++      return 1;
++    }
++  dump_command = g_ptr_array_new_with_free_func (g_free);
++  g_ptr_array_add (dump_command, g_steal_pointer (&coredumpctl));
++  g_ptr_array_add (dump_command, g_strdup ("dump"));
++  if (!append_shell_words (dump_command, options.coredumpctl_matches, &error))
++    {
++      g_printerr ("Invalid --coredumpctl-matches: %s\n", error->message);
++      close (core_fd);
++      g_unlink (core_path);
++      return 1;
++    }
++  result = run_coredumpctl (dump_command, core_fd, &diagnostics);
++  close (core_fd);
++  if (result == 0)
++    {
++      executable = find_executable (diagnostics);
++      if (executable == NULL)
++        result = 1;
++      else
++        {
++          if (!g_str_has_prefix (executable, "/newroot/") &&
++              !g_str_has_prefix (executable, "/app/"))
++            g_printerr ("Executable %s doesn't seem to be a flatpaked application.\n",
++                        executable);
++          if (g_str_has_prefix (executable, "/newroot"))
++            memmove (executable, executable + strlen ("/newroot"),
++                     strlen (executable + strlen ("/newroot")) + 1);
++          result = run_flatpak (&options, executable, core_path);
++        }
++    }
++  g_unlink (core_path);
++  return result;
++}
+diff --git a/app/meson.build b/app/meson.build
+index 8e6ef1d..01ecdca 100644
+--- a/app/meson.build
++++ b/app/meson.build
+@@ -143,3 +143,17 @@ flatpak_exe = executable(
+   install_dir : get_option('bindir'),
+   sources : sources + flatpak_gdbus + flatpak_permission_gdbus,
+ )
++
++executable(
++  'flatpak-bisect',
++  'flatpak-bisect.c',
++  dependencies : [libflatpak_dep, json_glib_dep],
++  install : true,
++)
++
++executable(
++  'flatpak-coredumpctl',
++  'flatpak-coredumpctl.c',
++  dependencies : [glib_dep, gio_dep],
++  install : true,
++)
+diff --git a/scripts/meson.build b/scripts/meson.build
+index 211acbe..7c1ce1c 100644
+--- a/scripts/meson.build
++++ b/scripts/meson.build
+@@ -1,9 +1,2 @@
+ # Copyright 2022 Collabora Ltd.
+ # SPDX-License-Identifier: LGPL-2.1-or-later
+-
+-install_data(
+-  'flatpak-bisect',
+-  'flatpak-coredumpctl',
+-  install_dir : get_option('bindir'),
+-  install_mode : 'rwxr-xr-x',
+-)

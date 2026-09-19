@@ -1,5 +1,5 @@
 diff --git OLD/flatpak.spec NEW/flatpak.spec
-index 1f6ce3a..a61c35f 100644
+index 1f6ce3a..df2b426 100644
 --- OLD/flatpak.spec
 +++ NEW/flatpak.spec
 @@ -8,8 +8,8 @@
@@ -13,7 +13,17 @@ index 1f6ce3a..a61c35f 100644
  
  Name:           flatpak
  Version:        1.17.7
-@@ -81,8 +81,10 @@ Requires:       ostree-libs%{?_isa} >= %{ostree_version}
+@@ -20,6 +20,9 @@ License:        LGPL-2.1-or-later
+ URL:            https://flatpak.org/
+ Source0:        https://github.com/flatpak/flatpak/releases/download/%{version}/%{name}-%{version}.tar.xz
+ 
++# Replace flatpak-bisect and flatpak-coredumpctl with native executables
++Patch0:         flatpak-native-tools.patch
++
+ %if 0%{?fedora}
+ # Add Fedora flatpak repositories
+ Source1:        flatpak-add-fedora-repos.service
+@@ -81,8 +84,10 @@ Requires:       ostree-libs%{?_isa} >= %{ostree_version}
  Requires:       /usr/bin/fusermount3
  Requires:       /usr/bin/xdg-dbus-proxy
  # https://fedoraproject.org/wiki/SELinux/IndependentPolicy
@@ -25,7 +35,7 @@ index 1f6ce3a..a61c35f 100644
  Recommends:     p11-kit-server
  
  # Make sure the document portal is installed
-@@ -135,6 +137,26 @@ Requires:       systemd
+@@ -135,6 +140,26 @@ Requires:       systemd
  This package contains the org.freedesktop.Flatpak user D-Bus service
  that's used by %{name} and other packages.
  
@@ -52,7 +62,7 @@ index 1f6ce3a..a61c35f 100644
  %package tests
  Summary:        Tests for %{name}
  Requires:       %{name}%{?_isa} = %{?epoch:%{epoch}:}%{version}-%{release}
-@@ -228,11 +250,9 @@ fi
+@@ -228,11 +253,9 @@ fi
  %{_datadir}/dbus-1/services/org.freedesktop.portal.Flatpak.service
  %{_datadir}/dbus-1/system.d/org.freedesktop.Flatpak.SystemHelper.conf
  %{_datadir}/dbus-1/system-services/org.freedesktop.Flatpak.SystemHelper.service
@@ -64,7 +74,7 @@ index 1f6ce3a..a61c35f 100644
  %{_libexecdir}/flatpak-oci-authenticator
  %{_libexecdir}/flatpak-portal
  %{_libexecdir}/flatpak-system-helper
-@@ -268,6 +288,7 @@ fi
+@@ -268,6 +291,7 @@ fi
  %files devel
  %{_datadir}/gir-1.0/Flatpak-1.0.gir
  %{_datadir}/gtk-doc/
@@ -72,7 +82,7 @@ index 1f6ce3a..a61c35f 100644
  %{_includedir}/%{name}/
  %{_libdir}/libflatpak.so
  %{_libdir}/pkgconfig/%{name}.pc
-@@ -279,7 +300,6 @@ fi
+@@ -279,7 +303,6 @@ fi
  
  %files selinux
  %{_datadir}/selinux/packages/flatpak.pp.bz2
@@ -80,7 +90,7 @@ index 1f6ce3a..a61c35f 100644
  
  %files session-helper
  %license COPYING
-@@ -288,6 +308,12 @@ fi
+@@ -288,6 +311,12 @@ fi
  %{_libexecdir}/flatpak-session-helper
  %{_userunitdir}/flatpak-session-helper.service
  
