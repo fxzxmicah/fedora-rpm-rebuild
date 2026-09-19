@@ -1,8 +1,26 @@
 diff --git OLD/libinput.spec NEW/libinput.spec
-index 52c7ac1..2a6f893 100644
+index 52c7ac1..8dbbd60 100644
 --- OLD/libinput.spec
 +++ NEW/libinput.spec
-@@ -31,6 +31,8 @@ BuildRequires:  python3-rpm-macros
+@@ -3,6 +3,9 @@
+ #global gitdate 20141211
+ %global gitversion 58abea394
+ 
++# Disable libwacom for all builds
++%bcond libwacom 0
++
+ Name:           libinput
+ Version:        1.31.1
+ Release:        1%{?gitdate:.%{gitdate}git%{gitversion}}%{?dist}
+@@ -25,12 +28,16 @@ BuildRequires:  meson
+ BuildRequires:  pkgconfig(libudev)
+ BuildRequires:  pkgconfig(mtdev) >= 1.1.0
+ BuildRequires:  pkgconfig(libevdev) >= 0.4
++%if %{with libwacom}
+ BuildRequires:  pkgconfig(libwacom) >= 0.20
++%endif
+ BuildRequires:  pkgconfig(udev)
+ BuildRequires:  python3-rpm-macros
  
  BuildRequires:  lua-devel
  
@@ -11,7 +29,7 @@ index 52c7ac1..2a6f893 100644
  %description
  libinput is a library that handles input devices for display servers and other
  applications that need to directly deal with input devices.
-@@ -57,6 +59,16 @@ Requires:       python3-pyudev python3-libevdev
+@@ -57,6 +64,16 @@ Requires:       python3-pyudev python3-libevdev
  The %{name}-utils package contains tools to debug hardware and analyze
  %{name}.
  
@@ -28,7 +46,22 @@ index 52c7ac1..2a6f893 100644
  %package        test
  Summary:        libinput integration test suite
  Requires:       %{name}%{?_isa} = %{version}-%{release}
-@@ -103,9 +115,6 @@ intended to be run by users.
+@@ -76,7 +93,13 @@ intended to be run by users.
+        -Dtests=true \
+        -Dinstall-tests=true \
+        -Dautoload-plugins=true \
+-       -Dudev-dir=%{udevdir}
++       -Dudev-dir=%{udevdir} \
++%if %{with libwacom}
++       -Dlibwacom=true \
++%else
++       -Dlibwacom=false \
++%endif
++       %{nil}
+ %meson_build
+ 
+ %install
+@@ -103,9 +126,6 @@ intended to be run by users.
  %{_mandir}/man1/libinput.1*
  %dir %{_datadir}/libinput
  %{_datadir}/libinput/*.quirks
@@ -38,7 +71,7 @@ index 52c7ac1..2a6f893 100644
  %{_mandir}/man1/libinput-list-devices.1*
  %{_mandir}/man1/libinput-debug-events.1*
  
-@@ -152,6 +161,9 @@ intended to be run by users.
+@@ -152,6 +172,9 @@ intended to be run by users.
  %{_mandir}/man1/libinput-record.1*
  %{_mandir}/man1/libinput-replay.1*
  

@@ -1,0 +1,817 @@
+From 1f090a584c6c19dfc6b9e8b9b45923626e264abd Mon Sep 17 00:00:00 2001
+From: Fxzx micah <48860358+fxzxmicah@users.noreply.github.com>
+Date: Sat, 19 Sep 2026 20:26:37 +0800
+Subject: [PATCH 1/2] build: Make libwacom and Samba support optional
+
+Add build options for libwacom and Samba which default to enabled, preserving the upstream build by default.
+
+Disabling libwacom skips its dependency and the complete Wacom panel. Disabling Samba skips smbclient and pp-samba.c, and removes the Samba discovery, authentication, device, and URI code paths from the printers panel.
+---
+ meson.build                             |  18 ++--
+ meson_options.txt                       |   2 +
+ panels/meson.build                      |   9 +-
+ panels/printers/meson.build             |  15 ++-
+ panels/printers/pp-new-printer-dialog.c | 121 +++++++++++++++++++-----
+ panels/printers/pp-print-device.c       |  14 +++
+ panels/printers/pp-print-device.h       |   4 +
+ panels/printers/pp-utils.c              |  14 ++-
+ panels/printers/pp-utils.h              |   4 +
+ shell/cc-panel-list.c                   |   2 +
+ shell/meson.build                       |   2 +-
+ 11 files changed, 162 insertions(+), 43 deletions(-)
+
+diff --git a/meson.build b/meson.build
+index 7e00915..0b66507 100644
+--- a/meson.build
++++ b/meson.build
+@@ -367,24 +367,27 @@ config_h.set('HAVE_WWAN', host_is_linux,
+ if host_is_linux_not_s390
+   # gnome-bluetooth
+   gnome_bluetooth_dep = dependency('gnome-bluetooth-ui-3.0')
++else
++  message('Bluetooth panel will not be built (no USB support on this platform)')
++  message('Thunderbolt panel will not be built (not supported on this platform)')
++endif
+ 
++enable_wacom = host_is_linux_not_s390 and get_option('libwacom')
++if enable_wacom
+   libwacom_dep = dependency('libwacom', version: '>= 1.4')
+ 
+   wacom_deps = [
+     libwacom_dep,
+   ]
+-else
+-  message('Bluetooth and Wacom panels will not be built (no USB support on this platform)')
+-  message('Thunderbolt panel will not be built (not supported on this platform)')
+ endif
+ config_h.set('BUILD_BLUETOOTH', host_is_linux_not_s390,
+              description: 'Define to 1 to build the Bluetooth panel')
+ config_h.set('HAVE_BLUETOOTH', host_is_linux_not_s390,
+              description: 'Define to 1 if bluetooth support is available')
+-config_h.set('BUILD_WACOM', host_is_linux_not_s390,
++config_h.set('BUILD_WACOM', enable_wacom,
+              description: 'Define to 1 to build the Wacom panel')
+-config_h.set('HAVE_WACOM', host_is_linux_not_s390,
+-             description: 'Define to 1 if Wacom is supportted')
++config_h.set('HAVE_WACOM', enable_wacom,
++             description: 'Define to 1 if Wacom is supported')
+ config_h.set('BUILD_THUNDERBOLT', host_is_linux_not_s390,
+              description: 'Define to 1 to build the Thunderbolt panel')
+ 
+@@ -440,7 +443,7 @@ summary({
+ summary({
+     'GNOME Bluetooth': host_is_linux_not_s390,
+     'NetworkManager': host_is_linux,
+-    'Wacom': host_is_linux_not_s390,
++    'Wacom': enable_wacom,
+   },
+   section: 'Dependencies',
+   bool_yn: true,
+@@ -450,6 +453,7 @@ summary({
+     'IBus': enable_ibus,
+     'Snap': enable_snap,
+     'Malcontent': enable_malcontent,
++    'Samba': enable_samba,
+   },
+   section: 'Optional Dependencies',
+   bool_yn: true,
+diff --git a/meson_options.txt b/meson_options.txt
+index 89d11be..4e6061e 100644
+--- a/meson_options.txt
++++ b/meson_options.txt
+@@ -7,5 +7,7 @@ option('snap', type: 'boolean', value: true, description: 'build with Snap suppo
+ option('tests', type: 'boolean', value: true, description: 'build tests')
+ option('profile', type: 'combo', choices: ['default','development'], value: 'default')
+ option('malcontent', type: 'boolean', value: false, description: 'build with malcontent support')
++option('libwacom', type: 'boolean', value: true, description: 'build with libwacom support')
++option('samba', type: 'feature', value: 'enabled', description: 'build with Samba printer support')
+ option('distributor_logo', type: 'string', description: 'absolute path to distributor logo for the About panel')
+ option('dark_mode_distributor_logo', type: 'string', description: 'absolute path to distributor logo dark mode variant')
+diff --git a/panels/meson.build b/panels/meson.build
+index 07c7733..945f175 100644
+--- a/panels/meson.build
++++ b/panels/meson.build
+@@ -30,10 +30,11 @@ if host_is_linux
+ endif
+ 
+ if host_is_linux_not_s390
+-  panels += [
+-    'bluetooth',
+-    'wacom'
+-  ]
++  panels += ['bluetooth']
++endif
++
++if enable_wacom
++  panels += ['wacom']
+ endif
+ 
+ panels_list = []
+diff --git a/panels/printers/meson.build b/panels/printers/meson.build
+index 7e7704c..1609a4a 100644
+--- a/panels/printers/meson.build
++++ b/panels/printers/meson.build
+@@ -49,10 +49,18 @@ sources = files(
+   'pp-print-device.c',
+   'pp-printer-entry.c',
+   'pp-printer.c',
+-  'pp-samba.c',
+   'pp-utils.c'
+ )
+ 
++samba_dep = dependency('smbclient', required: get_option('samba'))
++enable_samba = samba_dep.found()
++config_h.set('HAVE_SAMBA', enable_samba,
++             description: 'Define to 1 if Samba printer support is enabled')
++
++if enable_samba
++  sources += files('pp-samba.c')
++endif
++
+ sources += gnome.compile_resources(
+   'cc-' + cappletname + '-resources',
+   cappletname + '.gresource.xml',
+@@ -65,9 +73,12 @@ deps = common_deps + [
+   cups_dep,
+   m_dep,
+   polkit_gobject_dep,
+-  dependency('smbclient')
+ ]
+ 
++if enable_samba
++  deps += samba_dep
++endif
++
+ printers_panel_lib = static_library(
+   cappletname,
+   sources: sources,
+diff --git a/panels/printers/pp-new-printer-dialog.c b/panels/printers/pp-new-printer-dialog.c
+index de94c72..f7fbdae 100644
+--- a/panels/printers/pp-new-printer-dialog.c
++++ b/panels/printers/pp-new-printer-dialog.c
+@@ -33,7 +33,9 @@
+ #include "pp-host.h"
+ #include "pp-new-printer.h"
+ #include "pp-ppd-selection-dialog.h"
++#ifdef HAVE_SAMBA
+ #include "pp-samba.h"
++#endif
+ #include "pp-utils.h"
+ 
+ #if (CUPS_VERSION_MAJOR > 1) || (CUPS_VERSION_MINOR > 5)
+@@ -50,8 +52,10 @@
+  */
+ #define HOST_SEARCH_DELAY (500 - 150)
+ 
+-#define AUTHENTICATION_PAGE "authentication-page"
+ #define ADDPRINTER_PAGE "addprinter-page"
++#ifdef HAVE_SAMBA
++#define AUTHENTICATION_PAGE "authentication-page"
++#endif
+ 
+ static void     set_device (PpNewPrinterDialog *self,
+                             PpPrintDevice      *device,
+@@ -67,8 +71,10 @@ static void     cancel_cb (PpNewPrinterDialog *self);
+ static void     update_dialog_state (PpNewPrinterDialog *self);
+ static void     add_devices_to_list (PpNewPrinterDialog  *self,
+                                      GPtrArray           *devices);
++#ifdef HAVE_SAMBA
+ static void     remove_device_from_list (PpNewPrinterDialog *self,
+                                          const gchar        *device_name);
++#endif
+ 
+ enum
+ {
+@@ -92,21 +98,29 @@ struct _PpNewPrinterDialog
+   GtkTreeModelFilter *devices_model_filter;
+ 
+   /* headerbar */
++#ifdef HAVE_SAMBA
+   AdwWindowTitle       *header_title;
+ 
+   /* headerbar topleft buttons */
+   GtkStack           *headerbar_topleft_buttons;
+   GtkButton          *go_back_button;
++#endif
+ 
+   /* headerbar topright buttons */
++#ifdef HAVE_SAMBA
+   GtkStack           *headerbar_topright_buttons;
++#endif
+   GtkButton          *new_printer_add_button;
++#ifdef HAVE_SAMBA
+   GtkButton          *unlock_button;
+   GtkButton          *authenticate_button;
++#endif
+   /* end headerbar */
+ 
+   /* dialogstack */
++#ifdef HAVE_SAMBA
+   GtkStack           *dialog_stack;
++#endif
+   GtkStack           *stack;
+ 
+   /* scrolledwindow1 */
+@@ -115,12 +129,14 @@ struct _PpNewPrinterDialog
+ 
+   GtkEntry           *search_entry;
+ 
++#ifdef HAVE_SAMBA
+   /* authentication page */
+   GtkLabel           *authentication_title;
+   GtkLabel           *authentication_text;
+   GtkEntry           *username_entry;
+   GtkEntry           *password_entry;
+   /* end dialog stack */
++#endif
+ 
+   UserResponseCallback user_callback;
+   gpointer             user_data;
+@@ -132,8 +148,10 @@ struct _PpNewPrinterDialog
+   GCancellable *remote_host_cancellable;
+ 
+   gboolean  cups_searching;
++#ifdef HAVE_SAMBA
+   gboolean  samba_authenticated_searching;
+   gboolean  samba_searching;
++#endif
+ 
+   PpPPDSelectionDialog *ppd_selection_dialog;
+ 
+@@ -143,18 +161,23 @@ struct _PpNewPrinterDialog
+ 
+   GIcon *local_printer_icon;
+   GIcon *remote_printer_icon;
++#ifdef HAVE_SAMBA
+   GIcon *authenticated_server_icon;
++#endif
+ 
+   PpHost  *snmp_host;
+   PpHost  *socket_host;
+   PpHost  *lpd_host;
+   PpHost  *remote_cups_host;
++#ifdef HAVE_SAMBA
+   PpSamba *samba_host;
++#endif
+   guint    host_search_timeout_id;
+ };
+ 
+ G_DEFINE_TYPE (PpNewPrinterDialog, pp_new_printer_dialog, ADW_TYPE_WINDOW)
+ 
++#ifdef HAVE_SAMBA
+ typedef struct
+ {
+   gchar    *server_name;
+@@ -356,14 +379,17 @@ authenticate_samba_server (PpNewPrinterDialog *self)
+         }
+     }
+ }
++#endif
+ 
+ static void
+ device_selection_changed_cb (PpNewPrinterDialog *self)
+ {
+   GtkTreeModel              *model;
+   GtkTreeIter                iter;
+-  gboolean                   authentication_needed;
+   gboolean                   selected;
++#ifdef HAVE_SAMBA
++  gboolean                   authentication_needed;
++#endif
+ 
+   selected = gtk_tree_selection_get_selected (gtk_tree_view_get_selection (self->devices_treeview),
+                                               &model,
+@@ -371,6 +397,7 @@ device_selection_changed_cb (PpNewPrinterDialog *self)
+ 
+   if (selected)
+     {
++#ifdef HAVE_SAMBA
+       gtk_tree_model_get (model, &iter,
+                           SERVER_NEEDS_AUTHENTICATION_COLUMN, &authentication_needed,
+                           -1);
+@@ -382,9 +409,13 @@ device_selection_changed_cb (PpNewPrinterDialog *self)
+         gtk_stack_set_visible_child_name (self->headerbar_topright_buttons, "unlock_button");
+       else
+         gtk_stack_set_visible_child_name (self->headerbar_topright_buttons, ADDPRINTER_PAGE);
++#else
++      gtk_widget_set_sensitive (GTK_WIDGET (self->new_printer_add_button), TRUE);
++#endif
+     }
+ }
+ 
++#ifdef HAVE_SAMBA
+ static void
+ remove_device_from_list (PpNewPrinterDialog *self,
+                          const gchar        *device_name)
+@@ -412,6 +443,7 @@ remove_device_from_list (PpNewPrinterDialog *self,
+ 
+   update_dialog_state (self);
+ }
++#endif
+ 
+ static gboolean
+ prepend_original_name (GtkTreeModel *model,
+@@ -451,8 +483,10 @@ add_device_to_list (PpNewPrinterDialog *self,
+           pp_print_device_get_device_ppd (device) ||
+           (pp_print_device_get_host_name (device) &&
+            acquisition_method == ACQUISITION_METHOD_REMOTE_CUPS_SERVER) ||
++#ifdef HAVE_SAMBA
+            acquisition_method == ACQUISITION_METHOD_SAMBA_HOST ||
+            acquisition_method == ACQUISITION_METHOD_SAMBA ||
++#endif
+           (pp_print_device_get_device_uri (device) &&
+            (acquisition_method == ACQUISITION_METHOD_JETDIRECT ||
+             acquisition_method == ACQUISITION_METHOD_LPD)))
+@@ -487,6 +521,7 @@ add_device_to_list (PpNewPrinterDialog *self,
+           else
+             set_device (self, device, NULL);
+         }
++#ifdef HAVE_SAMBA
+       else if (pp_print_device_is_authenticated_server (device) &&
+                pp_print_device_get_host_name (device) != NULL)
+         {
+@@ -500,6 +535,7 @@ add_device_to_list (PpNewPrinterDialog *self,
+ 
+           set_device (self, store_device, NULL);
+         }
++#endif
+     }
+ }
+ 
+@@ -565,11 +601,13 @@ update_dialog_state (PpNewPrinterDialog *self)
+   searching = self->cups_searching ||
+               self->remote_cups_host != NULL ||
+               self->snmp_host != NULL ||
+-              self->socket_host != NULL ||
+-              self->lpd_host != NULL ||
++#ifdef HAVE_SAMBA
+               self->samba_host != NULL ||
+               self->samba_authenticated_searching ||
+-              self->samba_searching;
++              self->samba_searching ||
++#endif
++              self->socket_host != NULL ||
++              self->lpd_host != NULL;
+ 
+   if (gtk_tree_model_get_iter_first (GTK_TREE_MODEL (self->devices_liststore), &iter))
+       gtk_stack_set_visible_child_name (self->stack, "standard-page");
+@@ -895,6 +933,7 @@ get_remote_cups_devices_cb (GObject      *source_object,
+     }
+ }
+ 
++#ifdef HAVE_SAMBA
+ static void
+ get_samba_host_devices_cb (GObject      *source_object,
+                            GAsyncResult *res,
+@@ -958,6 +997,7 @@ get_samba_devices_cb (GObject      *source_object,
+         }
+     }
+ }
++#endif
+ 
+ static void
+ get_jetdirect_devices_cb (GObject      *source_object,
+@@ -1132,10 +1172,6 @@ search_for_remote_printers (THostSearchData *data)
+         g_object_set (self->lpd_host, "port", data->host_port, NULL);
+     }
+ 
+-  self->samba_host = pp_samba_new (data->host_name);
+-
+-  update_dialog_state (data->dialog);
+-
+   pp_host_get_remote_cups_devices_async (self->remote_cups_host,
+                                          self->remote_host_cancellable,
+                                          get_remote_cups_devices_cb,
+@@ -1156,11 +1192,16 @@ search_for_remote_printers (THostSearchData *data)
+                                  get_lpd_devices_cb,
+                                  data->dialog);
+ 
++#ifdef HAVE_SAMBA
++  self->samba_host = pp_samba_new (data->host_name);
+   pp_samba_get_devices_async (self->samba_host,
+                               FALSE,
+                               self->remote_host_cancellable,
+                               get_samba_host_devices_cb,
+                               data->dialog);
++#endif
++
++  update_dialog_state (data->dialog);
+ 
+   self->host_search_timeout_id = 0;
+ 
+@@ -1252,8 +1293,10 @@ search_address (const gchar        *text,
+           if (acquisition_method == ACQUISITION_METHOD_REMOTE_CUPS_SERVER ||
+               acquisition_method == ACQUISITION_METHOD_SNMP ||
+               acquisition_method == ACQUISITION_METHOD_JETDIRECT ||
+-              acquisition_method == ACQUISITION_METHOD_LPD ||
+-              acquisition_method == ACQUISITION_METHOD_SAMBA_HOST)
++#ifdef HAVE_SAMBA
++              acquisition_method == ACQUISITION_METHOD_SAMBA_HOST ||
++#endif
++              acquisition_method == ACQUISITION_METHOD_LPD)
+             {
+               if (!gtk_list_store_remove (self->devices_liststore, &iter))
+                 break;
+@@ -1388,11 +1431,13 @@ set_device (PpNewPrinterDialog *self,
+            pp_print_device_get_device_ppd (device) ||
+            (pp_print_device_get_host_name (device) &&
+             acquisition_method == ACQUISITION_METHOD_REMOTE_CUPS_SERVER) ||
+-           (pp_print_device_get_device_uri (device) &&
+-            (acquisition_method == ACQUISITION_METHOD_JETDIRECT ||
+-             acquisition_method == ACQUISITION_METHOD_LPD)) ||
++#ifdef HAVE_SAMBA
+            acquisition_method == ACQUISITION_METHOD_SAMBA_HOST ||
+-           acquisition_method == ACQUISITION_METHOD_SAMBA))
++           acquisition_method == ACQUISITION_METHOD_SAMBA ||
++#endif
++           (pp_print_device_get_device_uri (device) &&
++             (acquisition_method == ACQUISITION_METHOD_JETDIRECT ||
++             acquisition_method == ACQUISITION_METHOD_LPD))))
+         {
+           g_autofree gchar *description = NULL;
+ 
+@@ -1423,6 +1468,7 @@ set_device (PpNewPrinterDialog *self,
+                               DEVICE_COLUMN, device,
+                               -1);
+         }
++#ifdef HAVE_SAMBA
+       else if (pp_print_device_is_authenticated_server (device) &&
+                pp_print_device_get_host_name (device) != NULL)
+         {
+@@ -1440,6 +1486,7 @@ set_device (PpNewPrinterDialog *self,
+                               DEVICE_COLUMN, device,
+                               -1);
+         }
++#endif
+     }
+ }
+ 
+@@ -1507,7 +1554,9 @@ row_activated_cb (PpNewPrinterDialog *self)
+ {
+   GtkTreeModel              *model;
+   GtkTreeIter                iter;
++#ifdef HAVE_SAMBA
+   gboolean                   authentication_needed;
++#endif
+   gboolean                   selected;
+ 
+   selected = gtk_tree_selection_get_selected (gtk_tree_view_get_selection (self->devices_treeview),
+@@ -1516,16 +1565,14 @@ row_activated_cb (PpNewPrinterDialog *self)
+ 
+   if (selected)
+     {
++#ifdef HAVE_SAMBA
+       gtk_tree_model_get (model, &iter, SERVER_NEEDS_AUTHENTICATION_COLUMN, &authentication_needed, -1);
+ 
+       if (authentication_needed)
+-        {
+-          authenticate_samba_server (self);
+-        }
++        authenticate_samba_server (self);
+       else
+-        {
+-          add_cb (self);
+-        }
++#endif
++        add_cb (self);
+     }
+ }
+ 
+@@ -1579,11 +1626,15 @@ static void
+ populate_devices_list (PpNewPrinterDialog *self)
+ {
+   GtkTreeViewColumn         *column;
++#ifdef HAVE_SAMBA
+   g_autoptr(PpSamba)         samba = NULL;
+   g_autoptr(GEmblem)         emblem = NULL;
++#endif
+   g_autoptr(PpCups)          cups = NULL;
++#ifdef HAVE_SAMBA
+   g_autoptr(GIcon)           icon = NULL;
+   g_autoptr(GIcon)           emblem_icon = NULL;
++#endif
+   GtkCellRenderer           *text_renderer;
+   GtkCellRenderer           *icon_renderer;
+ 
+@@ -1596,11 +1647,13 @@ populate_devices_list (PpNewPrinterDialog *self)
+   self->local_printer_icon = g_themed_icon_new ("printer");
+   self->remote_printer_icon = g_themed_icon_new ("printer-network");
+ 
++#ifdef HAVE_SAMBA
+   icon = g_themed_icon_new ("network-server");
+   emblem_icon = g_themed_icon_new ("changes-prevent");
+   emblem = g_emblem_new (emblem_icon);
+ 
+   self->authenticated_server_icon = g_emblemed_icon_new (icon, emblem);
++#endif
+ 
+   icon_renderer = gtk_cell_renderer_pixbuf_new ();
+   g_object_set (icon_renderer, "icon-size", GTK_ICON_SIZE_LARGE, NULL);
+@@ -1625,11 +1678,13 @@ populate_devices_list (PpNewPrinterDialog *self)
+   cups = pp_cups_new ();
+   pp_cups_get_dests_async (cups, self->cancellable, cups_get_dests_cb, self);
+ 
++#ifdef HAVE_SAMBA
+   self->samba_searching = TRUE;
+-  update_dialog_state (self);
+-
+   samba = pp_samba_new (NULL);
+   pp_samba_get_devices_async (samba, FALSE, self->cancellable, get_samba_devices_cb, self);
++#endif
++
++  update_dialog_state (self);
+ }
+ 
+ static void
+@@ -1718,9 +1773,11 @@ add_cb (PpNewPrinterDialog *self)
+   if (device)
+     {
+       acquisition_method = pp_print_device_get_acquisition_method (device);
+-      if (acquisition_method == ACQUISITION_METHOD_SAMBA ||
++      if (acquisition_method == ACQUISITION_METHOD_JETDIRECT ||
++#ifdef HAVE_SAMBA
++          acquisition_method == ACQUISITION_METHOD_SAMBA ||
+           acquisition_method == ACQUISITION_METHOD_SAMBA_HOST ||
+-          acquisition_method == ACQUISITION_METHOD_JETDIRECT ||
++#endif
+           acquisition_method == ACQUISITION_METHOD_LPD)
+         {
+           self->new_device = pp_print_device_copy (device);
+@@ -1766,12 +1823,14 @@ pp_new_printer_dialog_new (PPDList              *ppd_list,
+   g_signal_connect_object (self->search_entry, "activate", G_CALLBACK (search_entry_activated_cb), self, G_CONNECT_SWAPPED);
+   g_signal_connect_object (self->search_entry, "search-changed", G_CALLBACK (search_entry_changed_cb), self, G_CONNECT_SWAPPED);
+ 
++#ifdef HAVE_SAMBA
+   g_signal_connect_object (self->unlock_button, "clicked", G_CALLBACK (authenticate_samba_server), self, G_CONNECT_SWAPPED);
+ 
+   /* Authentication form widgets */
+   g_signal_connect_object (self->username_entry, "changed", G_CALLBACK (auth_entries_changed), self, G_CONNECT_SWAPPED);
+   g_signal_connect_object (self->password_entry, "changed", G_CALLBACK (auth_entries_changed), self, G_CONNECT_SWAPPED);
+   g_signal_connect_object (self->go_back_button, "clicked", G_CALLBACK (on_go_back_button_clicked), self, G_CONNECT_SWAPPED);
++#endif
+ 
+   /* Fill with data */
+   populate_devices_list (self);
+@@ -1805,12 +1864,16 @@ pp_new_printer_dialog_dispose (GObject *object)
+   g_clear_object (&self->new_device);
+   g_clear_object (&self->local_printer_icon);
+   g_clear_object (&self->remote_printer_icon);
++#ifdef HAVE_SAMBA
+   g_clear_object (&self->authenticated_server_icon);
++#endif
+   g_clear_object (&self->snmp_host);
+   g_clear_object (&self->socket_host);
+   g_clear_object (&self->lpd_host);
+   g_clear_object (&self->remote_cups_host);
++#ifdef HAVE_SAMBA
+   g_clear_object (&self->samba_host);
++#endif
+ 
+   if (self->ppd_selection_dialog != NULL)
+     {
+@@ -1843,6 +1906,7 @@ pp_new_printer_dialog_class_init (PpNewPrinterDialogClass *klass)
+   gtk_widget_class_bind_template_child (widget_class, PpNewPrinterDialog, devices_model_filter);
+ 
+   /* headerbar */
++#ifdef HAVE_SAMBA
+   gtk_widget_class_bind_template_child (widget_class, PpNewPrinterDialog, header_title);
+ 
+   /* headerbar topleft buttons */
+@@ -1851,12 +1915,17 @@ pp_new_printer_dialog_class_init (PpNewPrinterDialogClass *klass)
+ 
+   /* headerbar topright buttons */
+   gtk_widget_class_bind_template_child (widget_class, PpNewPrinterDialog, headerbar_topright_buttons);
++#endif
+   gtk_widget_class_bind_template_child (widget_class, PpNewPrinterDialog, new_printer_add_button);
++#ifdef HAVE_SAMBA
+   gtk_widget_class_bind_template_child (widget_class, PpNewPrinterDialog, unlock_button);
+   gtk_widget_class_bind_template_child (widget_class, PpNewPrinterDialog, authenticate_button);
++#endif
+ 
+   /* dialogstack */
++#ifdef HAVE_SAMBA
+   gtk_widget_class_bind_template_child (widget_class, PpNewPrinterDialog, dialog_stack);
++#endif
+   gtk_widget_class_bind_template_child (widget_class, PpNewPrinterDialog, stack);
+ 
+   /* scrolledwindow1 */
+@@ -1865,11 +1934,13 @@ pp_new_printer_dialog_class_init (PpNewPrinterDialogClass *klass)
+ 
+   gtk_widget_class_bind_template_child (widget_class, PpNewPrinterDialog, search_entry);
+ 
++#ifdef HAVE_SAMBA
+   /* authentication page */
+   gtk_widget_class_bind_template_child (widget_class, PpNewPrinterDialog, authentication_title);
+   gtk_widget_class_bind_template_child (widget_class, PpNewPrinterDialog, authentication_text);
+   gtk_widget_class_bind_template_child (widget_class, PpNewPrinterDialog, username_entry);
+   gtk_widget_class_bind_template_child (widget_class, PpNewPrinterDialog, password_entry);
++#endif
+ 
+   gtk_widget_class_bind_template_callback (widget_class, add_cb);
+   gtk_widget_class_bind_template_callback (widget_class, cancel_cb);
+diff --git a/panels/printers/pp-print-device.c b/panels/printers/pp-print-device.c
+index 3ab0b07..56a0a86 100644
+--- a/panels/printers/pp-print-device.c
++++ b/panels/printers/pp-print-device.c
+@@ -35,7 +35,9 @@ struct _PpPrintDevice
+   gchar    *device_ppd;
+   gchar    *host_name;
+   gint      host_port;
++#ifdef HAVE_SAMBA
+   gboolean  is_authenticated_server;
++#endif
+   gint      acquisition_method;
+   gboolean  is_network_device;
+ };
+@@ -56,7 +58,9 @@ enum
+   PROP_DEVICE_PPD,
+   PROP_HOST_NAME,
+   PROP_HOST_PORT,
++#ifdef HAVE_SAMBA
+   PROP_IS_AUTHENTICATED_SERVER,
++#endif
+   PROP_ACQUISITION_METHOD,
+   PROP_IS_NETWORK_DEVICE
+ };
+@@ -123,9 +127,11 @@ pp_print_device_get_property (GObject    *object,
+       case PROP_HOST_PORT:
+         g_value_set_int (value, self->host_port);
+         break;
++#ifdef HAVE_SAMBA
+       case PROP_IS_AUTHENTICATED_SERVER:
+         g_value_set_boolean (value, self->is_authenticated_server);
+         break;
++#endif
+       case PROP_ACQUISITION_METHOD:
+         g_value_set_int (value, self->acquisition_method);
+         break;
+@@ -193,9 +199,11 @@ pp_print_device_set_property (GObject      *object,
+       case PROP_HOST_PORT:
+         self->host_port = g_value_get_int (value);
+         break;
++#ifdef HAVE_SAMBA
+       case PROP_IS_AUTHENTICATED_SERVER:
+         self->is_authenticated_server = g_value_get_boolean (value);
+         break;
++#endif
+       case PROP_ACQUISITION_METHOD:
+         self->acquisition_method = g_value_get_int (value);
+         break;
+@@ -308,6 +316,7 @@ pp_print_device_class_init (PpPrintDeviceClass *klass)
+                                                      0, G_MAXINT32, 0,
+                                                      G_PARAM_READWRITE));
+ 
++#ifdef HAVE_SAMBA
+   g_object_class_install_property (gobject_class,
+                                    PROP_IS_AUTHENTICATED_SERVER,
+                                    g_param_spec_boolean ("is-authenticated-server",
+@@ -315,6 +324,7 @@ pp_print_device_class_init (PpPrintDeviceClass *klass)
+                                                          "Whether the device is a server which needs authentication",
+                                                          FALSE,
+                                                          G_PARAM_READWRITE));
++#endif
+ 
+   g_object_class_install_property (gobject_class,
+                                    PROP_ACQUISITION_METHOD,
+@@ -410,11 +420,13 @@ pp_print_device_get_host_port (PpPrintDevice *self)
+   return self->host_port;
+ }
+ 
++#ifdef HAVE_SAMBA
+ gboolean
+ pp_print_device_is_authenticated_server (PpPrintDevice *self)
+ {
+   return self->is_authenticated_server;
+ }
++#endif
+ 
+ gint
+ pp_print_device_get_acquisition_method (PpPrintDevice *self)
+@@ -443,7 +455,9 @@ pp_print_device_copy (PpPrintDevice *self)
+                        "device-ppd", pp_print_device_get_device_ppd (self),
+                        "host-name", pp_print_device_get_host_name (self),
+                        "host-port", pp_print_device_get_host_port (self),
++#ifdef HAVE_SAMBA
+                        "is-authenticated-server", pp_print_device_is_authenticated_server (self),
++#endif
+                        "acquisition-method", pp_print_device_get_acquisition_method (self),
+                        "is-network-device", pp_print_device_is_network_device (self),
+                        NULL);
+diff --git a/panels/printers/pp-print-device.h b/panels/printers/pp-print-device.h
+index a271254..142722a 100644
+--- a/panels/printers/pp-print-device.h
++++ b/panels/printers/pp-print-device.h
+@@ -20,6 +20,8 @@
+ 
+ #pragma once
+ 
++#include "config.h"
++
+ #include <glib-object.h>
+ #include <gio/gio.h>
+ 
+@@ -41,7 +43,9 @@ gchar         *pp_print_device_get_device_id             (PpPrintDevice *device)
+ gchar         *pp_print_device_get_device_ppd            (PpPrintDevice *device);
+ gchar         *pp_print_device_get_host_name             (PpPrintDevice *device);
+ gint           pp_print_device_get_host_port             (PpPrintDevice *device);
++#ifdef HAVE_SAMBA
+ gboolean       pp_print_device_is_authenticated_server   (PpPrintDevice *device);
++#endif
+ gint           pp_print_device_get_acquisition_method    (PpPrintDevice *device);
+ gboolean       pp_print_device_is_network_device         (PpPrintDevice *device);
+ 
+diff --git a/panels/printers/pp-utils.c b/panels/printers/pp-utils.c
+index c7325fa..6b0ffc7 100644
+--- a/panels/printers/pp-utils.c
++++ b/panels/printers/pp-utils.c
+@@ -1089,7 +1089,9 @@ printer_is_local (cups_ptype_t  printer_type,
+ 		   resource, sizeof (resource));
+ 
+   if (g_str_equal (scheme, "ipp") ||
++#ifdef HAVE_SAMBA
+       g_str_equal (scheme, "smb") ||
++#endif
+       g_str_equal (scheme, "socket") ||
+       g_str_equal (scheme, "lpd"))
+     result = FALSE;
+@@ -1143,7 +1145,9 @@ printer_get_hostname (cups_ptype_t  printer_type,
+                        resource, sizeof (resource));
+ 
+       if (g_str_equal (scheme, "ipp") ||
++#ifdef HAVE_SAMBA
+           g_str_equal (scheme, "smb") ||
++#endif
+           g_str_equal (scheme, "socket") ||
+           g_str_equal (scheme, "lpd"))
+         {
+@@ -3437,10 +3441,12 @@ guess_device_hostname (PpPrintDevice *device)
+ 
+   if (device != NULL && pp_print_device_get_device_uri (device) != NULL)
+     {
+-      if (g_str_has_prefix (pp_print_device_get_device_uri (device), "socket") ||
+-          g_str_has_prefix (pp_print_device_get_device_uri (device), "lpd") ||
+-          g_str_has_prefix (pp_print_device_get_device_uri (device), "ipp") ||
+-          g_str_has_prefix (pp_print_device_get_device_uri (device), "smb"))
++      if (g_str_has_prefix (pp_print_device_get_device_uri (device), "ipp") ||
++#ifdef HAVE_SAMBA
++          g_str_has_prefix (pp_print_device_get_device_uri (device), "smb") ||
++#endif
++          g_str_has_prefix (pp_print_device_get_device_uri (device), "socket") ||
++          g_str_has_prefix (pp_print_device_get_device_uri (device), "lpd"))
+         {
+           status = httpSeparateURI (HTTP_URI_CODING_ALL,
+                                     pp_print_device_get_device_uri (device),
+diff --git a/panels/printers/pp-utils.h b/panels/printers/pp-utils.h
+index 46b1807..84c76dc 100644
+--- a/panels/printers/pp-utils.h
++++ b/panels/printers/pp-utils.h
+@@ -19,6 +19,8 @@
+ 
+ #pragma once
+ 
++#include "config.h"
++
+ #include <gtk/gtk.h>
+ #include <cups/cups.h>
+ 
+@@ -53,8 +55,10 @@ enum
+   ACQUISITION_METHOD_DEFAULT_CUPS_SERVER = 0,
+   ACQUISITION_METHOD_REMOTE_CUPS_SERVER,
+   ACQUISITION_METHOD_SNMP,
++#ifdef HAVE_SAMBA
+   ACQUISITION_METHOD_SAMBA,
+   ACQUISITION_METHOD_SAMBA_HOST,
++#endif
+   ACQUISITION_METHOD_JETDIRECT,
+   ACQUISITION_METHOD_LPD
+ };
+diff --git a/shell/cc-panel-list.c b/shell/cc-panel-list.c
+index 2b59587..a6415c4 100644
+--- a/shell/cc-panel-list.c
++++ b/shell/cc-panel-list.c
+@@ -399,7 +399,9 @@ static const gchar * const panel_order[] = {
+   "keyboard",
+   "color",
+   "printers",
++#ifdef BUILD_WACOM
+   "wacom",
++#endif
+ 
+   "separator",
+ 
+diff --git a/shell/meson.build b/shell/meson.build
+index af64d48..3bac00f 100644
+--- a/shell/meson.build
++++ b/shell/meson.build
+@@ -121,7 +121,7 @@ shell_deps = common_deps + [
+   libshell_dep,
+ ]
+ 
+-if host_is_linux_not_s390
++if enable_wacom
+   shell_deps += wacom_deps
+ endif
+ 
+-- 
+2.54.0
+

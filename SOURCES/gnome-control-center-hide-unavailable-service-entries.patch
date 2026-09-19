@@ -1,0 +1,194 @@
+From 5ac43c6aee1b9092bc18dd1813903a3f93d72535 Mon Sep 17 00:00:00 2001
+From: Fxzx micah <48860358+fxzxmicah@users.noreply.github.com>
+Date: Sat, 19 Sep 2026 20:26:47 +0800
+Subject: [PATCH 2/2] panels: Hide entries for unavailable system services
+
+Hide the Secure Shell row when the system has no controllable sshd service.
+
+Probe the CUPS service independently of configured printer destinations. Hide the Printers panel when the service is unavailable, while keeping it visible when CUPS is running without any configured printers.
+---
+ panels/printers/cc-printers-panel.c          | 43 ++++++++++++++++++++
+ panels/printers/cc-printers-panel.h          |  2 +
+ panels/system/cc-system-panel.blp            |  2 +-
+ panels/system/cc-system-panel.c              |  7 ++++
+ panels/system/cc-systemd-service.h           |  4 ++
+ panels/system/secure-shell/cc-secure-shell.c |  5 ---
+ shell/cc-panel-loader.c                      |  3 +-
+ 7 files changed, 59 insertions(+), 7 deletions(-)
+
+diff --git a/panels/printers/cc-printers-panel.c b/panels/printers/cc-printers-panel.c
+index f4a03a6..4491573 100644
+--- a/panels/printers/cc-printers-panel.c
++++ b/panels/printers/cc-printers-panel.c
+@@ -19,6 +19,8 @@
+ #include <config.h>
+ 
+ #include "shell/cc-object-storage.h"
++#include "shell/cc-application.h"
++#include "shell/cc-log.h"
+ 
+ #include "cc-printers-panel.h"
+ #include "cc-printers-resources.h"
+@@ -121,6 +123,47 @@ struct _CcPrintersPanel
+ 
+ CC_PANEL_REGISTER (CcPrintersPanel, cc_printers_panel)
+ 
++static void
++set_panel_visibility (gboolean visible)
++{
++  CcApplication *application;
++
++  application = CC_APPLICATION (g_application_get_default ());
++  cc_shell_model_set_panel_visibility (cc_application_get_model (application),
++                                       "printers",
++                                       visible ? CC_PANEL_VISIBLE : CC_PANEL_HIDDEN);
++
++  g_debug ("Printers panel visible: %s", visible ? "yes" : "no");
++}
++
++static void
++update_panel_visibility (GObject      *source_object,
++                         GAsyncResult *result,
++                         gpointer      user_data)
++{
++  g_autoptr(GError) error = NULL;
++  gboolean visible;
++
++  visible = pp_cups_connection_test_finish (PP_CUPS (source_object), result, &error);
++  if (error != NULL)
++    {
++      g_warning ("Could not test connection to the printing service: %s", error->message);
++      return;
++    }
++
++  set_panel_visibility (visible);
++}
++
++void
++cc_printers_panel_static_init_func (void)
++{
++  g_autoptr(PpCups) cups = pp_cups_new ();
++
++  CC_TRACE_MSG ("Updating Printers panel visibility");
++  set_panel_visibility (FALSE);
++  pp_cups_connection_test_async (cups, NULL, update_panel_visibility, NULL);
++}
++
+ typedef struct
+ {
+   gchar        *printer_name;
+diff --git a/panels/printers/cc-printers-panel.h b/panels/printers/cc-printers-panel.h
+index 18e93a4..b6451a1 100644
+--- a/panels/printers/cc-printers-panel.h
++++ b/panels/printers/cc-printers-panel.h
+@@ -25,4 +25,6 @@ G_BEGIN_DECLS
+ #define CC_TYPE_PRINTERS_PANEL (cc_printers_panel_get_type ())
+ G_DECLARE_FINAL_TYPE (CcPrintersPanel, cc_printers_panel, CC, PRINTERS_PANEL, CcPanel)
+ 
++void cc_printers_panel_static_init_func (void);
++
+ G_END_DECLS
+diff --git a/panels/system/cc-system-panel.blp b/panels/system/cc-system-panel.blp
+index bc7d84c..da111b6 100644
+--- a/panels/system/cc-system-panel.blp
++++ b/panels/system/cc-system-panel.blp
+@@ -49,7 +49,7 @@ template $CcSystemPanel: $CcPanel {
+             action-target: "'remote-desktop'";
+           }
+ 
+-          $CcListRow {
++          $CcListRow secure_shell_row {
+             title: _("Se_cure Shell");
+             subtitle: _("SSH network access");
+             icon-name: "utilities-terminal-symbolic";
+diff --git a/panels/system/cc-system-panel.c b/panels/system/cc-system-panel.c
+index a81e9a4..c5a3c6b 100644
+--- a/panels/system/cc-system-panel.c
++++ b/panels/system/cc-system-panel.c
+@@ -43,6 +43,7 @@ struct _CcSystemPanel
+   AdwActionRow *datetime_row;
+   AdwActionRow *region_row;
+   AdwActionRow *remote_desktop_row;
++  AdwActionRow *secure_shell_row;
+   AdwActionRow *users_row;
+ 
+   CcSecureShellPage *secure_shell_dialog;
+@@ -142,6 +143,7 @@ cc_system_panel_class_init (CcSystemPanelClass *klass)
+   gtk_widget_class_bind_template_child (widget_class, CcSystemPanel, datetime_row);
+   gtk_widget_class_bind_template_child (widget_class, CcSystemPanel, region_row);
+   gtk_widget_class_bind_template_child (widget_class, CcSystemPanel, remote_desktop_row);
++  gtk_widget_class_bind_template_child (widget_class, CcSystemPanel, secure_shell_row);
+   gtk_widget_class_bind_template_child (widget_class, CcSystemPanel, users_row);
+   gtk_widget_class_bind_template_child (widget_class, CcSystemPanel, software_updates_group);
+ 
+@@ -169,6 +171,11 @@ cc_system_panel_init (CcSystemPanel *self)
+   /* Hide the remote-desktop page if the g-r-d service is either "masked", "static", or "not-found". */
+   gtk_widget_set_visible (GTK_WIDGET (self->remote_desktop_row), service_state == CC_SERVICE_STATE_ENABLED ||
+                                                                  service_state == CC_SERVICE_STATE_DISABLED);
++
++  service_state = cc_get_service_state (SSHD_SERVICE, G_BUS_TYPE_SYSTEM);
++  gtk_widget_set_visible (GTK_WIDGET (self->secure_shell_row), service_state == CC_SERVICE_STATE_ENABLED ||
++                                                               service_state == CC_SERVICE_STATE_DISABLED);
++
+   gtk_widget_set_visible (GTK_WIDGET (self->software_updates_group), show_software_updates_group (self));
+ 
+   cc_panel_add_static_subpage (CC_PANEL (self), "about", CC_TYPE_ABOUT_PAGE);
+diff --git a/panels/system/cc-systemd-service.h b/panels/system/cc-systemd-service.h
+index 8274c6a..fc1ecbb 100644
+--- a/panels/system/cc-systemd-service.h
++++ b/panels/system/cc-systemd-service.h
+@@ -23,6 +23,10 @@
+ 
+ #define REMOTE_DESKTOP_SERVICE "gnome-remote-desktop.service"
+ 
++#ifndef SSHD_SERVICE
++#define SSHD_SERVICE "sshd.service"
++#endif
++
+ typedef enum {
+   CC_SERVICE_STATE_ENABLED,
+   CC_SERVICE_STATE_DISABLED,
+diff --git a/panels/system/secure-shell/cc-secure-shell.c b/panels/system/secure-shell/cc-secure-shell.c
+index 4800906..f15d0e2 100644
+--- a/panels/system/secure-shell/cc-secure-shell.c
++++ b/panels/system/secure-shell/cc-secure-shell.c
+@@ -24,10 +24,6 @@
+ #include <gio/gio.h>
+ #include <polkit/polkit.h>
+ 
+-#ifndef SSHD_SERVICE
+-#define SSHD_SERVICE "sshd.service"
+-#endif
+-
+ typedef struct
+ {
+   AdwSwitchRow *widget;
+@@ -133,4 +129,3 @@ cc_secure_shell_set_enabled (GCancellable *cancellable,
+                 error->message);
+     }
+ }
+-
+diff --git a/shell/cc-panel-loader.c b/shell/cc-panel-loader.c
+index 28a1671..42f3695 100644
+--- a/shell/cc-panel-loader.c
++++ b/shell/cc-panel-loader.c
+@@ -68,6 +68,7 @@ extern GType cc_wwan_panel_get_type (void);
+ #ifdef BUILD_NETWORK
+ extern void cc_wifi_panel_static_init_func (void);
+ #endif /* BUILD_NETWORK */
++extern void cc_printers_panel_static_init_func (void);
+ extern void cc_sharing_panel_static_init_func (void);
+ #ifdef BUILD_WACOM
+ extern void cc_wacom_panel_static_init_func (void);
+@@ -103,7 +104,7 @@ static CcPanelLoaderVtable default_panels[] =
+   PANEL_TYPE("notifications",    cc_notifications_panel_get_type,        NULL),
+   PANEL_TYPE("online-accounts",  cc_online_accounts_panel_get_type,      NULL),
+   PANEL_TYPE("power",            cc_power_panel_get_type,                NULL),
+-  PANEL_TYPE("printers",         cc_printers_panel_get_type,             NULL),
++  PANEL_TYPE("printers",         cc_printers_panel_get_type,             cc_printers_panel_static_init_func),
+   PANEL_TYPE("privacy",          cc_privacy_panel_get_type,              NULL),
+   PANEL_TYPE("search",           cc_search_panel_get_type,               NULL),
+   PANEL_TYPE("sharing",          cc_sharing_panel_get_type,              cc_sharing_panel_static_init_func),
+-- 
+2.54.0
+

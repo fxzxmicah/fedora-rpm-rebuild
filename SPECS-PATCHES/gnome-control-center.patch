@@ -1,8 +1,8 @@
 diff --git OLD/gnome-control-center.spec NEW/gnome-control-center.spec
-index dfebc4a..1d6e7c6 100644
+index dfebc4a..8fab447 100644
 --- OLD/gnome-control-center.spec
 +++ NEW/gnome-control-center.spec
-@@ -13,8 +13,10 @@
+@@ -13,8 +13,12 @@
  
  %global tarball_version %%(echo %{version} | tr '~' '.')
  
@@ -12,21 +12,23 @@ index dfebc4a..1d6e7c6 100644
 +%bcond malcontent 0
 +# Disable samba for all builds
 +%bcond samba 0
++# Disable libwacom for all builds
++%bcond libwacom 0
  
  Name:           gnome-control-center
  Version:        50.1
-@@ -25,6 +27,10 @@ License:        GPL-2.0-or-later AND CC0-1.0
+@@ -25,6 +29,10 @@ License:        GPL-2.0-or-later AND CC0-1.0
  URL:            https://gitlab.gnome.org/GNOME/gnome-control-center/
  Source0:        https://download.gnome.org/sources/%{name}/50/%{name}-%{tarball_version}.tar.xz
  
-+# Samba dep patches
-+Patch0:         https://gitlab.gnome.org/GNOME/gnome-control-center/-/merge_requests/3118.patch
-+Patch1:         https://gitlab.gnome.org/fxzxmicah/gnome-control-center/-/commit/bf023127ca8e3ede0723395818b3baf4d03765e5.patch
++# Downstream optional feature and service visibility patches
++Patch0:         gnome-control-center-make-libwacom-samba-optional.patch
++Patch1:         gnome-control-center-hide-unavailable-service-entries.patch
 +
  BuildRequires:  blueprint-compiler >= %{blueprint_compiler_version}
  BuildRequires:  desktop-file-utils
  BuildRequires:  docbook-style-xsl libxslt
-@@ -63,7 +69,9 @@ BuildRequires:  pkgconfig(malcontent-0)
+@@ -63,7 +71,9 @@ BuildRequires:  pkgconfig(malcontent-0)
  BuildRequires:  pkgconfig(mm-glib)
  BuildRequires:  pkgconfig(polkit-gobject-1)
  BuildRequires:  pkgconfig(pwquality)
@@ -36,7 +38,18 @@ index dfebc4a..1d6e7c6 100644
  BuildRequires:  pkgconfig(tecla)
  BuildRequires:  pkgconfig(udisks2)
  BuildRequires:  pkgconfig(upower-glib) >= %{upower_version}
-@@ -122,10 +130,8 @@ Requires: /usr/bin/tecla
+@@ -71,8 +81,10 @@ BuildRequires:  pkgconfig(x11)
+ BuildRequires:  pkgconfig(xi)
+ %ifnarch s390 s390x
+ BuildRequires:  pkgconfig(gnome-bluetooth-3.0) >= %{gnome_bluetooth_version}
++%if %{with libwacom}
+ BuildRequires:  pkgconfig(libwacom)
+ %endif
++%endif
+ 
+ # Versioned library deps
+ Requires: libadwaita%{?_isa} >= %{libadwaita_version}
+@@ -122,10 +134,8 @@ Requires: /usr/bin/tecla
  %if 0%{?fedora} >= 35 || 0%{?rhel} >= 9
  # For the power panel
  Recommends: ppd-service
@@ -48,7 +61,7 @@ index dfebc4a..1d6e7c6 100644
  %endif
  %endif
  
-@@ -155,6 +161,13 @@ for applications. This package contains directories where applications
+@@ -155,6 +165,13 @@ for applications. This package contains directories where applications
  can install configuration files that are picked up by the control-center
  utilities.
  
@@ -62,7 +75,7 @@ index dfebc4a..1d6e7c6 100644
  %prep
  %autosetup -p1 -n %{name}-%{tarball_version}
  
-@@ -174,6 +187,11 @@ utilities.
+@@ -174,6 +191,16 @@ utilities.
    -Dmalcontent=true \
  %else
    -Dmalcontent=false \
@@ -71,10 +84,15 @@ index dfebc4a..1d6e7c6 100644
 +  -Dsamba=enabled \
 +%else
 +  -Dsamba=disabled \
++%endif
++%if %{with libwacom}
++  -Dlibwacom=true \
++%else
++  -Dlibwacom=false \
  %endif
    %{nil}
  %meson_build
-@@ -210,7 +228,6 @@ rm -rf $RPM_BUILD_ROOT%{_datadir}/gnome/cursor-fonts
+@@ -210,7 +237,6 @@ rm -rf $RPM_BUILD_ROOT%{_datadir}/gnome/cursor-fonts
  %{_mandir}/man1/gnome-control-center.1*
  %{_metainfodir}/org.gnome.Settings.metainfo.xml
  %{_datadir}/pixmaps/faces
@@ -82,7 +100,7 @@ index dfebc4a..1d6e7c6 100644
  %{_datadir}/polkit-1/actions/org.gnome.controlcenter.*.policy
  %{_datadir}/polkit-1/rules.d/gnome-control-center.rules
  %{_datadir}/sounds/gnome/default/*/*.ogg
-@@ -223,5 +240,8 @@ rm -rf $RPM_BUILD_ROOT%{_datadir}/gnome/cursor-fonts
+@@ -223,5 +249,8 @@ rm -rf $RPM_BUILD_ROOT%{_datadir}/gnome/cursor-fonts
  %dir %{_datadir}/gnome-control-center/keybindings
  %dir %{_datadir}/gnome/wm-properties
  
