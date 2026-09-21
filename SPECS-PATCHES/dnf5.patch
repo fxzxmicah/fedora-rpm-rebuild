@@ -1,5 +1,5 @@
 diff --git OLD/dnf5.spec NEW/dnf5.spec
-index 5742da7..4381dc3 100644
+index be49f55..6d5d0df 100644
 --- OLD/dnf5.spec
 +++ NEW/dnf5.spec
 @@ -13,9 +13,11 @@
@@ -15,7 +15,7 @@ index 5742da7..4381dc3 100644
  %bcond_without modulemd
  %endif
  %bcond_without systemd
-@@ -98,8 +100,9 @@ Requires:       coreutils
+@@ -94,8 +96,9 @@ Requires:       coreutils
  %if 0%{?fedora} > 41
  Recommends:     (libdnf5-plugin-expired-pgp-keys if gnupg2)
  %endif
@@ -26,7 +26,7 @@ index 5742da7..4381dc3 100644
  Provides:       microdnf = %{version}-%{release}
  Obsoletes:      microdnf < 4
  %endif
-@@ -108,9 +111,6 @@ Obsoletes:      microdnf < 4
+@@ -104,9 +107,6 @@ Obsoletes:      microdnf < 4
  Provides:       dnf = %{version}-%{release}
  Obsoletes:      dnf < 5
  
@@ -36,7 +36,7 @@ index 5742da7..4381dc3 100644
  Conflicts:      python3-dnf-plugins-core < 4.7.0
  %endif
  
-@@ -316,12 +316,11 @@ It supports RPM packages%{?with_modulemd:, modulemd modules,} and comps groups &
+@@ -312,12 +312,11 @@ It supports RPM packages%{?with_modulemd:, modulemd modules,} and comps groups &
  %{_bindir}/dnf5
  %if %{with dnf5_obsoletes_dnf}
  %{_bindir}/dnf
@@ -50,17 +50,17 @@ index 5742da7..4381dc3 100644
  %{_bindir}/microdnf
  %endif
  
-@@ -339,9 +338,6 @@ It supports RPM packages%{?with_modulemd:, modulemd modules,} and comps groups &
- %dir %{_datadir}/bash-completion/
- %dir %{_datadir}/bash-completion/completions/
- %{_datadir}/bash-completion/completions/dnf*
--%dir %{_datadir}/zsh/
--%dir %{_datadir}/zsh/site-functions/
--%{_datadir}/zsh/site-functions/_dnf5
+@@ -332,8 +331,7 @@ It supports RPM packages%{?with_modulemd:, modulemd modules,} and comps groups &
+ %dir %{_sysconfdir}/dnf/dnf5-plugins
+ %doc %{_libdir}/dnf5/plugins/README
+ %dir %{_libdir}/libdnf5/plugins
+-%{bash_completions_dir}/dnf*
+-%{zsh_completions_dir}/_dnf5
++%{bash_completions_dir}/*
  %license COPYING.md
  %license gpl-2.0.txt
  %doc AUTHORS.md CHANGELOG.md CONTRIBUTING.md README.md
-@@ -465,6 +461,20 @@ It supports RPM packages%{?with_modulemd:, modulemd modules,} and comps groups &
+@@ -459,6 +457,20 @@ It supports RPM packages%{?with_modulemd:, modulemd modules,} and comps groups &
  %exclude %{_datadir}/dnf5/aliases.d/compatibility-reposync.conf
  %endif
  
@@ -76,20 +76,20 @@ index 5742da7..4381dc3 100644
 +Zsh completion scripts for %{name}
 +
 +%files zsh-completion
-+%{_datadir}/zsh/site-functions/*
++%{zsh_completions_dir}/*
 +
  # ========== libdnf5 ==========
  %package -n libdnf5
  Summary:        Package management library
-@@ -1124,7 +1134,6 @@ DNF5 plugin for working with RPM package manifest files.
+@@ -1119,7 +1131,6 @@ DNF5 plugin for working with RPM package manifest files.
  
  %if %{with dnf5_obsoletes_dnf}
  ln -sr %{buildroot}%{_bindir}/dnf5 %{buildroot}%{_bindir}/dnf
 -ln -sr %{buildroot}%{_bindir}/dnf5 %{buildroot}%{_bindir}/yum
- ln -sr %{buildroot}%{_datadir}/bash-completion/completions/dnf5 %{buildroot}%{_datadir}/bash-completion/completions/dnf
+ ln -sr %{buildroot}%{bash_completions_dir}/dnf5 %{buildroot}%{bash_completions_dir}/dnf
  %if %{with man}
      for file in %{buildroot}%{_mandir}/man[578]/dnf5[-.]*; do
-@@ -1160,7 +1169,7 @@ touch %{buildroot}%{_sysconfdir}/dnf/versionlock.toml
+@@ -1155,7 +1166,7 @@ touch %{buildroot}%{_sysconfdir}/dnf/versionlock.toml
  mkdir -p %{buildroot}%{_sharedstatedir}/dnf
  touch %{buildroot}%{_sharedstatedir}/dnf/system-repo.lock
  

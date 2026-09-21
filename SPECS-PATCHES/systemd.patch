@@ -1,5 +1,5 @@
 diff --git OLD/systemd.spec NEW/systemd.spec
-index 59ff6a2..0660266 100644
+index db587b9..e5df2eb 100644
 --- OLD/systemd.spec
 +++ NEW/systemd.spec
 @@ -106,7 +106,6 @@ Source1:        triggers.systemd
@@ -363,9 +363,7 @@ index 59ff6a2..0660266 100644
 +
 +%description nspawn
 +Systemd tools to spawn and manage containers.
- 
--This package contains systemd-nspawn, systemd-vmspawn, machinectl,
--systemd-machined, and systemd-importd.
++
 +This package contains systemd-nspawn.
 +
 +%package vmspawn
@@ -375,7 +373,9 @@ index 59ff6a2..0660266 100644
 +
 +%description vmspawn
 +Systemd tools to spawn and manage virtual machines.
-+
+ 
+-This package contains systemd-nspawn, systemd-vmspawn, machinectl,
+-systemd-machined, and systemd-importd.
 +This package contains systemd-vmspawn.
 +
 +%package storagetm
@@ -540,7 +540,7 @@ index 59ff6a2..0660266 100644
                          hibernate.target
                          hybrid-sleep.target
                          initrd-cleanup.service
-@@ -1257,71 +1524,45 @@ systemctl --no-reload preset systemd-journald-audit.socket &>/dev/null || :
+@@ -1257,20 +1524,17 @@ systemctl --no-reload preset systemd-journald-audit.socket &>/dev/null || :
                          initrd-udevadm-cleanup-db.service
                          initrd-usr-fs.target
                          initrd.target
@@ -561,14 +561,11 @@ index 59ff6a2..0660266 100644
                          suspend.target
 -                        system-systemd\\\\x2dcryptsetup.slice
 -                        system-systemd\\\\x2dveritysetup.slice
-+                        systemd-coredump.socket
-+                        systemd-coredump@.service
                          systemd-backlight@.service
                          systemd-binfmt.service
                          systemd-bless-boot.service
-                         systemd-bsod.service
--                        systemd-coredump.socket
--                        systemd-coredump@.service
+@@ -1279,49 +1543,26 @@ systemctl --no-reload preset systemd-journald-audit.socket &>/dev/null || :
+                         systemd-coredump@.service
                          systemd-fsck-root.service
                          systemd-fsck@.service
 -                        systemd-growfs-root.service
