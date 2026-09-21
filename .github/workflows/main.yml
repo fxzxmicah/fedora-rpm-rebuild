@@ -24,7 +24,14 @@ jobs:
     - name: Install Dependencies
       run: |
         rm /etc/yum.repos.d/fedora-cisco-openh264.repo
-        dnf install -y git-core rpmdevtools python3-copr
+        dnf install -y git-core rpmdevtools python3-copr python3-libdnf5
+
+    - name: Configure Macros
+      run: |
+        cat > ~/.rpmmacros <<EOF
+        # Different with "github.workspace" in container environment
+        %_topdir ${GITHUB_WORKSPACE}
+        EOF
 
     - name: Checkout Code
       uses: actions/checkout@v4
@@ -72,14 +79,14 @@ jobs:
         success=()
         failure=()
         dnf download --source ${packages}
-        rpm -ivh --define "_topdir ${GITHUB_WORKSPACE}" *.src.rpm
+        rpm -ivh *.src.rpm
         for pkg in ${packages}; do
           echo "Apply patch for ${pkg}"
           sed -i "s/[[:space:]]\+\$//" SPECS/${pkg}.spec
           if git apply --directory SPECS -C 1 -p 1 SPECS-PATCHES/${pkg}.patch 2>/dev/null; then
             echo "Patch applied successfully for ${pkg}"
-            spectool --define "_topdir ${GITHUB_WORKSPACE}" --get-files --sourcedir SPECS/${pkg}.spec
-            rpmbuild --define "_topdir ${GITHUB_WORKSPACE}" -bs SPECS/${pkg}.spec
+            spectool --get-files --sourcedir SPECS/${pkg}.spec
+            rpmbuild -bs SPECS/${pkg}.spec
             success+=("${pkg}")
           else
             echo "Patch applied failed for ${pkg}"
@@ -102,20 +109,13 @@ jobs:
     - name: Upload Copr
       if: env.success
       run: |
-        from collections import defaultdict
         from pathlib import Path
         from copr.v3 import Client
+        import libdnf5
         import platform
-        import re
         import subprocess
 
 
-        RICH_DEP_WORDS = {
-            "and", "else", "if", "or", "unless", "with", "without",
-        }
-        CAPABILITY_RE = re.compile(
-            r"/?[A-Za-z_][A-Za-z0-9_+./:-]*(?:\([^()\s]+\))*"
-        )
         HOUR = 60 * 60
         DEFAULT_TIMEOUT = 24 * HOUR
         TIMEOUT_MARGIN = 2 * HOUR
@@ -129,49 +129,6 @@ jobs:
             }
 
 
-        def capabilities(expression):
-            """Extract capability names from simple and rich RPM dependencies."""
-            expression = expression.strip()
-            if not expression:
-                return set()
-            if not expression.startswith("("):
-                return {expression.split()[0]}
-            return {
-                token
-                for token in CAPABILITY_RE.findall(expression)
-                if token.lower() not in RICH_DEP_WORDS
-                and not token.startswith("rpmlib(")
-            }
-
-
-        def queried_capabilities(*args):
-            result = set()
-            for expression in query_lines(*args):
-                result.update(capabilities(expression))
-            return result
-
-
-        def repository_sources(expressions):
-            """Resolve dependencies recursively through repository RPM data."""
-            selectors = set()
-            for expression in expressions:
-                if not expression or expression.startswith("rpmlib("):
-                    continue
-                if expression.startswith("("):
-                    selectors.update(capabilities(expression))
-                else:
-                    selectors.add(expression)
-            if not selectors:
-                return set()
-
-            return query_lines(
-                "dnf", "--quiet", "repoquery",
-                "--providers-of=requires", "--recursive",
-                "--qf", "%{source_name}\\n",
-                f"--whatprovides={','.join(sorted(selectors))}",
-            )
-
-
         def package_metadata(srpm):
             source_name = subprocess.check_output(
                 ("rpm", "-qp", "--qf", "%{NAME}\\n", str(srpm)),
@@ -180,56 +137,62 @@ jobs:
             if not source_name:
                 raise RuntimeError(f"Cannot determine source package name: {srpm}")
 
-            spec = Path("SPECS") / f"{source_name}.spec"
-            if not spec.is_file():
-                raise RuntimeError(f"Spec file not found for {source_name}: {spec}")
-
             # BuildRequires become regular Requires in the source RPM.
             requirements = query_lines(
                 "rpm", "-qp", "--requires", str(srpm)
             )
+            return source_name, requirements
 
-            # rpmspec evaluates the spec through RPM; this is not textual spec
-            # parsing.  These are the explicit Requires of all binary outputs.
-            requirements.update(
-                query_lines(
-                    "rpmspec", "-q", "--builtrpms", "--requires", str(spec)
+
+        def create_solver():
+            """Load only available repositories, without the host RPM database."""
+            base = libdnf5.base.Base()
+            config = base.get_config()
+            config.plugins = False
+            base.load_config()
+            config.install_weak_deps = False
+            config.optional_metadata_types = ["filelists"]
+            config.skip_unavailable = False
+            base.setup()
+
+            repo_sack = base.get_repo_sack()
+            repo_sack.create_repos_from_system_configuration()
+            repo_sack.load_repos(libdnf5.repo.Repo.Type_AVAILABLE)
+            return base
+
+
+        def resolve_build_environment(base, package, requirements):
+            """Resolve one source package's complete BuildRequires transaction."""
+            goal = libdnf5.base.Goal(base)
+            for requirement in sorted(requirements):
+                # These describe RPM features, not installable build dependencies.
+                if requirement.startswith("rpmlib("):
+                    continue
+                goal.add_install(requirement)
+
+            transaction = goal.resolve()
+            if transaction.get_problems() != libdnf5.base.GoalProblem_NO_PROBLEM:
+                logs = transaction.get_resolve_logs_as_strings()
+                details = "\n".join(f"  {line}" for line in logs)
+                if not details:
+                    details = "  libdnf5 returned no diagnostic messages"
+                raise RuntimeError(
+                    f"Cannot resolve BuildRequires for {package}:\n{details}"
                 )
-            )
 
-            providers = {source_name}
-            providers.update(
-                query_lines(
-                    "rpmspec", "-q", "--builtrpms", "--qf", "%{NAME}\\n",
-                    str(spec),
-                )
-            )
-            providers.update(
-                queried_capabilities(
-                    "rpmspec", "-q", "--builtrpms", "--provides", str(spec)
-                )
-            )
-            return source_name, requirements, providers
+            sources = set()
+            for transaction_package in transaction.get_transaction_packages():
+                source_name = transaction_package.get_package().get_source_name()
+                if source_name:
+                    sources.add(source_name)
+            return sources
 
 
-        def build_batches(requirements, providers, repository_dependencies):
-            capability_owners = defaultdict(set)
-            for package, provided in providers.items():
-                for capability in provided:
-                    capability_owners[capability].add(package)
-
-            selected = set(providers)
-            dependencies = {package: set() for package in selected}
-            for package, required in requirements.items():
-                for expression in required:
-                    for capability in capabilities(expression):
-                        dependencies[package].update(
-                            capability_owners.get(capability, set())
-                        )
-                dependencies[package].update(
-                    repository_dependencies[package] & selected
-                )
-                dependencies[package].discard(package)
+        def build_batches(build_environments, selected):
+            dependencies = {
+                package: (sources & selected) - {package}
+                for package, sources in build_environments.items()
+            }
 
             remaining = {
                 package: set(deps) for package, deps in dependencies.items()
@@ -331,31 +294,30 @@ jobs:
         def main():
             srpms = {}
             requirements = {}
-            providers = {}
             for srpm in sorted(Path("SRPMS").glob("*.src.rpm")):
-                source_name, required, provided = package_metadata(srpm)
+                source_name, required = package_metadata(srpm)
                 if source_name in srpms:
                     raise RuntimeError(
                         f"Multiple SRPMs for source package {source_name}"
                     )
                 srpms[source_name] = srpm
                 requirements[source_name] = required
-                providers[source_name] = provided
 
             if not srpms:
                 raise RuntimeError("No SRPMs found")
 
-            # Resolve every direct dependency recursively against repository
-            # RPM metadata, then project that closure back onto the selected
-            # source packages.  Therefore pkg -> meson -> gcc still creates
-            # pkg -> gcc when meson itself is not selected for this run.
-            repository_dependencies = {
-                package: repository_sources(required)
+            # Each source package gets an independent transaction whose roots
+            # are all of its BuildRequires.  libdnf5 follows the strong runtime
+            # Requires of the selected binary packages recursively.  Projecting
+            # that transaction back to selected source names gives build order.
+            solver = create_solver()
+            build_environments = {
+                package: resolve_build_environment(solver, package, required)
                 for package, required in requirements.items()
             }
 
             batches, dependencies = build_batches(
-                requirements, providers, repository_dependencies
+                build_environments, set(srpms)
             )
             for package in sorted(dependencies):
                 deps = ", ".join(sorted(dependencies[package])) or "none"
