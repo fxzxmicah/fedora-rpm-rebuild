@@ -1,4 +1,4 @@
-From e934b4460b41aa22790e3d41f6296f6519b20683 Mon Sep 17 00:00:00 2001
+From 0c75f41bd73bac9d16b703463ffb052905fb685d Mon Sep 17 00:00:00 2001
 From: Fxzx micah <48860358+fxzxmicah@users.noreply.github.com>
 Date: Sat, 19 Sep 2026 21:16:42 +0800
 Subject: [PATCH] switcherooctl: Replace Python client with native
@@ -6,8 +6,8 @@ Subject: [PATCH] switcherooctl: Replace Python client with native
 
 ---
  src/meson.build     |  17 +-
- src/switcherooctl.c | 383 ++++++++++++++++++++++++++++++++++++++++++++
- 2 files changed, 388 insertions(+), 12 deletions(-)
+ src/switcherooctl.c | 385 ++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 390 insertions(+), 12 deletions(-)
  create mode 100644 src/switcherooctl.c
 
 diff --git a/src/meson.build b/src/meson.build
@@ -40,15 +40,16 @@ index 22d69e7..4427715 100644
  subdir('discrete-detection')
 diff --git a/src/switcherooctl.c b/src/switcherooctl.c
 new file mode 100644
-index 0000000..9b5b3d2
+index 0000000..20f2934
 --- /dev/null
 +++ b/src/switcherooctl.c
-@@ -0,0 +1,383 @@
+@@ -0,0 +1,385 @@
 +/* SPDX-License-Identifier: GPL-3.0-or-later */
 +
 +#include <errno.h>
 +#include <gio/gio.h>
 +#include <glib.h>
++#include <locale.h>
 +#include <string.h>
 +#include <unistd.h>
 +
@@ -103,13 +104,13 @@ index 0000000..9b5b3d2
 +usage_main (void)
 +{
 +  g_print ("Usage:\n"
-+           "  switcherooctl COMMAND [ARGS…]\n\n"
++           "  switcherooctl COMMAND [ARGS...]\n\n"
 +           "Commands:\n"
 +           "  help     Print help\n"
 +           "  version  Print version\n"
 +           "  list     List the known GPUs\n"
 +           "  launch   Launch a command on a specific GPU\n\n"
-+           "Use “switcherooctl help COMMAND” to get detailed help.\n");
++           "Use \"switcherooctl help COMMAND\" to get detailed help.\n");
 +}
 +
 +static void
@@ -128,7 +129,7 @@ index 0000000..9b5b3d2
 +static void
 +usage_launch (void)
 +{
-+  g_print ("Usage:\n  switcherooctl launch COMMAND [ARG…]\n\n"
++  g_print ("Usage:\n  switcherooctl launch COMMAND [ARG...]\n\n"
 +           "Launch a command on a specific GPU.\n\n"
 +           "Options:\n"
 +           "  -g, --gpu=GPU-ID                The GPU to launch on\n\n"
@@ -307,7 +308,7 @@ index 0000000..9b5b3d2
 +    { NULL }
 +  };
 +
-+  context = g_option_context_new ("COMMAND [ARG…]");
++  context = g_option_context_new ("COMMAND [ARG...]");
 +  g_option_context_set_summary (context, "Launch a command on a specific GPU.");
 +  g_option_context_set_strict_posix (context, TRUE);
 +  g_option_context_add_main_entries (context, entries, NULL);
@@ -380,6 +381,7 @@ index 0000000..9b5b3d2
 +  const char *command;
 +  int arg_offset;
 +
++  setlocale (LC_ALL, "");
 +  if (argc == 1)
 +    return list_gpus ();
 +

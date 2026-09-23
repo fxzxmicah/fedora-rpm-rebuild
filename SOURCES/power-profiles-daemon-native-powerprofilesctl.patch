@@ -1,4 +1,4 @@
-From 4c3fabb2d15fe87f40168bd019bff901368ad368 Mon Sep 17 00:00:00 2001
+From 647c2712cf5b0313d55bb88af9e7e775cbce8828 Mon Sep 17 00:00:00 2001
 From: Fxzx micah <48860358+fxzxmicah@users.noreply.github.com>
 Date: Sat, 19 Sep 2026 21:16:42 +0800
 Subject: [PATCH] powerprofilesctl: Replace Python client with native
@@ -12,10 +12,10 @@ Subject: [PATCH] powerprofilesctl: Replace Python client with native
  src/completions/powerprofilesctl  |  19 +
  src/meson.build                   |  53 +--
  src/powerprofilesctl.1            |  80 +++++
- src/powerprofilesctl.c            | 566 ++++++++++++++++++++++++++++++
+ src/powerprofilesctl.c            | 570 ++++++++++++++++++++++++++++++
  tests/integration_test.py         |  18 +-
  tests/meson.build                 |  10 -
- 10 files changed, 742 insertions(+), 159 deletions(-)
+ 10 files changed, 746 insertions(+), 159 deletions(-)
  create mode 100644 src/completions/_powerprofilesctl
  create mode 100644 src/completions/powerprofilesctl
  create mode 100644 src/powerprofilesctl.1
@@ -436,10 +436,10 @@ index 0000000..5486352
 +then terminates from the same signal.
 diff --git a/src/powerprofilesctl.c b/src/powerprofilesctl.c
 new file mode 100644
-index 0000000..d26d6a1
+index 0000000..5694ace
 --- /dev/null
 +++ b/src/powerprofilesctl.c
-@@ -0,0 +1,566 @@
+@@ -0,0 +1,570 @@
 +/* SPDX-License-Identifier: GPL-3.0-or-later */
 +
 +#include "config.h"
@@ -447,6 +447,7 @@ index 0000000..d26d6a1
 +#include <errno.h>
 +#include <gio/gio.h>
 +#include <glib.h>
++#include <locale.h>
 +#include <signal.h>
 +#include <spawn.h>
 +#include <sys/wait.h>
@@ -459,81 +460,83 @@ index 0000000..d26d6a1
 +
 +extern char **environ;
 +
-+static volatile sig_atomic_t child_pid = -1;
 +static const int forwarded_signals[] = { SIGTERM, SIGINT, SIGABRT };
-+
-+static void
-+forward_signal (int signo)
-+{
-+  if (child_pid > 0)
-+    kill (child_pid, signo);
-+}
-+
-+static gboolean
-+install_signal_handlers (struct sigaction *previous)
-+{
-+  struct sigaction action = { 0 };
-+
-+  action.sa_handler = forward_signal;
-+  sigemptyset (&action.sa_mask);
-+  for (guint i = 0; i < G_N_ELEMENTS (forwarded_signals); i++)
-+    {
-+      if (sigaction (forwarded_signals[i], &action, &previous[i]) < 0)
-+        {
-+          int saved_errno = errno;
-+
-+          while (i > 0)
-+            {
-+              i--;
-+              sigaction (forwarded_signals[i], &previous[i], NULL);
-+            }
-+          errno = saved_errno;
-+          return FALSE;
-+        }
-+    }
-+  return TRUE;
-+}
-+
-+static void
-+restore_signal_handlers (const struct sigaction *previous)
-+{
-+  for (guint i = 0; i < G_N_ELEMENTS (forwarded_signals); i++)
-+    sigaction (forwarded_signals[i], &previous[i], NULL);
-+}
 +
 +static int
 +spawn_and_wait (char **argv)
 +{
-+  struct sigaction previous[G_N_ELEMENTS (forwarded_signals)];
++  posix_spawnattr_t attributes;
++  sigset_t wait_signals;
++  sigset_t previous_mask;
++  gboolean attributes_initialized = FALSE;
 +  int status = 1 << 8;
 +  int spawn_error;
 +  pid_t pid;
 +  pid_t waited;
 +
-+  if (!install_signal_handlers (previous))
++  sigemptyset (&wait_signals);
++  for (guint i = 0; i < G_N_ELEMENTS (forwarded_signals); i++)
++    sigaddset (&wait_signals, forwarded_signals[i]);
++  sigaddset (&wait_signals, SIGCHLD);
++  if (sigprocmask (SIG_BLOCK, &wait_signals, &previous_mask) < 0)
 +    {
-+      g_printerr ("Failed to install signal handlers: %s\n", g_strerror (errno));
++      g_printerr ("Failed to block signals: %s\n", g_strerror (errno));
 +      return status;
 +    }
 +
-+  spawn_error = posix_spawnp (&pid, argv[0], NULL, NULL, argv, environ);
++  spawn_error = posix_spawnattr_init (&attributes);
++  if (spawn_error == 0)
++    attributes_initialized = TRUE;
++  if (spawn_error == 0)
++    spawn_error = posix_spawnattr_setsigmask (&attributes, &previous_mask);
++  if (spawn_error == 0)
++    spawn_error = posix_spawnattr_setflags (&attributes, POSIX_SPAWN_SETSIGMASK);
++  if (spawn_error == 0)
++    spawn_error = posix_spawnp (&pid, argv[0], NULL, &attributes, argv, environ);
++  if (attributes_initialized)
++    posix_spawnattr_destroy (&attributes);
 +  if (spawn_error != 0)
 +    g_printerr ("Failed to launch %s: %s\n", argv[0], g_strerror (spawn_error));
 +  else
 +    {
-+      child_pid = pid;
-+      do
-+        waited = waitpid (pid, &status, 0);
-+      while (waited < 0 && errno == EINTR);
-+      child_pid = -1;
-+      if (waited < 0)
++      for (;;)
 +        {
-+          g_printerr ("Failed to wait for %s: %s\n", argv[0], g_strerror (errno));
-+          status = 1 << 8;
++          waited = waitpid (pid, &status, WNOHANG);
++          if (waited == pid)
++            break;
++          if (waited < 0)
++            {
++              if (errno == EINTR)
++                continue;
++              g_printerr ("Failed to wait for %s: %s\n",
++                          argv[0], g_strerror (errno));
++              status = 1 << 8;
++              break;
++            }
++
++          siginfo_t signal_info = { 0 };
++          int signo = sigwaitinfo (&wait_signals, &signal_info);
++          if (signo < 0)
++            {
++              if (errno == EINTR)
++                continue;
++              g_printerr ("Failed to wait for a signal: %s\n", g_strerror (errno));
++              kill (pid, SIGTERM);
++              do
++                waited = waitpid (pid, &status, 0);
++              while (waited < 0 && errno == EINTR);
++              if (waited != pid)
++                status = 1 << 8;
++              break;
++            }
++          if (signo != SIGCHLD && kill (pid, signo) < 0 && errno != ESRCH)
++            g_printerr ("Failed to forward signal %d: %s\n",
++                        signo, g_strerror (errno));
 +        }
 +    }
 +
-+  restore_signal_handlers (previous);
++  if (sigprocmask (SIG_SETMASK, &previous_mask, NULL) < 0)
++    g_printerr ("Failed to restore signal mask: %s\n", g_strerror (errno));
 +  return status;
 +}
 +
@@ -609,7 +612,7 @@ index 0000000..d26d6a1
 +               "  query-battery-aware      Query dynamic battery changes\n"
 +               "  launch [OPTIONS] COMMAND Launch with a profile hold\n"
 +               "  version                  Print version information and exit\n\n"
-+               "Use “powerprofilesctl COMMAND --help” for detailed help.\n");
++               "Use \"powerprofilesctl COMMAND --help\" for detailed help.\n");
 +    }
 +  else if (g_str_equal (command, "launch"))
 +    g_print ("usage: powerprofilesctl launch [-p PROFILE] [-r REASON] "
@@ -867,7 +870,7 @@ index 0000000..d26d6a1
 +    { NULL }
 +  };
 +
-+  context = g_option_context_new ("COMMAND [ARG…]");
++  context = g_option_context_new ("COMMAND [ARG...]");
 +  g_option_context_set_summary (context,
 +                                "Launch a command while holding a power profile.");
 +  g_option_context_set_strict_posix (context, TRUE);
@@ -967,6 +970,7 @@ index 0000000..d26d6a1
 +  const char *action;
 +  gboolean enable;
 +
++  setlocale (LC_ALL, "");
 +  if (g_str_equal (command, "-h") || g_str_equal (command, "--help"))
 +    {
 +      print_usage (NULL);
@@ -1057,3 +1061,6 @@ index 6dfa86e..3e42287 100644
  foreach ut: unit_tests
      test(ut,
           python3,
+-- 
+2.54.0
+

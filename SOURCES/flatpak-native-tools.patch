@@ -1,23 +1,23 @@
-From 84d586cd973e9cdbe2ce8ad9666a852d802e0a34 Mon Sep 17 00:00:00 2001
+From 6600770dc4e536049740eec4399c8f9c054d8c70 Mon Sep 17 00:00:00 2001
 From: Fxzx micah <48860358+fxzxmicah@users.noreply.github.com>
 Date: Sat, 19 Sep 2026 21:16:42 +0800
 Subject: [PATCH] app: Build native flatpak-bisect and flatpak-coredumpctl
 
 ---
- app/flatpak-bisect.c      | 694 ++++++++++++++++++++++++++++++++++++++
- app/flatpak-coredumpctl.c | 300 ++++++++++++++++
+ app/flatpak-bisect.c      | 696 ++++++++++++++++++++++++++++++++++++++
+ app/flatpak-coredumpctl.c | 302 +++++++++++++++++
  app/meson.build           |  14 +
  scripts/meson.build       |   7 -
- 4 files changed, 1008 insertions(+), 7 deletions(-)
+ 4 files changed, 1012 insertions(+), 7 deletions(-)
  create mode 100644 app/flatpak-bisect.c
  create mode 100644 app/flatpak-coredumpctl.c
 
 diff --git a/app/flatpak-bisect.c b/app/flatpak-bisect.c
 new file mode 100644
-index 0000000..bca826e
+index 0000000..9104214
 --- /dev/null
 +++ b/app/flatpak-bisect.c
-@@ -0,0 +1,694 @@
+@@ -0,0 +1,696 @@
 +/* SPDX-License-Identifier: LGPL-2.1-or-later */
 +
 +#include <errno.h>
@@ -26,6 +26,7 @@ index 0000000..bca826e
 +#include <glib.h>
 +#include <glib/gstdio.h>
 +#include <json-glib/json-glib.h>
++#include <locale.h>
 +#include <string.h>
 +
 +typedef struct
@@ -656,6 +657,7 @@ index 0000000..bca826e
 +    { NULL }
 +  };
 +
++  setlocale (LC_ALL, "");
 +  context = g_option_context_new ("NAME COMMAND [COMMIT]");
 +  g_option_context_set_summary (context, "Bisect Flatpak application or runtime builds.");
 +  g_option_context_add_main_entries (context, entries, NULL);
@@ -714,16 +716,17 @@ index 0000000..bca826e
 +}
 diff --git a/app/flatpak-coredumpctl.c b/app/flatpak-coredumpctl.c
 new file mode 100644
-index 0000000..4f74c4a
+index 0000000..b563e75
 --- /dev/null
 +++ b/app/flatpak-coredumpctl.c
-@@ -0,0 +1,300 @@
+@@ -0,0 +1,302 @@
 +/* SPDX-License-Identifier: LGPL-2.1-or-later */
 +
 +#include <errno.h>
 +#include <gio/gio.h>
 +#include <glib.h>
 +#include <glib/gstdio.h>
++#include <locale.h>
 +#include <string.h>
 +#include <unistd.h>
 +
@@ -946,6 +949,7 @@ index 0000000..4f74c4a
 +    { NULL }
 +  };
 +
++  setlocale (LC_ALL, "");
 +  context = g_option_context_new ("[APP] - debug a crashed Flatpak application in gdb");
 +  g_option_context_set_description (context,
 +    "Uses coredumpctl to retrieve a core file and opens it in the application's SDK.");

@@ -1,6 +1,20 @@
+From d8ea1cc8d457d12f34ef961d67a96d7fa9a13a7b Mon Sep 17 00:00:00 2001
+From: Fxzx micah <48860358+fxzxmicah@users.noreply.github.com>
+Date: Wed, 23 Sep 2026 02:32:03 +0800
+Subject: [PATCH] wireless-regdb: add native setregdomain utility
+
+---
+ setregdomain/Makefile       |  33 +++
+ setregdomain/setregdomain.1 |  45 ++++
+ setregdomain/setregdomain.c | 461 ++++++++++++++++++++++++++++++++++++
+ 3 files changed, 539 insertions(+)
+ create mode 100644 setregdomain/Makefile
+ create mode 100644 setregdomain/setregdomain.1
+ create mode 100644 setregdomain/setregdomain.c
+
 diff --git a/setregdomain/Makefile b/setregdomain/Makefile
 new file mode 100644
-index 0000000..cc090be
+index 0000000..4d99dc8
 --- /dev/null
 +++ b/setregdomain/Makefile
 @@ -0,0 +1,33 @@
@@ -15,7 +29,7 @@ index 0000000..cc090be
 +NL_CFLAGS := $(shell $(PKG_CONFIG) --cflags libnl-3.0 libnl-genl-3.0)
 +NL_LIBS := $(shell $(PKG_CONFIG) --libs libnl-3.0 libnl-genl-3.0)
 +
-+CFLAGS += $(NL_CFLAGS)
++CPPFLAGS += $(NL_CFLAGS)
 +LDLIBS += $(NL_LIBS)
 +
 +BINARY := setregdomain
@@ -33,16 +47,16 @@ index 0000000..cc090be
 +	rm -f $(OBJECTS) $(BINARY)
 +
 +install: $(BINARY)
-+	install -m 755 -d $(DESTDIR)/$(SBINDIR)
-+	install -m 755 -t $(DESTDIR)/$(SBINDIR)/ $(BINARY)
-+	install -m 755 -d $(DESTDIR)/$(MANDIR)/man1
-+	install -m 644 -t $(DESTDIR)/$(MANDIR)/man1/ setregdomain.1
++	install -m 755 -d $(DESTDIR)$(SBINDIR)
++	install -m 755 -t $(DESTDIR)$(SBINDIR)/ $(BINARY)
++	install -m 755 -d $(DESTDIR)$(MANDIR)/man1
++	install -m 644 -t $(DESTDIR)$(MANDIR)/man1/ setregdomain.1
 diff --git a/setregdomain/setregdomain.1 b/setregdomain/setregdomain.1
 new file mode 100644
-index 0000000..af82c0b
+index 0000000..bbc4f96
 --- /dev/null
 +++ b/setregdomain/setregdomain.1
-@@ -0,0 +1,46 @@
+@@ -0,0 +1,45 @@
 +.\" Copyright 2009 Red Hat, Inc.
 +.TH setregdomain 1 2025-12-03 "CRDA" "User Commands"
 +.SH NAME
@@ -81,8 +95,7 @@ index 0000000..af82c0b
 +All informational and error messages are emitted to the system log via
 +the
 +.B wireless
-+syslog tag.  When run manually an additional copy is printed to the
-+terminal for convenience.
++syslog tag. Errors are also printed to standard error.
 +.SH "FILES"
 +.BR /etc/sysconfig/regdomain
 +.BR /etc/localtime
@@ -91,10 +104,10 @@ index 0000000..af82c0b
 +.BR iw (1)
 diff --git a/setregdomain/setregdomain.c b/setregdomain/setregdomain.c
 new file mode 100644
-index 0000000..40016bd
+index 0000000..9320298
 --- /dev/null
 +++ b/setregdomain/setregdomain.c
-@@ -0,0 +1,437 @@
+@@ -0,0 +1,461 @@
 +/*
 + * Copyright 2009-2014 Red Hat, Inc.
 + *
@@ -116,12 +129,12 @@ index 0000000..40016bd
 +#include <ctype.h>
 +#include <errno.h>
 +#include <limits.h>
++#include <locale.h>
 +#include <stdarg.h>
 +#include <stdbool.h>
 +#include <stdio.h>
 +#include <stdlib.h>
 +#include <string.h>
-+#include <strings.h>
 +#include <syslog.h>
 +#include <unistd.h>
 +
@@ -144,24 +157,42 @@ index 0000000..40016bd
 +static char *trim(char *s);
 +static void strip_quotes(char *s);
 +static void strip_inline_comment(char *s);
-+static void uppercase_inplace(char *s);
++static void ascii_uppercase_inplace(char *s);
 +static bool valid_country_code(const char *s);
-+static bool store_country_code(char *dest, size_t len, const char *src);
-+static bool load_country_from_config(char *country, size_t len);
++enum config_result {
++    CONFIG_NOT_SET,
++    CONFIG_LOADED,
++    CONFIG_ERROR,
++};
++
++enum lookup_result {
++    LOOKUP_ERROR = -1,
++    LOOKUP_NOT_FOUND,
++    LOOKUP_FOUND,
++};
++
++static enum config_result load_country_from_config(char country[COUNTRY_LEN + 1]);
 +static bool resolve_timezone(char *zone_name, size_t len);
-+static bool lookup_country_by_zone(const char *zone_name, char *country, size_t len);
-+static bool determine_country_from_timezone(char *country, size_t len);
-+static bool determine_country(char *country, size_t len);
++static enum lookup_result lookup_country_by_zone(const char *zone_name,
++                                                 char country[COUNTRY_LEN + 1]);
++static bool determine_country_from_timezone(char country[COUNTRY_LEN + 1]);
++static bool determine_country(char country[COUNTRY_LEN + 1]);
 +static int set_regulatory_domain(const char *country);
 +
-+int main(void)
++int main(int argc, char **argv)
 +{
 +    char country[COUNTRY_LEN + 1] = {0};
 +    int status = EXIT_FAILURE;
 +
++    setlocale(LC_ALL, "");
 +    openlog(LOGGER_TAG, LOG_PID | LOG_CONS, LOG_DAEMON);
 +
-+    if (!determine_country(country, sizeof(country)))
++    if (argc != 1) {
++        log_error("%s takes no arguments", argv[0]);
++        goto out;
++    }
++
++    if (!determine_country(country))
 +        goto out;
 +
 +    if (set_regulatory_domain(country) != 0)
@@ -174,31 +205,26 @@ index 0000000..40016bd
 +    return status;
 +}
 +
-+static void vlog_and_stderr(int priority, const char *fmt, va_list ap)
-+{
-+    va_list ap_copy;
-+    va_copy(ap_copy, ap);
-+    vsyslog(priority, fmt, ap);
-+
-+    FILE *stream = priority >= LOG_ERR ? stderr : stdout;
-+    vfprintf(stream, fmt, ap_copy);
-+    fputc('\n', stream);
-+    va_end(ap_copy);
-+}
-+
 +static void log_error(const char *fmt, ...)
 +{
 +    va_list ap;
++    va_list copy;
++
 +    va_start(ap, fmt);
-+    vlog_and_stderr(LOG_ERR, fmt, ap);
++    va_copy(copy, ap);
++    vsyslog(LOG_ERR, fmt, ap);
 +    va_end(ap);
++    vfprintf(stderr, fmt, copy);
++    fputc('\n', stderr);
++    va_end(copy);
 +}
 +
 +static void log_info(const char *fmt, ...)
 +{
 +    va_list ap;
++
 +    va_start(ap, fmt);
-+    vlog_and_stderr(LOG_INFO, fmt, ap);
++    vsyslog(LOG_INFO, fmt, ap);
 +    va_end(ap);
 +}
 +
@@ -265,13 +291,15 @@ index 0000000..40016bd
 +    }
 +}
 +
-+static void uppercase_inplace(char *s)
++static void ascii_uppercase_inplace(char *s)
 +{
 +    if (!s)
 +        return;
 +
-+    for (; *s; ++s)
-+        *s = (char)toupper((unsigned char)*s);
++    for (; *s; ++s) {
++        if (*s >= 'a' && *s <= 'z')
++            *s -= 'a' - 'A';
++    }
 +}
 +
 +static bool valid_country_code(const char *s)
@@ -285,40 +313,32 @@ index 0000000..40016bd
 +    if (len != COUNTRY_LEN)
 +        return false;
 +
++    if (strcmp(s, "00") == 0)
++        return true;
++
 +    for (size_t i = 0; i < len; i++) {
-+        if (!isalnum((unsigned char)s[i]))
++        if (s[i] < 'A' || s[i] > 'Z')
 +            return false;
 +    }
 +
 +    return true;
 +}
 +
-+static bool store_country_code(char *dest, size_t len, const char *src)
-+{
-+    size_t src_len;
-+
-+    if (!dest || !src)
-+        return false;
-+
-+    src_len = strlen(src);
-+    if (src_len == 0 || src_len >= len)
-+        return false;
-+
-+    memcpy(dest, src, src_len + 1);
-+    return true;
-+}
-+
-+static bool load_country_from_config(char *country, size_t len)
++static enum config_result load_country_from_config(char country[COUNTRY_LEN + 1])
 +{
 +    FILE *fp;
 +    char *line = NULL;
 +    size_t cap = 0;
-+    bool found = false;
-+    char last_value[COUNTRY_LEN + 1] = {0};
++    enum config_result result = CONFIG_NOT_SET;
 +
 +    fp = fopen(REGDOMAIN_FILE, "r");
-+    if (!fp)
-+        return false;
++    if (!fp) {
++        if (errno != ENOENT) {
++            log_error("Could not read %s: %s", REGDOMAIN_FILE, strerror(errno));
++            return CONFIG_ERROR;
++        }
++        return CONFIG_NOT_SET;
++    }
 +
 +    while (getline(&line, &cap, fp) != -1) {
 +        char *work = trim(line);
@@ -330,7 +350,7 @@ index 0000000..40016bd
 +        if (*work == '\0' || *work == '#')
 +            continue;
 +
-+        if (strncasecmp(work, "export", 6) == 0 && isspace((unsigned char)work[6]))
++        if (strncmp(work, "export", 6) == 0 && isspace((unsigned char)work[6]))
 +            work = trim(work + 6);
 +
 +        eq = strchr(work, '=');
@@ -340,37 +360,40 @@ index 0000000..40016bd
 +        *eq = '\0';
 +        key = trim(work);
 +        value = trim(eq + 1);
-+        strip_inline_comment(value);
-+        value = trim(value);
 +        strip_quotes(value);
 +
-+        if (strcasecmp(key, "COUNTRY") != 0)
++        if (strcmp(key, "COUNTRY") != 0)
 +            continue;
 +
-+        if (*value == '\0')
++        if (*value == '\0') {
++            country[0] = '\0';
++            result = CONFIG_NOT_SET;
 +            continue;
++        }
 +
-+        uppercase_inplace(value);
++        ascii_uppercase_inplace(value);
 +        if (!valid_country_code(value)) {
 +            log_error("COUNTRY value '%s' in %s is invalid", value, REGDOMAIN_FILE);
-+            continue;
++            result = CONFIG_ERROR;
++            break;
 +        }
 +
-+        if (!store_country_code(last_value, sizeof(last_value), value)) {
-+            log_error("COUNTRY value '%s' exceeds buffer", value);
-+            continue;
-+        }
-+        found = true;
++        memcpy(country, value, COUNTRY_LEN + 1);
++        result = CONFIG_LOADED;
 +    }
 +
-+    if (found) {
-+        store_country_code(country, len, last_value);
++    if (ferror(fp)) {
++        int saved_errno = errno ? errno : EIO;
++        log_error("Could not read %s: %s", REGDOMAIN_FILE,
++                  strerror(saved_errno));
++        result = CONFIG_ERROR;
++    }
++    if (result == CONFIG_LOADED)
 +        log_info("Loaded country %s from config %s", country, REGDOMAIN_FILE);
-+    }
 +
 +    free(line);
 +    fclose(fp);
-+    return found;
++    return result;
 +}
 +
 +static bool resolve_timezone(char *zone_name, size_t len)
@@ -396,17 +419,20 @@ index 0000000..40016bd
 +    return true;
 +}
 +
-+static bool lookup_country_by_zone(const char *zone_name, char *country, size_t len)
++static enum lookup_result lookup_country_by_zone(const char *zone_name,
++                                                 char country[COUNTRY_LEN + 1])
 +{
 +    FILE *fp = fopen(ZONE_TAB_FILE, "r");
 +    char *line = NULL;
 +    size_t cap = 0;
-+    bool found = false;
++    enum lookup_result result = LOOKUP_NOT_FOUND;
 +
-+    if (!fp)
-+        return false;
++    if (!fp) {
++        log_error("Could not read %s: %s", ZONE_TAB_FILE, strerror(errno));
++        return LOOKUP_ERROR;
++    }
 +
-+    while (!found && getline(&line, &cap, fp) != -1) {
++    while (result == LOOKUP_NOT_FOUND && getline(&line, &cap, fp) != -1) {
 +        char *cursor;
 +        char *cc;
 +        char *coordinates;
@@ -426,35 +452,41 @@ index 0000000..40016bd
 +        if (strcmp(zone, zone_name) != 0)
 +            continue;
 +
-+        uppercase_inplace(cc);
++        ascii_uppercase_inplace(cc);
 +
-+        if (!store_country_code(country, len, cc))
++        if (!valid_country_code(cc))
 +            continue;
 +
-+        found = true;
++        memcpy(country, cc, COUNTRY_LEN + 1);
++        result = LOOKUP_FOUND;
++    }
++
++    if (ferror(fp)) {
++        int saved_errno = errno ? errno : EIO;
++        log_error("Could not read %s: %s", ZONE_TAB_FILE,
++                  strerror(saved_errno));
++        result = LOOKUP_ERROR;
 +    }
 +
 +    free(line);
 +    fclose(fp);
-+    return found;
++    return result;
 +}
 +
-+static bool determine_country_from_timezone(char *country, size_t len)
++static bool determine_country_from_timezone(char country[COUNTRY_LEN + 1])
 +{
 +    char zone[PATH_MAX] = {0};
++    enum lookup_result result;
 +
 +    if (!resolve_timezone(zone, sizeof(zone))) {
 +        log_error("Timezone information not found");
 +        return false;
 +    }
 +
-+    if (!lookup_country_by_zone(zone, country, len)) {
-+        log_error("Could not determine country from timezone %s", zone);
-+        return false;
-+    }
-+
-+    if (!valid_country_code(country)) {
-+        log_error("Determined country code '%s' is invalid", country);
++    result = lookup_country_by_zone(zone, country);
++    if (result != LOOKUP_FOUND) {
++        if (result == LOOKUP_NOT_FOUND)
++            log_error("Could not determine country from timezone %s", zone);
 +        return false;
 +    }
 +
@@ -462,12 +494,16 @@ index 0000000..40016bd
 +    return true;
 +}
 +
-+static bool determine_country(char *country, size_t len)
++static bool determine_country(char country[COUNTRY_LEN + 1])
 +{
-+    if (load_country_from_config(country, len))
-+        return true;
++    enum config_result result = load_country_from_config(country);
 +
-+    return determine_country_from_timezone(country, len);
++    if (result == CONFIG_LOADED)
++        return true;
++    if (result == CONFIG_ERROR)
++        return false;
++
++    return determine_country_from_timezone(country);
 +}
 +
 +static int set_regulatory_domain(const char *country)
@@ -483,8 +519,9 @@ index 0000000..40016bd
 +        goto out;
 +    }
 +
-+    if (genl_connect(sock)) {
-+        log_error("Failed to connect to generic netlink: %s", strerror(errno));
++    ret = genl_connect(sock);
++    if (ret < 0) {
++        log_error("Failed to connect to generic netlink: %s", nl_geterror(ret));
 +        goto out;
 +    }
 +
@@ -532,3 +569,6 @@ index 0000000..40016bd
 +        nl_socket_free(sock);
 +    return ret;
 +}
+-- 
+2.54.0
+

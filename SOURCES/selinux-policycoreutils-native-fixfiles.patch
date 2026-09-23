@@ -1,3 +1,20 @@
+From b577bef43071d6472a72c7521d64dd64ab669eff Mon Sep 17 00:00:00 2001
+From: Fxzx micah <48860358+fxzxmicah@users.noreply.github.com>
+Date: Wed, 23 Sep 2026 01:25:46 +0800
+Subject: [PATCH] policycoreutils: replace fixfiles shell script with native
+ tool
+
+---
+ policycoreutils/.gitignore          |    1 +
+ policycoreutils/Makefile            |    2 +-
+ policycoreutils/fixfiles/Makefile   |   41 +
+ policycoreutils/fixfiles/fixfiles.8 |  114 ++
+ policycoreutils/fixfiles/fixfiles.c | 1605 +++++++++++++++++++++++++++
+ 5 files changed, 1762 insertions(+), 1 deletion(-)
+ create mode 100644 policycoreutils/fixfiles/Makefile
+ create mode 100644 policycoreutils/fixfiles/fixfiles.8
+ create mode 100644 policycoreutils/fixfiles/fixfiles.c
+
 diff --git a/policycoreutils/.gitignore b/policycoreutils/.gitignore
 index 33e7414c..b8551bc2 100644
 --- a/policycoreutils/.gitignore
@@ -20,7 +37,7 @@ index 9186a9ef..102d1bb7 100644
  
 diff --git a/policycoreutils/fixfiles/Makefile b/policycoreutils/fixfiles/Makefile
 new file mode 100644
-index 00000000..4055c50e
+index 00000000..d505ef0a
 --- /dev/null
 +++ b/policycoreutils/fixfiles/Makefile
 @@ -0,0 +1,41 @@
@@ -38,11 +55,11 @@ index 00000000..4055c50e
 +override LDFLAGS += -L../../libsemanage/src
 +override LDLIBS += $(LIBSEMANAGE_LDLIBS)
 +
-+OBJS := fixfiles.o ff_restore.o
++OBJS := fixfiles.o restore.o
 +
 +all: fixfiles
 +
-+ff_restore.o: ../setfiles/restore.c
++restore.o: ../setfiles/restore.c
 +	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 +
 +fixfiles: $(OBJS)
@@ -67,7 +84,7 @@ index 00000000..4055c50e
 +	$(DESTDIR)$(SBINDIR)/fixfiles check
 diff --git a/policycoreutils/fixfiles/fixfiles.8 b/policycoreutils/fixfiles/fixfiles.8
 new file mode 100644
-index 00000000..ba76446b
+index 00000000..e1289f8c
 --- /dev/null
 +++ b/policycoreutils/fixfiles/fixfiles.8
 @@ -0,0 +1,114 @@
@@ -103,14 +120,14 @@ index 00000000..ba76446b
 +.BR fixfiles
 +utility.
 +.P
-+This script is primarily used to correct the security context
++This utility is primarily used to correct the security context
 +database (extended attributes) on filesystems.
 +.P
 +It can also be run at any time to relabel when adding support for
 +new policy, or  just check whether the file contexts are all
-+as you expect.  By default it will relabel all mounted ext2, ext3, ext4, gfs2, xfs,
-+jfs and btrfs file systems as long as they do not have a security context mount
-+option.  You can use the \-R flag to use rpmpackages as an alternative.
++as you expect.  By default it will relabel mounted read-write filesystems that
++advertise SELinux labeling support.  You can use the \-R flag to use RPM
++packages as an alternative.
 +The file /etc/selinux/fixfiles_exclude_dirs can contain a list of directories
 +excluded from relabeling.
 +.P
@@ -139,7 +156,7 @@ index 00000000..ba76446b
 +.TP
 +.B \-N time
 +Only act on files created after the specified date.  Date must be specified in
-+"YYYY\-MM\-DD HH:MM" format.  Date field will be passed to find \-\-newermt command.
++"YYYY\-MM\-DD HH:MM" format.
 +
 +.TP
 +.B \-M
@@ -180,26 +197,35 @@ index 00000000..ba76446b
 +
 +.SH "AUTHOR"
 +This man page was written by Richard Hally <rhally@mindspring.com>.
-+The script  was written by Dan Walsh <dwalsh@redhat.com>
++The original script was written by Dan Walsh <dwalsh@redhat.com>.
 +
 +.SH "SEE ALSO"
 +.BR setfiles (8),
 +.BR restorecon (8)
 diff --git a/policycoreutils/fixfiles/fixfiles.c b/policycoreutils/fixfiles/fixfiles.c
 new file mode 100644
-index 00000000..33fcc1d4
+index 00000000..c4f4ab89
 --- /dev/null
 +++ b/policycoreutils/fixfiles/fixfiles.c
-@@ -0,0 +1,1416 @@
+@@ -0,0 +1,1605 @@
++/*
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++ * Native implementation of the fixfiles utility.
++ */
++
 +#define _GNU_SOURCE
 +#include <ctype.h>
 +#include <dirent.h>
 +#include <errno.h>
++#include <fcntl.h>
 +#include <fts.h>
 +#include <glob.h>
 +#include <limits.h>
++#include <locale.h>
 +#include <mntent.h>
 +#include <stdbool.h>
++#include <stdint.h>
 +#include <stdarg.h>
 +#include <sched.h>
 +#include <stdio.h>
@@ -209,7 +235,6 @@ index 00000000..33fcc1d4
 +#include <sys/stat.h>
 +#include <sys/sysinfo.h>
 +#include <sys/types.h>
-+#include <sys/utsname.h>
 +#include <sys/wait.h>
 +#include <time.h>
 +#include <unistd.h>
@@ -291,9 +316,9 @@ index 00000000..33fcc1d4
 +static void apply_boot_time_filter(struct fixfiles_config *cfg);
 +static void set_restore_mode(struct fixfiles_config *cfg,
 +			    enum restore_mode mode);
-+static void cleanup_post_relabel(void);
-+static void regenerate_homedir_contexts(void);
-+static void ensure_private_mount_namespace(void);
++static int cleanup_post_relabel(void);
++static bool regenerate_homedir_contexts(void);
++static bool ensure_private_mount_namespace(void);
 +
 +static void die(const char *fmt, ...)
 +{
@@ -484,8 +509,11 @@ index 00000000..33fcc1d4
 +{
 +	const char *path = "/etc/selinux/fixfiles_exclude_dirs";
 +	FILE *fp = fopen(path, "r");
-+	if (!fp)
++	if (!fp) {
++		if (errno != ENOENT)
++			die("Unable to open %s: %s", path, strerror(errno));
 +		return;
++	}
 +	char *line = NULL;
 +	size_t len = 0;
 +	while (getline(&line, &len, fp) != -1) {
@@ -500,40 +528,15 @@ index 00000000..33fcc1d4
 +		if (!string_list_contains(&cfg->excludes, entry))
 +			string_list_append(&cfg->excludes, entry);
 +	}
++	if (ferror(fp)) {
++		int saved_errno = errno ? errno : EIO;
++		free(line);
++		fclose(fp);
++		errno = saved_errno;
++		die("Unable to read %s: %s", path, strerror(errno));
++	}
 +	free(line);
 +	fclose(fp);
-+}
-+
-+static int parse_kernel_component(const char **str)
-+{
-+	int value = 0;
-+	while (**str && isdigit((unsigned char)**str)) {
-+		value = value * 10 + (**str - '0');
-+		(*str)++;
-+	}
-+	if (**str == '.')
-+		(*str)++;
-+	return value;
-+}
-+
-+static bool kernel_supports_seclabel(void)
-+{
-+	struct utsname uts;
-+	if (uname(&uts) < 0)
-+		return true;
-+	const char *p = uts.release;
-+	int major = parse_kernel_component(&p);
-+	int minor = parse_kernel_component(&p);
-+	int patch = parse_kernel_component(&p);
-+	if (major > 2)
-+		return true;
-+	if (major < 2)
-+		return false;
-+	if (minor > 6)
-+		return true;
-+	if (minor < 6)
-+		return false;
-+	return patch >= 30;
 +}
 +
 +static bool has_mount_option(const char *opts, const char *needle)
@@ -554,22 +557,8 @@ index 00000000..33fcc1d4
 +	return false;
 +}
 +
-+static bool fs_type_supports_label(const char *type)
-+{
-+	static const char *const supported[] = {
-+		"ext2", "ext3", "ext4", "ext4dev", "gfs2",
-+		"xfs", "jfs", "btrfs", NULL
-+	};
-+	for (size_t i = 0; supported[i]; ++i) {
-+		if (strcmp(type, supported[i]) == 0)
-+			return true;
-+	}
-+	return false;
-+}
-+
 +static void load_mount_lists(struct fixfiles_config *cfg)
 +{
-+	bool use_seclabel = kernel_supports_seclabel();
 +	FILE *fp = setmntent("/proc/self/mounts", "r");
 +	if (!fp)
 +		die("Unable to read /proc/self/mounts: %s", strerror(errno));
@@ -577,18 +566,18 @@ index 00000000..33fcc1d4
 +	while ((ent = getmntent(fp)) != NULL) {
 +		if (!ent->mnt_dir || !ent->mnt_type)
 +			continue;
-+		bool supported = false;
-+		if (use_seclabel)
-+			supported = has_mount_option(ent->mnt_opts, "seclabel");
-+		else if (!has_mount_option(ent->mnt_opts, "context=") &&
-+			 fs_type_supports_label(ent->mnt_type))
-+			supported = true;
-+		if (!supported)
++		if (!has_mount_option(ent->mnt_opts, "seclabel"))
 +			continue;
 +		if (has_mount_option(ent->mnt_opts, "rw"))
 +			string_list_append(&cfg->mounts_rw, ent->mnt_dir);
 +		else
 +			string_list_append(&cfg->mounts_ro, ent->mnt_dir);
++	}
++	if (ferror(fp)) {
++		int saved_errno = errno ? errno : EIO;
++		endmntent(fp);
++		errno = saved_errno;
++		die("Unable to read /proc/self/mounts: %s", strerror(errno));
 +	}
 +	endmntent(fp);
 +	string_list_sort_unique(&cfg->mounts_rw);
@@ -630,18 +619,23 @@ index 00000000..33fcc1d4
 +	cfg->mode_locked = true;
 +}
 +
-+static void ensure_private_mount_namespace(void)
++static bool ensure_private_mount_namespace(void)
 +{
 +#ifdef CLONE_NEWNS
-+	static bool configured = false;
-+	static bool attempted = false;
-+	if (configured || attempted)
-+		return;
-+	attempted = true;
-+	if (unshare(CLONE_NEWNS) == 0) {
-+		if (mount(NULL, "/", NULL, MS_REC | MS_PRIVATE, NULL) == 0)
-+			configured = true;
++	if (unshare(CLONE_NEWNS) < 0) {
++		fprintf(stderr, "fixfiles: Unable to create a private mount namespace: %s\n",
++			strerror(errno));
++		return false;
 +	}
++	if (mount(NULL, "/", NULL, MS_REC | MS_PRIVATE, NULL) < 0) {
++		fprintf(stderr, "fixfiles: Unable to make mounts private: %s\n",
++			strerror(errno));
++		return false;
++	}
++	return true;
++#else
++	fprintf(stderr, "fixfiles: Private mount namespaces are not supported\n");
++	return false;
 +#endif
 +}
 +
@@ -668,8 +662,8 @@ index 00000000..33fcc1d4
 +	r_opts.selabel_opt_validate = validate;
 +	r_opts.count_errors = SELINUX_RESTORECON_COUNT_ERRORS;
 +	r_opts.selabel_opt_path = cfg->fc_path;
-+	restore_init(&r_opts);
 +	apply_excludes_to_restore(cfg);
++	restore_init(&r_opts);
 +}
 +
 +static void teardown_restore_session(void)
@@ -690,55 +684,142 @@ index 00000000..33fcc1d4
 +	return rc;
 +}
 +
-+static int remove_path_recursive(const char *path)
++static int remove_tree_at(int parent_fd, const char *name, dev_t filesystem)
 +{
 +	struct stat st;
-+	if (lstat(path, &st) < 0) {
++	if (fstatat(parent_fd, name, &st, AT_SYMLINK_NOFOLLOW) < 0) {
 +		if (errno == ENOENT)
 +			return 0;
 +		return -1;
 +	}
-+	if (S_ISDIR(st.st_mode) && !S_ISLNK(st.st_mode)) {
-+		DIR *dir = opendir(path);
-+		if (!dir)
++	if (S_ISDIR(st.st_mode)) {
++		if (filesystem != 0 && st.st_dev != filesystem) {
++			errno = EXDEV;
 +			return -1;
-+		struct dirent *de;
++		}
++		int fd = openat(parent_fd, name,
++				O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
++		if (fd < 0)
++			return -1;
++		struct stat opened;
++		if (fstat(fd, &opened) < 0 || opened.st_dev != st.st_dev ||
++		    opened.st_ino != st.st_ino) {
++			int saved_errno = errno ? errno : ESTALE;
++			close(fd);
++			errno = saved_errno;
++			return -1;
++		}
++		DIR *dir = fdopendir(fd);
++		if (!dir) {
++			close(fd);
++			return -1;
++		}
 +		int rc = 0;
-+		while ((de = readdir(dir)) != NULL) {
-+			if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0)
-+				continue;
-+			char child[PATH_MAX];
-+			if (snprintf(child, sizeof(child), "%s/%s", path, de->d_name) >= (int)sizeof(child)) {
-+				rc = -1;
++		for (;;) {
++			errno = 0;
++			struct dirent *de = readdir(dir);
++			if (!de) {
++				if (errno != 0)
++					rc = -1;
 +				break;
 +			}
-+			rc = remove_path_recursive(child);
++			if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0)
++				continue;
++			rc = remove_tree_at(dirfd(dir), de->d_name, filesystem);
 +			if (rc < 0)
 +				break;
 +		}
++		int saved_errno = errno;
 +		closedir(dir);
-+		if (rc < 0)
++		if (rc < 0) {
++			errno = saved_errno;
 +			return rc;
-+		return rmdir(path);
++		}
++		struct stat current;
++		if (fstatat(parent_fd, name, &current, AT_SYMLINK_NOFOLLOW) < 0)
++			return errno == ENOENT ? 0 : -1;
++		if (current.st_dev != st.st_dev || current.st_ino != st.st_ino) {
++			errno = ESTALE;
++			return -1;
++		}
++		return unlinkat(parent_fd, name, AT_REMOVEDIR);
 +	}
-+	return unlink(path);
++	return unlinkat(parent_fd, name, 0);
 +}
 +
-+static void clean_directory_contents(const char *path)
++static int remove_path_recursive(const char *path)
 +{
-+	DIR *dir = opendir(path);
-+	if (!dir)
-+		return;
-+	struct dirent *de;
-+	while ((de = readdir(dir)) != NULL) {
++	char *copy = xstrdup(path);
++	char *slash = strrchr(copy, '/');
++	const char *name;
++	const char *parent;
++	if (!slash) {
++		name = copy;
++		parent = ".";
++	} else {
++		name = slash + 1;
++		if (slash == copy)
++			parent = "/";
++		else {
++			*slash = '\0';
++			parent = copy;
++		}
++	}
++	int parent_fd = open(parent, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
++	if (parent_fd < 0) {
++		free(copy);
++		return -1;
++	}
++	struct stat parent_stat;
++	if (fstat(parent_fd, &parent_stat) < 0) {
++		int saved_errno = errno;
++		close(parent_fd);
++		free(copy);
++		errno = saved_errno;
++		return -1;
++	}
++	int rc = remove_tree_at(parent_fd, name, parent_stat.st_dev);
++	int saved_errno = errno;
++	close(parent_fd);
++	free(copy);
++	errno = saved_errno;
++	return rc;
++}
++
++static int clean_directory_contents(const char *path)
++{
++	int fd = open(path, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
++	if (fd < 0)
++		return -1;
++	struct stat root;
++	if (fstat(fd, &root) < 0) {
++		close(fd);
++		return -1;
++	}
++	DIR *dir = fdopendir(fd);
++	if (!dir) {
++		close(fd);
++		return -1;
++	}
++	int rc = 0;
++	for (;;) {
++		errno = 0;
++		struct dirent *de = readdir(dir);
++		if (!de) {
++			if (errno != 0)
++				rc = -1;
++			break;
++		}
 +		if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0)
 +			continue;
-+		char child[PATH_MAX];
-+		if (snprintf(child, sizeof(child), "%s/%s", path, de->d_name) >= (int)sizeof(child))
-+			continue;
-+		remove_path_recursive(child);
++		if (remove_tree_at(dirfd(dir), de->d_name, root.st_dev) < 0) {
++			fprintf(stderr, "fixfiles: Unable to remove %s/%s: %s\n",
++				path, de->d_name, strerror(errno));
++			rc = -1;
++		}
 +	}
 +	closedir(dir);
++	return rc;
 +}
 +
 +static int mkdir_p(const char *path, mode_t mode)
@@ -761,28 +842,34 @@ index 00000000..33fcc1d4
 +
 +static char *create_temp_root(void)
 +{
-+	const char *bases[] = { "/run", "/tmp", NULL };
-+	for (size_t i = 0; bases[i]; ++i) {
-+		char tmpl[PATH_MAX];
-+		if (snprintf(tmpl, sizeof(tmpl), "%s/fixfilesXXXXXX", bases[i]) >= (int)sizeof(tmpl))
-+			continue;
-+		char *dir = xstrdup(tmpl);
-+		if (mkdtemp(dir))
-+			return dir;
++	char *dir = xstrdup("/run/fixfiles.XXXXXX");
++	if (!mkdtemp(dir)) {
++		int saved_errno = errno;
 +		free(dir);
++		errno = saved_errno;
++		return NULL;
 +	}
-+	die("Unable to create temporary directory");
-+	return NULL;
++	return dir;
 +}
 +
-+static void remove_glob_matches(const char *pattern)
++static int remove_glob_matches(const char *pattern)
 +{
 +	glob_t g;
-+	if (glob(pattern, GLOB_NOSORT, NULL, &g) != 0)
-+		return;
-+	for (size_t i = 0; i < g.gl_pathc; ++i)
-+		remove_path_recursive(g.gl_pathv[i]);
++	int result = glob(pattern, GLOB_NOSORT, NULL, &g);
++	if (result == GLOB_NOMATCH)
++		return 0;
++	if (result != 0)
++		return -1;
++	int rc = 0;
++	for (size_t i = 0; i < g.gl_pathc; ++i) {
++		if (remove_path_recursive(g.gl_pathv[i]) < 0) {
++			fprintf(stderr, "fixfiles: Unable to remove %s: %s\n",
++				g.gl_pathv[i], strerror(errno));
++			rc = -1;
++		}
++	}
 +	globfree(&g);
++	return rc;
 +}
 +
 +static void strip_s0_tokens(char *line)
@@ -807,6 +894,13 @@ index 00000000..33fcc1d4
 +			continue;
 +		strip_s0_tokens(p);
 +		string_list_append(out, p);
++	}
++	if (ferror(fp)) {
++		int saved_errno = errno ? errno : EIO;
++		free(line);
++		fclose(fp);
++		errno = saved_errno;
++		die("Unable to read %s: %s", path, strerror(errno));
 +	}
 +	free(line);
 +	fclose(fp);
@@ -948,59 +1042,98 @@ index 00000000..33fcc1d4
 +	return rc;
 +}
 +
-+static void collect_newer_paths(const struct fixfiles_config *cfg,
++static int relabel_nonrecursive(const char *path, size_t nthreads,
++				long unsigned *skipped_errors)
++{
++	unsigned int flags = r_opts.restorecon_flags;
++	r_opts.restorecon_flags &= ~(SELINUX_RESTORECON_RECURSE |
++				       SELINUX_RESTORECON_XDEV);
++	int rc = relabel_path(path, nthreads, skipped_errors);
++	r_opts.restorecon_flags = flags;
++	return rc;
++}
++
++static int relabel_newer_on_mount(const struct fixfiles_config *cfg,
 +				  const char *root,
-+				  struct string_list *targets)
++				  long unsigned *skipped_errors)
 +{
 +	char *const paths[] = { (char *)root, NULL };
-+	FTS *fts = fts_open(paths, FTS_PHYSICAL | FTS_NOCHDIR, NULL);
++	FTS *fts = fts_open(paths, FTS_PHYSICAL | FTS_NOCHDIR | FTS_XDEV, NULL);
 +	if (!fts)
-+		return;
-+	FTSENT *ent;
-+	while ((ent = fts_read(fts)) != NULL) {
++		return -1;
++	int rc = 0;
++	for (;;) {
++		errno = 0;
++		FTSENT *ent = fts_read(fts);
++		if (!ent) {
++			if (errno != 0)
++				rc = -1;
++			break;
++		}
 +		if (is_excluded_path(cfg, ent->fts_path)) {
-+			fts_set(fts, ent, FTS_SKIP);
++			if (ent->fts_info == FTS_D && fts_set(fts, ent, FTS_SKIP) < 0) {
++				rc = -1;
++				break;
++			}
 +			continue;
 +		}
 +		if (ent->fts_info == FTS_DP)
 +			continue;
++		if (ent->fts_info == FTS_DNR || ent->fts_info == FTS_ERR ||
++		    ent->fts_info == FTS_NS) {
++			errno = ent->fts_errno;
++			rc = -1;
++			break;
++		}
 +		const struct stat *sb = ent->fts_statp;
 +		if (!sb)
 +			continue;
-+		if (sb->st_mtime >= cfg->tfilter.when) {
-+			string_list_append(targets, ent->fts_path);
-+			if (ent->fts_info == FTS_D)
-+				fts_set(fts, ent, FTS_SKIP);
++		if (sb->st_mtime > cfg->tfilter.when &&
++		    relabel_nonrecursive(ent->fts_path, cfg->nthreads,
++					 skipped_errors) < 0) {
++			rc = -1;
++			break;
 +		}
 +	}
-+	fts_close(fts);
++	int saved_errno = errno;
++	if (fts_close(fts) < 0 && rc == 0) {
++		rc = -1;
++		saved_errno = errno;
++	}
++	errno = saved_errno;
++	return rc;
 +}
 +
 +static int relabel_newer_than(const struct fixfiles_config *cfg,
 +			long unsigned *skipped_errors)
 +{
-+	struct string_list targets;
-+	string_list_init(&targets);
 +	log_read_only_mounts(cfg);
 +	log_excluded_dirs(cfg);
-+	for (size_t i = 0; i < cfg->mounts_rw.len; ++i)
-+		collect_newer_paths(cfg, cfg->mounts_rw.items[i], &targets);
-+	string_list_sort_unique(&targets);
-+	int rc = 0;
-+	for (size_t i = 0; i < targets.len; ++i) {
-+		rc = relabel_path(targets.items[i], cfg->nthreads, skipped_errors);
-+		if (rc < 0)
-+			break;
++	for (size_t i = 0; i < cfg->mounts_rw.len; ++i) {
++		if (relabel_newer_on_mount(cfg, cfg->mounts_rw.items[i],
++					    skipped_errors) < 0) {
++			fprintf(stderr, "fixfiles: Unable to scan %s: %s\n",
++				cfg->mounts_rw.items[i], strerror(errno));
++			return -1;
++		}
 +	}
-+	string_list_free(&targets);
-+	return rc;
++	return 0;
++}
++
++static int wait_for_child(pid_t pid, int *status)
++{
++	pid_t waited;
++	do {
++		waited = waitpid(pid, status, 0);
++	} while (waited < 0 && errno == EINTR);
++	return waited == pid ? 0 : -1;
 +}
 +
 +static int collect_rpm_files_for_package(const char *pkg,
 +				 struct string_list *files)
 +{
 +	int pipefd[2];
-+	if (pipe(pipefd) < 0)
++	if (pipe2(pipefd, O_CLOEXEC) < 0)
 +		return -1;
 +	pid_t pid = fork();
 +	if (pid < 0) {
@@ -1013,7 +1146,7 @@ index 00000000..33fcc1d4
 +		if (dup2(pipefd[1], STDOUT_FILENO) < 0)
 +			_exit(127);
 +		close(pipefd[1]);
-+		execlp("rpm", "rpm", "-q", "--qf",
++		execl("/usr/bin/rpm", "rpm", "-q", "--qf",
 +		       "[%{FILESTATES} %{FILENAMES}\n]", pkg, (char *)NULL);
 +		_exit(127);
 +	}
@@ -1021,11 +1154,12 @@ index 00000000..33fcc1d4
 +	FILE *fp = fdopen(pipefd[0], "r");
 +	if (!fp) {
 +		close(pipefd[0]);
-+		waitpid(pid, NULL, 0);
++		wait_for_child(pid, NULL);
 +		return -1;
 +	}
 +	char *line = NULL;
 +	size_t len = 0;
++	bool read_failed = false;
 +	while (getline(&line, &len, fp) != -1) {
 +		if (line[0] == '0' && line[1] == ' ') {
 +			char *path = trim(line + 2);
@@ -1033,23 +1167,32 @@ index 00000000..33fcc1d4
 +				string_list_append(files, path);
 +		}
 +	}
++	if (ferror(fp))
++		read_failed = true;
 +	free(line);
-+	fclose(fp);
++	if (fclose(fp) != 0)
++		read_failed = true;
 +	int status = 0;
-+	if (waitpid(pid, &status, 0) < 0)
++	if (wait_for_child(pid, &status) < 0 || read_failed)
 +		return -1;
 +	if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
-+		fprintf(stderr, "%s not found\n", pkg);
++		if (WIFEXITED(status) && WEXITSTATUS(status) == 127)
++			fprintf(stderr, "fixfiles: Unable to execute /usr/bin/rpm\n");
++		else
++			fprintf(stderr, "%s not found\n", pkg);
 +		return -1;
 +	}
 +	return 0;
 +}
 +
-+static void collect_rpm_files(const struct fixfiles_config *cfg,
-+			struct string_list *files)
++static int collect_rpm_files(const struct fixfiles_config *cfg,
++			     struct string_list *files)
 +{
-+	for (size_t i = 0; i < cfg->rpm_packages.len; ++i)
-+		collect_rpm_files_for_package(cfg->rpm_packages.items[i], files);
++	for (size_t i = 0; i < cfg->rpm_packages.len; ++i) {
++		if (collect_rpm_files_for_package(cfg->rpm_packages.items[i], files) < 0)
++			return -1;
++	}
++	return 0;
 +}
 +
 +static int relabel_rpm_packages(const struct fixfiles_config *cfg,
@@ -1057,7 +1200,10 @@ index 00000000..33fcc1d4
 +{
 +	struct string_list files;
 +	string_list_init(&files);
-+	collect_rpm_files(cfg, &files);
++	if (collect_rpm_files(cfg, &files) < 0) {
++		string_list_free(&files);
++		return -1;
++	}
 +	string_list_sort_unique(&files);
 +	log_excluded_dirs(cfg);
 +	int rc = 0;
@@ -1098,10 +1244,16 @@ index 00000000..33fcc1d4
 +	}
 +	log_read_only_mounts(cfg);
 +	log_excluded_dirs(cfg);
-+	ensure_private_mount_namespace();
++	if (!ensure_private_mount_namespace())
++		return -1;
 +	for (size_t i = 0; i < cfg->mounts_rw.len; ++i) {
 +		const char *mount_point = cfg->mounts_rw.items[i];
 +		char *tmp_root = create_temp_root();
++		if (!tmp_root) {
++			fprintf(stderr, "fixfiles: Unable to create a temporary mount root: %s\n",
++				strerror(errno));
++			return -1;
++		}
 +		char target[PATH_MAX];
 +		if (snprintf(target, sizeof(target), "%s%s", tmp_root, mount_point) >= (int)sizeof(target)) {
 +			remove_path_recursive(tmp_root);
@@ -1121,20 +1273,37 @@ index 00000000..33fcc1d4
 +		}
 +		if (selinux_restorecon_set_alt_rootpath(tmp_root) < 0) {
 +			perror("selinux_restorecon_set_alt_rootpath");
-+			umount(target);
-+			remove_path_recursive(tmp_root);
++			bool unmounted = umount(target) == 0;
++			if (!unmounted)
++				unmounted = umount2(target, MNT_DETACH) == 0;
++			if (unmounted)
++				remove_path_recursive(tmp_root);
 +			free(tmp_root);
 +			return -1;
 +		}
 +		int rc = relabel_path(target, cfg->nthreads, skipped_errors);
-+		if (selinux_restorecon_set_alt_rootpath("") < 0)
++		bool cleanup_failed = false;
++		if (selinux_restorecon_set_alt_rootpath("") < 0) {
 +			perror("selinux_restorecon_set_alt_rootpath");
-+		if (umount(target) < 0)
++			cleanup_failed = true;
++		}
++		bool unmounted = umount(target) == 0;
++		if (!unmounted) {
 +			perror("umount");
-+		remove_path_recursive(tmp_root);
++			cleanup_failed = true;
++			if (umount2(target, MNT_DETACH) < 0)
++				perror("umount2");
++			else
++				unmounted = true;
++		}
++		if (unmounted && remove_path_recursive(tmp_root) < 0) {
++			fprintf(stderr, "fixfiles: Unable to remove %s: %s\n",
++				tmp_root, strerror(errno));
++			cleanup_failed = true;
++		}
 +		free(tmp_root);
-+		if (rc < 0)
-+			return rc;
++		if (rc < 0 || cleanup_failed)
++			return rc < 0 ? rc : -1;
 +	}
 +	return 0;
 +}
@@ -1154,83 +1323,13 @@ index 00000000..33fcc1d4
 +	return 0;
 +}
 +
-+static void decode_mount_token(const char *src, char *dst, size_t len)
-+{
-+	size_t j = 0;
-+	for (size_t i = 0; src[i] && src[i] != '\n' && j + 1 < len; ++i) {
-+		if (src[i] == '\\' &&
-+		    src[i + 1] >= '0' && src[i + 1] <= '7' &&
-+		    src[i + 2] >= '0' && src[i + 2] <= '7' &&
-+		    src[i + 3] >= '0' && src[i + 3] <= '7') {
-+			int val = (src[i + 1] - '0') * 64 +
-+				  (src[i + 2] - '0') * 8 +
-+				  (src[i + 3] - '0');
-+			dst[j++] = (char)val;
-+			i += 3;
-+			continue;
-+		}
-+		dst[j++] = src[i];
-+	}
-+	dst[j] = '\0';
-+}
-+
-+static bool get_selinux_mountpoint(char *buf, size_t len)
-+{
-+	FILE *fp = fopen("/proc/self/mountinfo", "r");
-+	if (!fp)
-+		return false;
-+	char *line = NULL;
-+	size_t line_len = 0;
-+	bool found = false;
-+	while (!found && getline(&line, &line_len, fp) != -1) {
-+		char *sep = strstr(line, " - ");
-+		if (!sep)
-+			continue;
-+		char *fstype = sep + 3;
-+		char *space = strchr(fstype, ' ');
-+		if (!space)
-+			continue;
-+		*space = '\0';
-+		if (strcmp(fstype, "selinuxfs") != 0)
-+			continue;
-+		*sep = '\0';
-+		char *save = NULL;
-+		char *token;
-+		int field = 0;
-+		for (token = strtok_r(line, " ", &save);
-+		     token; token = strtok_r(NULL, " ", &save)) {
-+			++field;
-+			if (field == 5) {
-+				decode_mount_token(token, buf, len);
-+				found = true;
-+				break;
-+			}
-+		}
-+	}
-+	free(line);
-+	fclose(fp);
-+	return found;
-+}
-+
 +static bool read_initial_type(const char *name, char *out, size_t len)
 +{
-+	char mnt[PATH_MAX];
-+	if (!get_selinux_mountpoint(mnt, sizeof(mnt)))
++	char *initial_context = NULL;
++	if (security_get_initial_context(name, &initial_context) < 0)
 +		return false;
-+	char path[PATH_MAX];
-+	if (snprintf(path, sizeof(path), "%s/initial_contexts/%s", mnt, name) >= (int)sizeof(path))
-+		return false;
-+	FILE *fp = fopen(path, "r");
-+	if (!fp)
-+		return false;
-+	char buf[256];
-+	if (!fgets(buf, sizeof(buf), fp)) {
-+		fclose(fp);
-+		return false;
-+	}
-+	fclose(fp);
-+	char *ctx_str = trim(buf);
-+	context_t ctx = context_new(ctx_str);
++	context_t ctx = context_new(initial_context);
++	freecon(initial_context);
 +	if (!ctx)
 +		return false;
 +	const char *type = context_type_get(ctx);
@@ -1238,8 +1337,10 @@ index 00000000..33fcc1d4
 +		context_free(ctx);
 +		return false;
 +	}
-+	strncpy(out, type, len - 1);
-+	out[len - 1] = '\0';
++	if (snprintf(out, len, "%s", type) >= (int)len) {
++		context_free(ctx);
++		return false;
++	}
 +	context_free(ctx);
 +	return true;
 +}
@@ -1257,26 +1358,46 @@ index 00000000..33fcc1d4
 +	return match;
 +}
 +
-+static void cleanup_label_tree(const char *root, const char *ref,
++static int cleanup_label_tree(const char *root, const char *ref,
 +				const char *unlabeled_type,
 +				const char *undefined_type,
 +				bool purge_special)
 +{
 +	char *ref_ctx = NULL;
-+	if (lgetfilecon(ref, &ref_ctx) < 0)
-+		return;
++	if (lgetfilecon(ref, &ref_ctx) < 0) {
++		fprintf(stderr, "fixfiles: Unable to read the context of %s: %s\n",
++			ref, strerror(errno));
++		return -1;
++	}
 +	char *const paths[] = { (char *)root, NULL };
 +	FTS *fts = fts_open(paths, FTS_PHYSICAL | FTS_NOCHDIR, NULL);
 +	if (!fts) {
 +		freecon(ref_ctx);
-+		return;
++		return -1;
 +	}
-+	FTSENT *ent;
-+	while ((ent = fts_read(fts)) != NULL) {
++	int rc = 0;
++	for (;;) {
++		errno = 0;
++		FTSENT *ent = fts_read(fts);
++		if (!ent) {
++			if (errno != 0) {
++				fprintf(stderr, "fixfiles: Unable to scan %s: %s\n",
++					root, strerror(errno));
++				rc = -1;
++			}
++			break;
++		}
 +		if (ent->fts_level == 0)
 +			continue;
 +		if (ent->fts_info == FTS_DP)
 +			continue;
++		if (ent->fts_info == FTS_DNR || ent->fts_info == FTS_ERR ||
++		    ent->fts_info == FTS_NS) {
++			fprintf(stderr, "fixfiles: Unable to access %s: %s\n",
++				ent->fts_path, strerror(ent->fts_errno));
++			rc = -1;
++			continue;
++		}
 +		const struct stat *sb = ent->fts_statp;
 +		if (!sb)
 +			continue;
@@ -1285,8 +1406,12 @@ index 00000000..33fcc1d4
 +		if (lgetfilecon(ent->fts_path, &cur) < 0) {
 +			if (errno == ENODATA)
 +				missing_ctx = true;
-+			else
++			else {
++				fprintf(stderr, "fixfiles: Unable to read the context of %s: %s\n",
++					ent->fts_path, strerror(errno));
++				rc = -1;
 +				continue;
++			}
 +		}
 +		bool bad = missing_ctx;
 +		if (!missing_ctx)
@@ -1297,14 +1422,23 @@ index 00000000..33fcc1d4
 +		if (!bad)
 +			continue;
 +		if (purge_special && (S_ISFIFO(sb->st_mode) || S_ISSOCK(sb->st_mode))) {
-+			remove_path_recursive(ent->fts_path);
++			if (remove_path_recursive(ent->fts_path) < 0) {
++				fprintf(stderr, "fixfiles: Unable to remove %s: %s\n",
++					ent->fts_path, strerror(errno));
++				rc = -1;
++			}
 +			continue;
 +		}
-+		if (lsetfilecon(ent->fts_path, ref_ctx) < 0)
-+			perror("lsetfilecon");
++		if (lsetfilecon(ent->fts_path, ref_ctx) < 0) {
++			fprintf(stderr, "fixfiles: Unable to set the context of %s: %s\n",
++				ent->fts_path, strerror(errno));
++			rc = -1;
++		}
 +	}
-+	fts_close(fts);
++	if (fts_close(fts) < 0)
++		rc = -1;
 +	freecon(ref_ctx);
++	return rc;
 +}
 +
 +static bool path_is_dir(const char *path)
@@ -1313,32 +1447,51 @@ index 00000000..33fcc1d4
 +	return stat(path, &st) == 0 && S_ISDIR(st.st_mode);
 +}
 +
-+static void cleanup_post_relabel(void)
++static int cleanup_post_relabel(void)
 +{
++	int rc = 0;
 +	puts("Cleaning up labels on /tmp");
-+	remove_glob_matches("/tmp/gconfd-*");
-+	remove_glob_matches("/tmp/pulse-*");
-+	remove_glob_matches("/tmp/orbit-*");
++	if (remove_glob_matches("/tmp/gconfd-*") < 0)
++		rc = -1;
++	if (remove_glob_matches("/tmp/pulse-*") < 0)
++		rc = -1;
++	if (remove_glob_matches("/tmp/orbit-*") < 0)
++		rc = -1;
 +	char undefined_type[64] = "";
 +	char unlabeled_type[64] = "";
 +	if (!read_initial_type("unlabeled", undefined_type,
-+			 sizeof(undefined_type)))
-+		return;
++			 sizeof(undefined_type))) {
++		fprintf(stderr, "fixfiles: Unable to read the unlabeled initial context\n");
++		return -1;
++	}
 +	if (!read_initial_type("file", unlabeled_type,
-+			 sizeof(unlabeled_type)))
-+		return;
-+	cleanup_label_tree("/tmp", "/tmp", unlabeled_type, undefined_type, true);
-+	cleanup_label_tree("/var/tmp", "/var/tmp", unlabeled_type, undefined_type, false);
-+	cleanup_label_tree("/var/run", "/var/run", unlabeled_type, undefined_type, false);
++			 sizeof(unlabeled_type))) {
++		fprintf(stderr, "fixfiles: Unable to read the file initial context\n");
++		return -1;
++	}
++	if (cleanup_label_tree("/tmp", "/tmp", unlabeled_type, undefined_type, true) < 0)
++		rc = -1;
++	if (cleanup_label_tree("/var/tmp", "/var/tmp", unlabeled_type,
++			       undefined_type, false) < 0)
++		rc = -1;
++	if (cleanup_label_tree("/var/run", "/var/run", unlabeled_type,
++			       undefined_type, false) < 0)
++		rc = -1;
 +	if (path_is_dir("/var/lib/debug"))
-+		cleanup_label_tree("/var/lib/debug", "/lib", unlabeled_type, undefined_type, false);
++		if (cleanup_label_tree("/var/lib/debug", "/lib", unlabeled_type,
++				       undefined_type, false) < 0)
++			rc = -1;
++	return rc;
 +}
 +
-+static void regenerate_homedir_contexts(void)
++static bool regenerate_homedir_contexts(void)
 +{
 +	semanage_handle_t *sh = semanage_handle_create();
-+	if (!sh)
-+		return;
++	bool success = false;
++	if (!sh) {
++		fprintf(stderr, "genhomedircon: unable to create semanage handle\n");
++		return false;
++	}
 +	semanage_set_create_store(sh, 1);
 +	if (semanage_connect(sh) < 0) {
 +		fprintf(stderr, "genhomedircon: semanage_connect failed\n");
@@ -1352,24 +1505,32 @@ index 00000000..33fcc1d4
 +	semanage_set_rebuild(sh, 1);
 +	if (semanage_commit(sh) < 0)
 +		fprintf(stderr, "genhomedircon rebuild failed\n");
++	else
++		success = true;
 +out:
 +	if (semanage_is_connected(sh))
 +		semanage_disconnect(sh);
 +	semanage_handle_destroy(sh);
++	return success;
 +}
 +
 +static void apply_time_filter(struct fixfiles_config *cfg, const char *timestr)
 +{
-+	struct tm tm = { 0 };
++	struct tm tm = { .tm_isdst = -1 };
 +	char buf[64];
-+	if (strlen(timestr) >= sizeof(buf))
++	size_t length = strlen(timestr);
++	if (length >= sizeof(buf))
 +		die("Time string too long");
-+	strncpy(buf, timestr, sizeof(buf));
++	memcpy(buf, timestr, length + 1);
 +	char *trimmed = trim(buf);
-+	if (!strptime(trimmed, "%Y-%m-%d %H:%M", &tm))
++	char *end = strptime(trimmed, "%Y-%m-%d %H:%M", &tm);
++	if (!end || *end != '\0')
 +		die("Invalid time format '%s' (expected YYYY-MM-DD HH:MM)", timestr);
++	time_t when = mktime(&tm);
++	if (when == (time_t)-1)
++		die("Invalid time '%s'", timestr);
 +	cfg->tfilter.active = true;
-+	cfg->tfilter.when = mktime(&tm);
++	cfg->tfilter.when = when;
 +	snprintf(cfg->tfilter.original,
 +		 sizeof(cfg->tfilter.original), "%s", trimmed);
 +}
@@ -1395,7 +1556,7 @@ index 00000000..33fcc1d4
 +static void parse_arguments(int argc, char **argv, struct fixfiles_config *cfg)
 +{
 +	int opt;
-+	while ((opt = getopt(argc, argv, "N:BC:FfR:vMT:")) != -1) {
++	while ((opt = getopt(argc, argv, "+N:BC:FfR:vMT:")) != -1) {
 +		switch (opt) {
 +		case 'N':
 +			set_restore_mode(cfg, MODE_DEFAULT);
@@ -1440,8 +1601,11 @@ index 00000000..33fcc1d4
 +		case 'T':
 +			{
 +				char *end = NULL;
++				errno = 0;
 +				unsigned long long value = strtoull(optarg, &end, 10);
-+				if (optarg[0] == '\0' || (end && *end != '\0'))
++				if (optarg[0] == '\0' || optarg[0] == '-' ||
++				    (end && *end != '\0') || errno == ERANGE ||
++				    value > SIZE_MAX)
 +					die("Invalid thread count '%s'", optarg);
 +				cfg->nthreads = value;
 +			}
@@ -1485,6 +1649,15 @@ index 00000000..33fcc1d4
 +		die("Previous file context file not found");
 +	if (cfg->command == CMD_ONBOOT && cfg->mode != MODE_DEFAULT)
 +		die("onboot cannot be combined with other modes");
++	if (cfg->command == CMD_RELABEL && cfg->mode != MODE_DEFAULT)
++		die("relabel cannot be combined with another restore mode");
++	if (cfg->command != CMD_ONBOOT && cfg->bind_mounts &&
++	    (cfg->mode != MODE_DEFAULT || cfg->tfilter.active))
++		die("-M cannot be combined with this restore mode");
++	if (cfg->full_relabel && cfg->command != CMD_RELABEL)
++		die("-f is only valid with relabel");
++	if (cfg->command == CMD_ONBOOT && cfg->verbose)
++		die("-v is not valid with onboot");
 +}
 +
 +static bool is_dry_run_command(const struct fixfiles_config *cfg)
@@ -1495,7 +1668,8 @@ index 00000000..33fcc1d4
 +static int handle_restore(struct fixfiles_config *cfg)
 +{
 +	bool nochange = is_dry_run_command(cfg);
-+	regenerate_homedir_contexts();
++	if (!regenerate_homedir_contexts())
++		return -1;
 +	setup_restore_session(cfg, nochange);
 +	long unsigned skipped_errors = 0;
 +	int rc = 0;
@@ -1521,8 +1695,9 @@ index 00000000..33fcc1d4
 +		rc = -1;
 +	}
 +	teardown_restore_session();
-+	if (rc == 0 && (cfg->command == CMD_RESTORE || cfg->command == CMD_RELABEL))
-+		cleanup_post_relabel();
++	if (rc == 0 && cfg->mode == MODE_DEFAULT && !cfg->tfilter.active &&
++	    (cfg->command == CMD_RESTORE || cfg->command == CMD_RELABEL))
++		rc = cleanup_post_relabel();
 +	if (rc == 0 && skipped_errors)
 +		printf("Number of errors ignored: %lu\n", skipped_errors);
 +	return rc;
@@ -1530,9 +1705,25 @@ index 00000000..33fcc1d4
 +
 +static int handle_onboot(const struct fixfiles_config *cfg)
 +{
-+	FILE *fp = fopen("/.autorelabel", "w");
-+	if (!fp)
-+		die("Unable to create /.autorelabel: %s", strerror(errno));
++	char path[] = "/.autorelabel.XXXXXX";
++	int fd = mkstemp(path);
++	if (fd < 0)
++		die("Unable to create an autorelabel file: %s", strerror(errno));
++	if (fchmod(fd, 0644) < 0) {
++		int saved_errno = errno;
++		close(fd);
++		unlink(path);
++		errno = saved_errno;
++		die("Unable to set autorelabel file permissions: %s", strerror(errno));
++	}
++	FILE *fp = fdopen(fd, "w");
++	if (!fp) {
++		int saved_errno = errno;
++		close(fd);
++		unlink(path);
++		errno = saved_errno;
++		die("Unable to write the autorelabel file: %s", strerror(errno));
++	}
 +	bool force = cfg->force;
 +	if (is_selinux_enabled() <= 0)
 +		force = true;
@@ -1545,8 +1736,18 @@ index 00000000..33fcc1d4
 +	if (cfg->nthreads)
 +		fprintf(fp, "-T %zu ", cfg->nthreads);
 +	fputc('\n', fp);
-+	if (fclose(fp) != 0)
-+		die("Failed to finalize /.autorelabel: %s", strerror(errno));
++	if (fclose(fp) != 0) {
++		int saved_errno = errno;
++		unlink(path);
++		errno = saved_errno;
++		die("Failed to finalize the autorelabel file: %s", strerror(errno));
++	}
++	if (rename(path, "/.autorelabel") < 0) {
++		int saved_errno = errno;
++		unlink(path);
++		errno = saved_errno;
++		die("Unable to install /.autorelabel: %s", strerror(errno));
++	}
 +	puts("System will relabel on next boot");
 +	return 0;
 +}
@@ -1571,28 +1772,33 @@ index 00000000..33fcc1d4
 +		clean_tmp = prompt_clean_tmp();
 +	if (clean_tmp) {
 +		puts("Cleaning out /tmp");
-+		clean_directory_contents("/tmp");
++		if (clean_directory_contents("/tmp") < 0)
++			return -1;
 +	}
 +	return handle_restore(cfg);
 +}
 +
 +int main(int argc, char **argv)
 +{
++	setlocale(LC_ALL, "");
++
 +	if (argc < 2)
 +		usage(argv[0]);
 +	program_name = argv[0];
 +	struct fixfiles_config cfg;
 +	config_init(&cfg);
 +	parse_arguments(argc, argv, &cfg);
++	validate_config(&cfg);
++	if (cfg.command == CMD_ONBOOT) {
++		int rc = handle_onboot(&cfg);
++		config_destroy(&cfg);
++		return rc == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
++	}
 +	determine_file_contexts(&cfg);
 +	load_exclude_dirs(&cfg);
 +	load_mount_lists(&cfg);
-+	validate_config(&cfg);
 +	int rc = 0;
 +	switch (cfg.command) {
-+	case CMD_ONBOOT:
-+		rc = handle_onboot(&cfg);
-+		break;
 +	case CMD_RELABEL:
 +		rc = handle_relabel(&cfg);
 +		break;
@@ -1607,3 +1813,6 @@ index 00000000..33fcc1d4
 +	config_destroy(&cfg);
 +	return rc == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 +}
+-- 
+2.54.0
+
