@@ -1,5 +1,5 @@
 diff --git OLD/gcr.spec NEW/gcr.spec
-index cdb24fa..96737f2 100644
+index 0c7a332..ea4b4be 100644
 --- OLD/gcr.spec
 +++ NEW/gcr.spec
 @@ -2,6 +2,9 @@
@@ -10,12 +10,12 @@ index cdb24fa..96737f2 100644
 +%bcond ssh_agent 0
 +
  Name:           gcr
- Version:        4.4.0.1
+ Version:        4.4.1
  Release:        %autorelease
 @@ -14,6 +17,7 @@ Summary:        A library for bits of crypto UI and parsing
  License:        LGPL-2.1-or-later AND FSFULLRWD AND (LGPL-3.0-or-later OR CC-BY-SA-3.0) AND (MPL-1.1 OR GPL-2.0-or-later OR LGPL-2.1-or-later) AND GCR-docs
  URL:            https://gitlab.gnome.org/GNOME/gcr
- Source0:        https://download.gnome.org/sources/%{name}/4.2/%{name}-%{version}.tar.xz
+ Source0:        https://download.gnome.org/sources/%{name}/%{gnome_major_minor_version}/%{name}-%{version}.tar.xz
 +Source1:        https://gitlab.gnome.org/GNOME/gcr/-/raw/3.41.1/ui/gcr-viewer.desktop.in.in
  
  BuildRequires:  gettext
