@@ -1,0 +1,313 @@
+From 30c05d3587392cdb6865974931dc6d38231f28fe Mon Sep 17 00:00:00 2001
+From: Fxzx micah <48860358+fxzxmicah@users.noreply.github.com>
+Date: Sun, 18 Oct 2026 03:38:28 +0800
+Subject: [PATCH] encoding: Handle missing converters consistently
+
+Handle unavailable charset converters throughout enumeration, loading and saving. Only offer encodings whose converters to and from UTF-8 can be opened; retain charset lookup independently of availability.
+
+Create save converters before replacing the destination and propagate constructor errors. Skip unavailable candidates while probing and report errors for unavailable explicit or fallback encodings, without passing NULL converters downstream.
+
+Only accept an incomplete UTF-8 character at the probe boundary and match partial conversion errors against G_IO_ERROR_PARTIAL_INPUT. Do not mistake invalid short GBK input for incomplete UTF-8.
+---
+ gtksourceview/gtksourcebufferoutputstream.c | 61 ++++++++++++---------
+ gtksourceview/gtksourceencoding.c           | 23 +++++++-
+ gtksourceview/gtksourcefilesaver.c          | 57 ++++++++++---------
+ 3 files changed, 87 insertions(+), 54 deletions(-)
+
+diff --git a/gtksourceview/gtksourcebufferoutputstream.c b/gtksourceview/gtksourcebufferoutputstream.c
+index d3a0f159..950b0c0a 100644
+--- a/gtksourceview/gtksourcebufferoutputstream.c
++++ b/gtksourceview/gtksourcebufferoutputstream.c
+@@ -322,7 +322,7 @@ try_convert (GCharsetConverter *converter,
+ 
+ 	if (err != NULL)
+ 	{
+-		if (err->code == G_CONVERT_ERROR_PARTIAL_INPUT)
++		if (g_error_matches (err, G_IO_ERROR, G_IO_ERROR_PARTIAL_INPUT))
+ 		{
+ 			/* FIXME We can get partial input while guessing the
+ 			   encoding because we just take some amount of text
+@@ -352,17 +352,16 @@ try_convert (GCharsetConverter *converter,
+ 	return ret;
+ }
+ 
+-static GCharsetConverter *
++static gboolean
+ guess_encoding (GtkSourceBufferOutputStream *stream,
+                 const void                  *inbuf,
+-                gsize                        inbuf_size)
++                gsize                        inbuf_size,
++                GError                     **error)
+ {
+-	GCharsetConverter *conv = NULL;
+-
+ 	if (inbuf == NULL || inbuf_size == 0)
+ 	{
+ 		stream->is_utf8 = TRUE;
+-		return NULL;
++		return TRUE;
+ 	}
+ 
+ 	if (stream->encodings != NULL &&
+@@ -376,7 +375,7 @@ guess_encoding (GtkSourceBufferOutputStream *stream,
+ 	{
+ 		const GtkSourceEncoding *enc;
+ 
+-		g_clear_object (&conv);
++		g_clear_object (&stream->charset_conv);
+ 
+ 		/* We get an encoding from the list */
+ 		enc = get_encoding (stream);
+@@ -404,9 +403,10 @@ guess_encoding (GtkSourceBufferOutputStream *stream,
+ 				break;
+ 			}
+ 
+-			/* Check if the end is less than one char */
++			/* Accept a valid UTF-8 prefix ending in an incomplete character. */
+ 			remainder = inbuf_size - (end - (gchar *)inbuf);
+-			if (remainder < 6)
++			if (memchr (end, '\0', remainder) == NULL &&
++			    g_utf8_get_char_validated (end, remainder) == (gunichar)-2)
+ 			{
+ 				stream->is_utf8 = TRUE;
+ 				break;
+@@ -415,9 +415,19 @@ guess_encoding (GtkSourceBufferOutputStream *stream,
+ 			continue;
+ 		}
+ 
+-		conv = g_charset_converter_new ("UTF-8",
+-						gtk_source_encoding_get_charset (enc),
+-						NULL);
++		stream->charset_conv = g_charset_converter_new ("UTF-8",
++		                                              gtk_source_encoding_get_charset (enc),
++		                                              stream->use_first ? error : NULL);
++
++		if (stream->charset_conv == NULL)
++		{
++			if (stream->use_first)
++			{
++				return FALSE;
++			}
++
++			continue;
++		}
+ 
+ 		/* If we tried all encodings we use the first one */
+ 		if (stream->use_first)
+@@ -426,18 +436,26 @@ guess_encoding (GtkSourceBufferOutputStream *stream,
+ 		}
+ 
+ 		/* Try to convert */
+-		if (try_convert (conv, inbuf, inbuf_size))
++		if (try_convert (stream->charset_conv, inbuf, inbuf_size))
+ 		{
+ 			break;
+ 		}
+ 	}
+ 
+-	if (conv != NULL)
++	if (stream->charset_conv != NULL)
++	{
++		g_converter_reset (G_CONVERTER (stream->charset_conv));
++	}
++
++	if (stream->charset_conv == NULL && !stream->is_utf8)
+ 	{
+-		g_converter_reset (G_CONVERTER (conv));
++		g_set_error_literal (error, GTK_SOURCE_FILE_LOADER_ERROR,
++		                     GTK_SOURCE_FILE_LOADER_ERROR_ENCODING_AUTO_DETECTION_FAILED,
++		                     "It is not possible to detect the encoding automatically");
++		return FALSE;
+ 	}
+ 
+-	return conv;
++	return TRUE;
+ }
+ 
+ static GtkSourceNewlineType
+@@ -985,17 +1003,8 @@ gtk_source_buffer_output_stream_write (GOutputStream  *stream,
+ 
+ 	if (!ostream->is_initialized)
+ 	{
+-		ostream->charset_conv = guess_encoding (ostream, buffer, count);
+-
+-		/* If we still have the previous case is that we didn't guess
+-		   anything */
+-		if (ostream->charset_conv == NULL &&
+-		    !ostream->is_utf8)
++		if (!guess_encoding (ostream, buffer, count, error))
+ 		{
+-			g_set_error_literal (error, GTK_SOURCE_FILE_LOADER_ERROR,
+-			                     GTK_SOURCE_FILE_LOADER_ERROR_ENCODING_AUTO_DETECTION_FAILED,
+-			                     "It is not possible to detect the encoding automatically");
+-
+ 			goto failure;
+ 		}
+ 
+diff --git a/gtksourceview/gtksourceencoding.c b/gtksourceview/gtksourceencoding.c
+index 710c5792..6dd24ca8 100644
+--- a/gtksourceview/gtksourceencoding.c
++++ b/gtksourceview/gtksourceencoding.c
+@@ -342,7 +342,12 @@ gtk_source_encoding_get_from_charset (const gchar *charset)
+ /**
+  * gtk_source_encoding_get_all:
+  *
+- * Gets all encodings.
++ * Gets all known encodings available on the system for conversion to and
++ * from UTF-8. Encodings whose converters cannot be opened are omitted.
++ * UTF-8 is always included.
++ *
++ * This checks conversion support, not whether a particular document can be
++ * represented in an encoding.
+  *
+  * Returns: (transfer container) (element-type GtkSource.Encoding): a list of
+  * all #GtkSourceEncoding's. Free with g_slist_free().
+@@ -355,6 +360,22 @@ gtk_source_encoding_get_all (void)
+ 
+ 	for (i = GTK_SOURCE_ENCODING_LAST - 1; i >= 0; i--)
+ 	{
++		GIConv converter;
++
++		converter = g_iconv_open ("UTF-8", encodings[i].charset);
++		if (converter == (GIConv)-1)
++		{
++			continue;
++		}
++		g_iconv_close (converter);
++
++		converter = g_iconv_open (encodings[i].charset, "UTF-8");
++		if (converter == (GIConv)-1)
++		{
++			continue;
++		}
++		g_iconv_close (converter);
++
+ 		all = g_slist_prepend (all, (gpointer) &encodings[i]);
+ 	}
+ 
+diff --git a/gtksourceview/gtksourcefilesaver.c b/gtksourceview/gtksourcefilesaver.c
+index 0bbc60a0..d343e443 100644
+--- a/gtksourceview/gtksourcefilesaver.c
++++ b/gtksourceview/gtksourcefilesaver.c
+@@ -113,6 +113,7 @@ typedef struct
+ 	 */
+ 	GtkSourceBufferInputStream *input_stream;
+ 	GOutputStream *output_stream;
++	GCharsetConverter *charset_converter;
+ 
+ 	GFileInfo *info;
+ 
+@@ -167,6 +168,7 @@ task_data_free (gpointer data)
+ 
+ 	g_clear_object (&task_data->input_stream);
+ 	g_clear_object (&task_data->output_stream);
++	g_clear_object (&task_data->charset_converter);
+ 	g_clear_object (&task_data->info);
+ 	g_clear_error (&task_data->error);
+ 
+@@ -781,7 +783,6 @@ replace_file_cb (GObject      *source_object,
+ 	GTask *task = G_TASK (user_data);
+ 	GtkSourceFileSaver *saver;
+ 	TaskData *task_data;
+-	GFileOutputStream *file_output_stream;
+ 	GOutputStream *output_stream;
+ 	GError *error = NULL;
+ 
+@@ -792,7 +793,7 @@ replace_file_cb (GObject      *source_object,
+ 	saver = g_task_get_source_object (task);
+ 	task_data = g_task_get_task_data (task);
+ 
+-	file_output_stream = g_file_replace_finish (location, result, &error);
++	output_stream = G_OUTPUT_STREAM (g_file_replace_finish (location, result, &error));
+ 
+ 	if (g_error_matches (error, G_IO_ERROR, G_IO_ERROR_NOT_MOUNTED) &&
+ 	    !task_data->tried_mount)
+@@ -811,6 +812,9 @@ replace_file_cb (GObject      *source_object,
+ 		return;
+ 	}
+ 
++	g_clear_object (&task_data->output_stream);
++	task_data->output_stream = output_stream;
++
+ 	if (saver->compression_type == GTK_SOURCE_COMPRESSION_TYPE_GZIP)
+ 	{
+ 		GZlibCompressor *compressor;
+@@ -821,44 +825,26 @@ replace_file_cb (GObject      *source_object,
+ 
+ 		compressor = g_zlib_compressor_new (G_ZLIB_COMPRESSOR_FORMAT_GZIP, -1);
+ 
+-		output_stream = g_converter_output_stream_new (G_OUTPUT_STREAM (file_output_stream),
+-							       G_CONVERTER (compressor));
++		task_data->output_stream = g_converter_output_stream_new (output_stream,
++		                                                        G_CONVERTER (compressor));
+ 
+ 		g_object_unref (compressor);
+-		g_object_unref (file_output_stream);
+-	}
+-	else
+-	{
+-		output_stream = G_OUTPUT_STREAM (file_output_stream);
++		g_object_unref (output_stream);
+ 	}
+ 
+-	/* FIXME: manage converter error? */
+-
+ 	DEBUG ({
+ 	       g_print ("Encoding charset: %s\n",
+ 			gtk_source_encoding_get_charset (saver->encoding));
+ 	});
+ 
+-	if (saver->encoding != gtk_source_encoding_get_utf8 ())
++	if (task_data->charset_converter != NULL)
+ 	{
+-		GCharsetConverter *converter;
+-
+-		converter = g_charset_converter_new (gtk_source_encoding_get_charset (saver->encoding),
+-						     "UTF-8",
+-						     NULL);
+-
+-		g_clear_object (&task_data->output_stream);
++		output_stream = task_data->output_stream;
+ 		task_data->output_stream = g_converter_output_stream_new (output_stream,
+-									  G_CONVERTER (converter));
+-
+-		g_object_unref (converter);
++		                                                        G_CONVERTER (task_data->charset_converter));
++		g_clear_object (&task_data->charset_converter);
+ 		g_object_unref (output_stream);
+ 	}
+-	else
+-	{
+-		g_clear_object (&task_data->output_stream);
+-		task_data->output_stream = G_OUTPUT_STREAM (output_stream);
+-	}
+ 
+ 	task_data->total_size = _gtk_source_buffer_input_stream_get_total_size (task_data->input_stream);
+ 
+@@ -1404,6 +1390,23 @@ gtk_source_file_saver_save_async (GtkSourceFileSaver    *saver,
+ 		return;
+ 	}
+ 
++	/* Check conversion support before opening the file for replacement. */
++	if (saver->encoding != gtk_source_encoding_get_utf8 ())
++	{
++		GError *error = NULL;
++
++		task_data->charset_converter =
++			g_charset_converter_new (gtk_source_encoding_get_charset (saver->encoding),
++			                         "UTF-8",
++			                         &error);
++
++		if (task_data->charset_converter == NULL)
++		{
++			g_task_return_error (saver->task, error);
++			return;
++		}
++	}
++
+ 	DEBUG ({
+ 	       g_print ("Start saving\n");
+ 	});
+-- 
+2.54.0
+
