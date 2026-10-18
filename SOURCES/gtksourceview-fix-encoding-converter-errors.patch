@@ -1,26 +1,28 @@
-From bc12274a8fdc92c1e0d9a2e1f0d8c13bcbb82936 Mon Sep 17 00:00:00 2001
+From 8ab4fc53d064e27ad38400fd8a865171d690a4ce Mon Sep 17 00:00:00 2001
 From: Fxzx micah <48860358+fxzxmicah@users.noreply.github.com>
 Date: Sun, 18 Oct 2026 03:38:28 +0800
-Subject: [PATCH] encoding: Handle missing converters consistently
+Subject: [PATCH] encoding: Keep charset selection and conversion consistent
 
 Character set support depends on the installed converters. Handle missing
 converters as errors instead of passing NULL to conversion APIs.
 
 Only enumerate encodings with conversion support to and from UTF-8, while
-keeping charset lookup independent of availability. During loading, skip
-unavailable detection candidates and propagate errors for explicit and
-fallback encodings. Preserve candidate order and first-candidate fallback.
+keeping charset lookup independent of availability. Register ASCII and
+ISO-8859-11, and resolve common aliases without changing existing canonical
+names, so text file dialog choices can be used for loading and saving.
 
-Distinguish incomplete UTF-8 characters at sample boundaries from invalid
-input, and match partial conversion errors in the correct error domain.
+During loading, skip unavailable detection candidates and propagate errors
+for explicit and fallback encodings. Preserve candidate order and
+first-candidate fallback. Distinguish incomplete UTF-8 characters at sample
+boundaries from invalid input, and match errors in the correct domain.
 
 Create save converters before replacing the destination so unsupported
 encodings fail without opening the target file for replacement.
 ---
  gtksourceview/gtksourcebufferoutputstream.c | 156 +++++++-------------
- gtksourceview/gtksourceencoding.c           |  28 +++-
+ gtksourceview/gtksourceencoding.c           |  63 +++++++-
  gtksourceview/gtksourcefilesaver.c          |  57 +++----
- 3 files changed, 111 insertions(+), 130 deletions(-)
+ 3 files changed, 141 insertions(+), 135 deletions(-)
 
 diff --git a/gtksourceview/gtksourcebufferoutputstream.c b/gtksourceview/gtksourcebufferoutputstream.c
 index d3a0f159..8f44caac 100644
@@ -263,10 +265,90 @@ index d3a0f159..8f44caac 100644
  		}
  
 diff --git a/gtksourceview/gtksourceencoding.c b/gtksourceview/gtksourceencoding.c
-index 710c5792..e4519967 100644
+index 710c5792..b78b7e8d 100644
 --- a/gtksourceview/gtksourceencoding.c
 +++ b/gtksourceview/gtksourceencoding.c
-@@ -339,10 +339,30 @@ gtk_source_encoding_get_from_charset (const gchar *charset)
+@@ -53,6 +53,8 @@ G_DEFINE_BOXED_TYPE (GtkSourceEncoding, gtk_source_encoding,
+ 
+ typedef enum _GtkSourceEncodingIndex
+ {
++	GTK_SOURCE_ENCODING_ASCII,
++
+ 	GTK_SOURCE_ENCODING_ISO_8859_1,
+ 	GTK_SOURCE_ENCODING_ISO_8859_2,
+ 	GTK_SOURCE_ENCODING_ISO_8859_3,
+@@ -63,6 +65,7 @@ typedef enum _GtkSourceEncodingIndex
+ 	GTK_SOURCE_ENCODING_ISO_8859_8,
+ 	GTK_SOURCE_ENCODING_ISO_8859_9,
+ 	GTK_SOURCE_ENCODING_ISO_8859_10,
++	GTK_SOURCE_ENCODING_ISO_8859_11,
+ 	GTK_SOURCE_ENCODING_ISO_8859_13,
+ 	GTK_SOURCE_ENCODING_ISO_8859_14,
+ 	GTK_SOURCE_ENCODING_ISO_8859_15,
+@@ -146,6 +149,9 @@ static GtkSourceEncoding unknown_encoding =
+ 
+ static const GtkSourceEncoding encodings[] =
+ {
++	{ GTK_SOURCE_ENCODING_ASCII,
++	  "ASCII", N_("ASCII") },
++
+ 	{ GTK_SOURCE_ENCODING_ISO_8859_1,
+ 	  "ISO-8859-1", N_("Western") },
+ 	{ GTK_SOURCE_ENCODING_ISO_8859_2,
+@@ -166,6 +172,8 @@ static const GtkSourceEncoding encodings[] =
+ 	  "ISO-8859-9", N_("Turkish") },
+ 	{ GTK_SOURCE_ENCODING_ISO_8859_10,
+ 	  "ISO-8859-10", N_("Nordic") },
++	{ GTK_SOURCE_ENCODING_ISO_8859_11,
++	  "ISO-8859-11", N_("Thai") },
+ 	{ GTK_SOURCE_ENCODING_ISO_8859_13,
+ 	  "ISO-8859-13", N_("Baltic") },
+ 	{ GTK_SOURCE_ENCODING_ISO_8859_14,
+@@ -279,6 +287,18 @@ static const GtkSourceEncoding encodings[] =
+ 	  "WINDOWS-1258", N_("Vietnamese") }
+ };
+ 
++static const struct
++{
++	const gchar *alias;
++	const gchar *charset;
++} encoding_aliases[] =
++{
++	{ "US-ASCII", "ASCII" },
++	{ "ANSI_X3.4-1968", "ASCII" },
++	{ "SHIFT-JIS", "SHIFT_JIS" },
++	{ "KOI8-U", "KOI8U" }
++};
++
+ static void
+ gtk_source_encoding_lazy_init (void)
+ {
+@@ -311,7 +331,7 @@ gtk_source_encoding_lazy_init (void)
+ const GtkSourceEncoding *
+ gtk_source_encoding_get_from_charset (const gchar *charset)
+ {
+-	gint i;
++	guint i;
+ 
+ 	g_return_val_if_fail (charset != NULL, NULL);
+ 
+@@ -320,6 +340,15 @@ gtk_source_encoding_get_from_charset (const gchar *charset)
+ 		return gtk_source_encoding_get_utf8 ();
+ 	}
+ 
++	for (i = 0; i < G_N_ELEMENTS (encoding_aliases); i++)
++	{
++		if (g_ascii_strcasecmp (charset, encoding_aliases[i].alias) == 0)
++		{
++			charset = encoding_aliases[i].charset;
++			break;
++		}
++	}
++
+ 	for (i = 0; i < GTK_SOURCE_ENCODING_LAST; i++)
+ 	{
+ 		if (g_ascii_strcasecmp (charset, encodings[i].charset) == 0)
+@@ -339,10 +368,30 @@ gtk_source_encoding_get_from_charset (const gchar *charset)
  	return NULL;
  }
  
@@ -298,7 +380,7 @@ index 710c5792..e4519967 100644
   *
   * Returns: (transfer container) (element-type GtkSource.Encoding): a list of
   * all #GtkSourceEncoding's. Free with g_slist_free().
-@@ -355,6 +375,12 @@ gtk_source_encoding_get_all (void)
+@@ -355,6 +404,12 @@ gtk_source_encoding_get_all (void)
  
  	for (i = GTK_SOURCE_ENCODING_LAST - 1; i >= 0; i--)
  	{
@@ -311,6 +393,17 @@ index 710c5792..e4519967 100644
  		all = g_slist_prepend (all, (gpointer) &encodings[i]);
  	}
  
+@@ -436,10 +491,6 @@ gtk_source_encoding_to_string (const GtkSourceEncoding* enc)
+ 	{
+ 	    	return g_strdup_printf ("%s (%s)", _(enc->name), enc->charset);
+ 	}
+-	else if (g_ascii_strcasecmp (enc->charset, "ANSI_X3.4-1968") == 0)
+-	{
+-		return g_strdup_printf ("US-ASCII (%s)", enc->charset);
+-	}
+ 	else
+ 	{
+ 		return g_strdup (enc->charset);
 diff --git a/gtksourceview/gtksourcefilesaver.c b/gtksourceview/gtksourcefilesaver.c
 index 0bbc60a0..d343e443 100644
 --- a/gtksourceview/gtksourcefilesaver.c
