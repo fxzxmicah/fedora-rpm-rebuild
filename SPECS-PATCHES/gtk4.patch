@@ -1,8 +1,18 @@
 diff --git OLD/gtk4.spec NEW/gtk4.spec
-index c5096b6..17e2b90 100644
+index c5096b6..f645652 100644
 --- OLD/gtk4.spec
 +++ NEW/gtk4.spec
-@@ -96,7 +96,7 @@ BuildRequires:  pkgconfig(gdk-pixbuf-2.0) >= %{gdk_pixbuf_version}
+@@ -76,6 +76,9 @@ Source0:        https://download.gnome.org/sources/gtk/4.22/gtk-%{version}.tar.x
+ # https://bugzilla.redhat.com/show_bug.cgi?id=2450986
+ Patch:          0001-gtkapplication-wayland-null-check.patch
+ 
++# Filter unavailable text encodings
++Patch:          gtk4-filter-unavailable-encodings.patch
++
+ BuildRequires:  cups-devel
+ BuildRequires:  desktop-file-utils
+ BuildRequires:  docbook-style-xsl
+@@ -96,7 +99,7 @@ BuildRequires:  pkgconfig(gdk-pixbuf-2.0) >= %{gdk_pixbuf_version}
  BuildRequires:  pkgconfig(glib-2.0) >= %{glib2_version}
  BuildRequires:  pkgconfig(gobject-introspection-1.0)
  BuildRequires:  pkgconfig(graphene-gobject-1.0)
@@ -11,7 +21,7 @@ index c5096b6..17e2b90 100644
  BuildRequires:  pkgconfig(harfbuzz) >= %{harfbuzz_version}
  BuildRequires:  pkgconfig(json-glib-1.0)
  BuildRequires:  pkgconfig(libjpeg)
-@@ -137,7 +137,6 @@ Requires: cairo-gobject%{?_isa} >= %{cairo_version}
+@@ -137,7 +140,6 @@ Requires: cairo-gobject%{?_isa} >= %{cairo_version}
  Requires: glib2%{?_isa} >= %{glib2_version}
  Requires: harfbuzz%{?_isa} >= %{harfbuzz_version}
  Requires: libepoxy%{?_isa} >= %{epoxy_version}

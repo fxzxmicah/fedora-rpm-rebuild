@@ -1,0 +1,188 @@
+From 4245da2a9e6fbf34a51aa92ca9f6424adc8f72d6 Mon Sep 17 00:00:00 2001
+From: Fxzx micah <48860358+fxzxmicah@users.noreply.github.com>
+Date: Sun, 18 Oct 2026 13:36:04 +0800
+Subject: [PATCH] filedialog: Omit unavailable text encodings
+
+Probe conversion to and from UTF-8 before offering a charset in text
+file dialogs. Build names and labels together so each choice stays paired,
+and retain automatic detection and lookup of known charset names.
+
+Use the same private choice builder for single-file open, multiple-file
+open and save, including portal-backed dialogs. Free the owned string
+vectors after the chooser copies them.
+---
+ gtk/gtkfiledialog.c          | 25 ++++++++---------
+ gtk/gtktextencoding.c        | 52 +++++++++++++++++++-----------------
+ gtk/gtktextencodingprivate.h |  4 +--
+ 3 files changed, 41 insertions(+), 40 deletions(-)
+
+diff --git a/gtk/gtkfiledialog.c b/gtk/gtkfiledialog.c
+index 3700174..1c3a8fe 100644
+--- a/gtk/gtkfiledialog.c
++++ b/gtk/gtkfiledialog.c
+@@ -1407,16 +1407,15 @@ gtk_file_dialog_open_text_file (GtkFileDialog       *self,
+   chooser = create_file_chooser (self, parent, GTK_FILE_CHOOSER_ACTION_OPEN, FALSE);
+ 
+ G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+-  names = gtk_text_encoding_get_names ();
+-  labels = gtk_text_encoding_get_labels ();
++  gtk_text_encoding_get_choices (&names, &labels);
+   gtk_file_chooser_add_choice (GTK_FILE_CHOOSER (chooser),
+                                "encoding", _("Encoding"),
+                                (const char **) names,
+                                (const char **) labels);
+   gtk_file_chooser_set_choice (GTK_FILE_CHOOSER (chooser),
+                                "encoding", "automatic");
+-  g_free (names);
+-  g_free (labels);
++  g_strfreev (names);
++  g_strfreev (labels);
+ G_GNUC_END_IGNORE_DEPRECATIONS
+ 
+   choices = g_new0 (const char *, 2);
+@@ -1527,16 +1526,15 @@ gtk_file_dialog_open_multiple_text_files (GtkFileDialog       *self,
+   chooser = create_file_chooser (self, parent, GTK_FILE_CHOOSER_ACTION_OPEN, TRUE);
+ 
+ G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+-  names = gtk_text_encoding_get_names ();
+-  labels = gtk_text_encoding_get_labels ();
++  gtk_text_encoding_get_choices (&names, &labels);
+   gtk_file_chooser_add_choice (GTK_FILE_CHOOSER (chooser),
+                                "encoding", _("Encoding"),
+                                (const char **) names,
+                                (const char **) labels);
+   gtk_file_chooser_set_choice (GTK_FILE_CHOOSER (chooser),
+                                "encoding", "automatic");
+-  g_free (names);
+-  g_free (labels);
++  g_strfreev (names);
++  g_strfreev (labels);
+ G_GNUC_END_IGNORE_DEPRECATIONS
+ 
+   choices = g_new0 (const char *, 2);
+@@ -1639,16 +1637,15 @@ gtk_file_dialog_save_text_file (GtkFileDialog       *self,
+   chooser = create_file_chooser (self, parent, GTK_FILE_CHOOSER_ACTION_SAVE, FALSE);
+ 
+ G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+-  names = gtk_text_encoding_get_names ();
+-  labels = gtk_text_encoding_get_labels ();
++  gtk_text_encoding_get_choices (&names, &labels);
+   gtk_file_chooser_add_choice (GTK_FILE_CHOOSER (chooser),
+                                "encoding", _("Encoding"),
+                                (const char **) names,
+                                (const char **) labels);
+   gtk_file_chooser_set_choice (GTK_FILE_CHOOSER (chooser),
+                                "encoding", "automatic");
+-  g_free (names);
+-  g_free (labels);
++  g_strfreev (names);
++  g_strfreev (labels);
+ 
+   names = gtk_line_ending_get_names ();
+   labels = gtk_line_ending_get_labels ();
+@@ -1659,8 +1656,8 @@ G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+   gtk_file_chooser_set_choice (GTK_FILE_CHOOSER (chooser),
+                                "line_ending", "as-is");
+ 
+-  g_free (names);
+-  g_free (labels);
++  g_strfreev (names);
++  g_strfreev (labels);
+ 
+ G_GNUC_END_IGNORE_DEPRECATIONS
+ 
+diff --git a/gtk/gtktextencoding.c b/gtk/gtktextencoding.c
+index 5826cd2..03dac93 100644
+--- a/gtk/gtktextencoding.c
++++ b/gtk/gtktextencoding.c
+@@ -101,44 +101,48 @@ static GtkTextEncodingItem gtk_text_encodings[] = {
+   { "WINDOWS-1258", NC_("Encoding name", "Vietnamese") },
+ };
+ 
+-char **
+-gtk_text_encoding_get_names (void)
++static gboolean
++can_convert (const char *to_charset,
++             const char *from_charset)
+ {
+-  GStrvBuilder *builder = g_strv_builder_new ();
+-  char **res;
++  GIConv converter = g_iconv_open (to_charset, from_charset);
+ 
+-  for (guint i = 0; i < G_N_ELEMENTS (gtk_text_encodings); i++)
+-    {
+-      g_strv_builder_add (builder, gtk_text_encodings[i].charset);
+-    }
++  if (converter == (GIConv) -1)
++    return FALSE;
+ 
+-  res = g_strv_builder_end (builder);
+-  g_strv_builder_unref (builder);
+-  return res;
++  g_iconv_close (converter);
++  return TRUE;
+ }
+ 
+-char **
+-gtk_text_encoding_get_labels (void)
++void
++gtk_text_encoding_get_choices (char ***names,
++                               char ***labels)
+ {
+-  GStrvBuilder *builder = g_strv_builder_new ();
+-  char **res;
++  GStrvBuilder *names_builder = g_strv_builder_new ();
++  GStrvBuilder *labels_builder = g_strv_builder_new ();
+ 
+-  g_strv_builder_add (builder,
++  g_strv_builder_add (names_builder, gtk_text_encodings[0].charset);
++  g_strv_builder_add (labels_builder,
+                       g_dpgettext2 (NULL, "Encoding name", gtk_text_encodings[0].label));
+ 
+   for (guint i = 1; i < G_N_ELEMENTS (gtk_text_encodings); i++)
+     {
+-      char *text;
++      const char *charset = gtk_text_encodings[i].charset;
+ 
+-      text = g_strdup_printf ("%s (%s)",
+-                              g_dpgettext2 (NULL, "Encoding name", gtk_text_encodings[i].label),
+-                              gtk_text_encodings[i].charset);
+-      g_strv_builder_take (builder, text);
++      if (!can_convert ("UTF-8", charset) || !can_convert (charset, "UTF-8"))
++        continue;
++
++      g_strv_builder_add (names_builder, charset);
++      g_strv_builder_take (labels_builder,
++                           g_strdup_printf ("%s (%s)",
++                                            g_dpgettext2 (NULL, "Encoding name", gtk_text_encodings[i].label),
++                                            charset));
+     }
+ 
+-  res = g_strv_builder_end (builder);
+-  g_strv_builder_unref (builder);
+-  return res;
++  *names = g_strv_builder_end (names_builder);
++  *labels = g_strv_builder_end (labels_builder);
++  g_strv_builder_unref (names_builder);
++  g_strv_builder_unref (labels_builder);
+ }
+ 
+ const char *
+diff --git a/gtk/gtktextencodingprivate.h b/gtk/gtktextencodingprivate.h
+index f52e7d2..d1043fd 100644
+--- a/gtk/gtktextencodingprivate.h
++++ b/gtk/gtktextencodingprivate.h
+@@ -23,8 +23,8 @@
+ 
+ G_BEGIN_DECLS
+ 
+-char **      gtk_text_encoding_get_names  (void);
+-char **      gtk_text_encoding_get_labels (void);
++void         gtk_text_encoding_get_choices (char ***names,
++                                            char ***labels);
+ const char * gtk_text_encoding_from_name  (const char *name);
+ 
+ char **      gtk_line_ending_get_names    (void);
+-- 
+2.54.0
+
