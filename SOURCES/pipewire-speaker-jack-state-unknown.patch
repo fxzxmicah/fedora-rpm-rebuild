@@ -1,0 +1,63 @@
+From a0947326545a4e992781427004a6216cf759de67 Mon Sep 17 00:00:00 2001
+From: Fxzx micah <48860358+fxzxmicah@users.noreply.github.com>
+Date: Sat, 24 Oct 2026 23:57:59 +0800
+Subject: [PATCH] alsa: Do not mark speakers unavailable for external jacks
+
+Leave the speaker path availability unknown when a headphone or line-out
+jack is plugged in, matching its unplugged state. Keep dedicated speaker
+jack detection and mixer controls unchanged.
+---
+ .../alsa/mixer/paths/analog-output-speaker.conf  | 16 ++++++++--------
+ 1 file changed, 8 insertions(+), 8 deletions(-)
+
+diff --git a/spa/plugins/alsa/mixer/paths/analog-output-speaker.conf b/spa/plugins/alsa/mixer/paths/analog-output-speaker.conf
+index 72f928f..90ae885 100644
+--- a/spa/plugins/alsa/mixer/paths/analog-output-speaker.conf
++++ b/spa/plugins/alsa/mixer/paths/analog-output-speaker.conf
+@@ -25,35 +25,35 @@ description-key = analog-output-speaker
+ device.icon_name = audio-speakers
+ 
+ [Jack Headphone]
+-state.plugged = no
++state.plugged = unknown
+ state.unplugged = unknown
+ 
+ [Jack Dock Headphone]
+-state.plugged = no
++state.plugged = unknown
+ state.unplugged = unknown
+ 
+ [Jack Front Headphone]
+-state.plugged = no
++state.plugged = unknown
+ state.unplugged = unknown
+ 
+ [Jack Line Out]
+-state.plugged = no
++state.plugged = unknown
+ state.unplugged = unknown
+ 
+ [Jack Line Out Front]
+-state.plugged = no
++state.plugged = unknown
+ state.unplugged = unknown
+ 
+ [Jack Front Line Out]
+-state.plugged = no
++state.plugged = unknown
+ state.unplugged = unknown
+ 
+ [Jack Rear Line Out]
+-state.plugged = no
++state.plugged = unknown
+ state.unplugged = unknown
+ 
+ [Jack Dock Line Out]
+-state.plugged = no
++state.plugged = unknown
+ state.unplugged = unknown
+ 
+ [Jack Speaker]
+-- 
+2.54.0
+
