@@ -1,0 +1,418 @@
+From 7566589a133a0728a17f2d414e14428de4ee1787 Mon Sep 17 00:00:00 2001
+From: Fxzx micah <48860358+fxzxmicah@users.noreply.github.com>
+Date: Sun, 25 Oct 2026 13:32:16 +0800
+Subject: [PATCH] device: Store route preferences per profile device
+
+Route save flags describe selections for individual profile devices, not
+a complete snapshot of their preferences. Store each explicit request
+under its profile and device key instead of replacing a profile-wide list.
+
+Update each preference directly from the saved Route parameter and let
+State coalesce writes. Track active routes per logical device so devices
+sharing one route receive independent property restoration. Automatic
+fallback and property restoration do not overwrite stored preferences.
+
+Separate read-only lookup from EnumRoute updates. Refresh membership and
+priority, replace records when indices are reused, and reject stale named
+route parameters instead of resolving them to a different route. Stop
+pending enumeration work when the route-state policy is disabled.
+---
+ src/scripts/device/README.rst           |  12 +-
+ src/scripts/device/find-best-routes.lua |   1 -
+ src/scripts/device/select-routes.lua    |  15 +--
+ src/scripts/device/state-routes.lua     | 146 ++++++++++--------------
+ src/scripts/lib/device-info-cache.lua   |  23 ++--
+ 5 files changed, 92 insertions(+), 105 deletions(-)
+
+diff --git a/src/scripts/device/README.rst b/src/scripts/device/README.rst
+index 7c3538c..3243311 100644
+--- a/src/scripts/device/README.rst
++++ b/src/scripts/device/README.rst
+@@ -4,6 +4,16 @@ Device Profile/Route Management Scripts
+ These scripts are tasked to select appropriate profiles and routes for each
+ device.
+ 
++Route preferences
++-----------------
++
++Explicit route selections are stored independently for each profile device,
++under ``<device-name>:profile:<profile-name>:device:<device-id>``. Automatic
++selection and temporary fallback routes do not replace these preferences.
++Route properties, such as volume and mute, remain stored per route.
++Active routes are tracked per profile device, including when several devices
++share the same route.
++
+ Hooks
+ -----
+ 
+@@ -33,7 +43,7 @@ Hooks
+      - stores profile into the state file if it was selected by the user (profile.save == true)
+ 
+    * - device/store-or-restore-routes
+-     - select-routes.lua
++     - state-routes.lua
+      - device Route param changed
+      - stores or restores Route selections based on the current state; may push a 'select-routes' event to update properties
+ 
+diff --git a/src/scripts/device/find-best-routes.lua b/src/scripts/device/find-best-routes.lua
+index 957a0f1..2ebf230 100644
+--- a/src/scripts/device/find-best-routes.lua
++++ b/src/scripts/device/find-best-routes.lua
+@@ -49,7 +49,6 @@ SimpleEventHook {
+           if ri.available == "yes" or ri.available == "unknown" then
+             if ri.direction == "Output" and ri.available ~= ri.prev_available then
+               best_avail = ri
+-              ri.save = true
+               break
+             elseif ri.available == "yes" then
+               if (best_avail == nil or ri.priority > best_avail.priority) then
+diff --git a/src/scripts/device/select-routes.lua b/src/scripts/device/select-routes.lua
+index ecd3df5..d075c3d 100644
+--- a/src/scripts/device/select-routes.lua
++++ b/src/scripts/device/select-routes.lua
+@@ -54,16 +54,18 @@ SimpleEventHook {
+         goto skip_enum_route
+       end
+ 
+-      -- find cached route information
+-      local route_info = devinfo.find_route_info (dev_info, route, true)
++      -- update cached route metadata
++      local route_info = devinfo.update_route_info (dev_info, route)
++      local available = route.available or "unknown"
+ 
+       -- update properties
+       route_info.prev_available = route_info.available
+-      if route_info.available ~= route.available then
++      if route_info.available ~= available then
+         log:info (device, "route " .. route.name .. " available changed " ..
+-                         route_info.available .. " -> " .. route.available)
+-        route_info.available = route.available
+-        if profile and cutils.arrayContains (route.profiles, profile.index) then
++                         route_info.available .. " -> " .. available)
++        route_info.available = available
++        if profile and (route_info.profiles == nil or
++            cutils.arrayContains (route_info.profiles, profile.index)) then
+           avail_routes_changed = true
+         end
+       end
+@@ -77,7 +79,6 @@ SimpleEventHook {
+     -- replace old route_infos to lose old routes
+     -- that no longer exist on the device
+     dev_info.route_infos = new_route_infos
+-    new_route_infos = nil
+ 
+     -- restore routes for profile
+     if profile then
+diff --git a/src/scripts/device/state-routes.lua b/src/scripts/device/state-routes.lua
+index b4a7e64..9a6bec6 100644
+--- a/src/scripts/device/state-routes.lua
++++ b/src/scripts/device/state-routes.lua
+@@ -41,13 +41,6 @@ find_stored_routes_hook = SimpleEventHook {
+     local dev_info = devinfo:get_device_info (device)
+     assert (dev_info)
+ 
+-    -- get the stored routes for this profile
+-    -- skip the hook if there are no stored routes, there is no point
+-    local spr = getStoredProfileRoutes (dev_info, profile_name)
+-    if #spr == 0 then
+-      return
+-    end
+-
+     -- active IDs are exchanged in JSON format
+     active_ids = Json.Raw (active_ids):parse ()
+ 
+@@ -57,36 +50,29 @@ find_stored_routes_hook = SimpleEventHook {
+         goto next_device_id
+       end
+ 
+-      log:info (device, "restoring route for device ID " .. tostring (device_id));
++      local route_name = getStoredProfileRoute (dev_info, profile_name, device_id)
++      if not route_name then
++        goto next_device_id
++      end
+ 
+-      local route_info = nil
++      log:info (device, "restoring route for device ID " .. tostring (device_id));
+ 
+       -- find a route that was previously stored for a device_id
+       for _, ri in pairs (dev_info.route_infos) do
+-        if cutils.arrayContains (ri.devices, tonumber (device_id)) and
+-            (ri.profiles == nil or cutils.arrayContains (ri.profiles, dev_info.active_profile)) and
+-            cutils.arrayContains (spr, ri.name) then
+-          route_info = ri
++        if ri.name == route_name and
++            cutils.arrayContains (ri.devices, device_id) and
++            (ri.profiles == nil or cutils.arrayContains (ri.profiles, dev_info.active_profile)) then
++          if ri.available == "no" then
++            log:info (device, "stored route '" .. ri.name .. "' not available")
++          else
++            log:info (device, "found stored route: " .. ri.name)
++            selected_routes [tostring (device_id)] =
++                Json.Object { index = ri.index }:to_string ()
++          end
+           break
+         end
+       end
+ 
+-      if route_info then
+-        -- we found a stored route
+-        if route_info.available == "no" then
+-          log:info (device, "stored route '" .. route_info.name .. "' not available")
+-          -- not available, try to find next best
+-          route_info = nil
+-        else
+-          log:info (device, "found stored route: " .. route_info.name)
+-        end
+-      end
+-
+-      if route_info then
+-        selected_routes [tostring (device_id)] =
+-            Json.Object { index = route_info.index }:to_string ()
+-      end
+-
+       ::next_device_id::
+     end
+ 
+@@ -123,7 +109,10 @@ apply_route_props_hook = SimpleEventHook {
+        -- JSON to lua table
+       route = Json.Raw (route):parse ()
+ 
+-      local route_info = devinfo.find_route_info (dev_info, route, false)
++      local route_info = devinfo.find_route_info (dev_info, route)
++      if not route_info then
++        goto skip_route
++      end
+       local props = getStoredRouteProps (dev_info, route_info)
+ 
+       -- convert arrays to Json
+@@ -142,6 +131,8 @@ apply_route_props_hook = SimpleEventHook {
+         props = Json.Object (props),
+       }
+       new_selected_routes [device_id] = json:to_string ()
++
++      ::skip_route::
+     end
+ 
+     -- save the selected routes for the apply-routes hook
+@@ -168,7 +159,6 @@ store_or_restore_routes_hook = AsyncEventHook {
+         -- https://gitlab.freedesktop.org/pipewire/wireplumber/-/issues/762
+         device:enum_params ("EnumRoute", function (enum_route_it, e)
+           local selected_routes = {}
+-          local push_select_routes = false
+ 
+           -- check for error
+           if e then
+@@ -177,8 +167,8 @@ store_or_restore_routes_hook = AsyncEventHook {
+             return
+           end
+ 
+-          -- Make sure the device is still valid
+-          if (device:get_active_features() & Feature.Proxy.BOUND) == 0 then
++          -- Stop if the device or route-state policy was removed while enumerating.
++          if not state or (device:get_active_features() & Feature.Proxy.BOUND) == 0 then
+             transition:advance ()
+             return
+           end
+@@ -191,7 +181,7 @@ store_or_restore_routes_hook = AsyncEventHook {
+ 
+           local new_route_infos = {}
+ 
+-          -- look at all the routes and update/reset cached information
++          -- refresh cached metadata from EnumRoute
+           for p in enum_route_it:iterate() do
+             -- parse pod
+             local route = cutils.parseParam (p, "EnumRoute")
+@@ -199,16 +189,8 @@ store_or_restore_routes_hook = AsyncEventHook {
+               goto skip_enum_route
+             end
+ 
+-            -- find cached route information
+-            local route_info = devinfo.find_route_info (dev_info, route, true)
+-            if not route_info then
+-              goto skip_enum_route
+-            end
+-
+-            -- update properties
+-            route_info.prev_active = route_info.active
+-            route_info.active = false
+-            route_info.save = false
++            -- update cached route metadata
++            local route_info = devinfo.update_route_info (dev_info, route)
+ 
+             -- store
+             new_route_infos [route.index] = route_info
+@@ -216,9 +198,9 @@ store_or_restore_routes_hook = AsyncEventHook {
+             ::skip_enum_route::
+           end
+ 
+-          -- update route_infos with new prev_active, active and save changes
+           dev_info.route_infos = new_route_infos
+-          new_route_infos = nil
++
++          local active_routes = {}
+ 
+           -- check for changes in the active routes
+           for p in device:iterate_params ("Route") do
+@@ -229,27 +211,27 @@ store_or_restore_routes_hook = AsyncEventHook {
+ 
+             -- get cached route info and at the same time
+             -- ensure that the route is also in EnumRoute
+-            local route_info = devinfo.find_route_info (dev_info, route, false)
++            local route_info = devinfo.find_route_info (dev_info, route)
+             if not route_info then
+               goto skip_route
+             end
+ 
+-            -- update route_info state
+-            route_info.active = true
+-            route_info.save = route.save
++            active_routes [route.device] = route_info
++
++            if route.save then
++              for p in device:iterate_params ("Profile") do
++                local profile = cutils.parseParam (p, "Profile")
++                saveProfileRoute (dev_info, profile, route.device, route_info)
++              end
++            end
+ 
+-            if not route_info.prev_active then
+-              -- a new route is now active, restore the volume and
+-              -- make sure we save this as a preferred route
++            if dev_info.active_routes [route.device] ~= route_info then
++              -- A new route is active; restore its properties.
+               log:info (device,
+                   string.format ("new active route(%s) found of device(%s)",
+                       route.name, dev_info.name))
+-              route_info.prev_active = true
+-              route_info.active = true
+-
+               selected_routes [tostring (route.device)] =
+                   Json.Object { index = route_info.index }:to_string ()
+-              push_select_routes = true
+ 
+             elseif route.available ~= "no" and route.save and route.props then
+               -- just save route properties
+@@ -263,14 +245,10 @@ store_or_restore_routes_hook = AsyncEventHook {
+             ::skip_route::
+           end
+ 
+-          -- save selected routes for the active profile
+-          for p in device:iterate_params ("Profile") do
+-            local profile = cutils.parseParam (p, "Profile")
+-            saveProfileRoutes (dev_info, profile.name)
+-          end
++          dev_info.active_routes = active_routes
+ 
+           -- push a select-routes event to re-apply the routes with new properties
+-          if push_select_routes then
++          if next (selected_routes) then
+             local e = source:call ("create-event", "select-routes", device, nil)
+             e:set_data ("selected-routes", selected_routes)
+             EventDispatcher.push_event (e)
+@@ -315,36 +293,28 @@ function getStoredRouteProps (dev_info, route)
+   return {}
+ end
+ 
+--- stores an array with the route names that are selected
+--- for the given device and profile
+-function saveProfileRoutes (dev_info, profile_name)
+-  -- select only routes with save == true
+-  local routes = {}
+-  for idx, ri in pairs (dev_info.route_infos) do
+-    if ri.save then
+-      table.insert (routes, ri.name)
+-    end
++-- Save an explicit selection for one profile device.
++function saveProfileRoute (dev_info, profile, device_id, route_info)
++  if route_info.profiles ~= nil and
++      not cutils.arrayContains (route_info.profiles, profile.index) then
++    return
+   end
+ 
+-  if #routes > 0 then
+-    local key = dev_info.name .. ":profile:" .. profile_name
+-    state_table [key] = Json.Array (routes):to_string()
+-    state:save_after_timeout (state_table)
++  local key = dev_info.name .. ":profile:" .. profile.name ..
++      ":device:" .. tostring (device_id)
++  if state_table [key] == route_info.name then
++    return
+   end
++
++  state_table [key] = route_info.name
++  state:save_after_timeout (state_table)
+ end
+ 
+--- returns an array of the route names that were previously selected
+--- for the given device and profile
+-function getStoredProfileRoutes (dev_info, profile_name)
+-  local key = dev_info.name .. ":profile:" .. profile_name
+-  local value = state_table [key]
+-  if value then
+-    local json = Json.Raw (value)
+-    if json and json:is_array () then
+-      return json:parse ()
+-    end
+-  end
+-  return {}
++-- Return the preferred route for this profile device.
++function getStoredProfileRoute (dev_info, profile_name, device_id)
++  local key = dev_info.name .. ":profile:" .. profile_name ..
++      ":device:" .. tostring (device_id)
++  return state_table [key]
+ end
+ 
+ function toggleState (enable)
+diff --git a/src/scripts/lib/device-info-cache.lua b/src/scripts/lib/device-info-cache.lua
+index 80c7d76..958cb0f 100644
+--- a/src/scripts/lib/device-info-cache.lua
++++ b/src/scripts/lib/device-info-cache.lua
+@@ -43,6 +43,7 @@ function module.get_device_info (self, device)
+     dev_info = {
+       name = device_name,
+       active_profile = -1,
++      active_routes = {},
+       route_infos = {},
+     }
+     self.dev_infos [device_id] = dev_info
+@@ -51,23 +52,29 @@ function module.get_device_info (self, device)
+   return dev_info
+ end
+ 
+-function module.find_route_info (dev_info, route, return_new)
++function module.find_route_info (dev_info, route)
+   local ri = dev_info.route_infos [route.index]
+-  if not ri and return_new then
++  if ri and (route.name == nil or route.name == ri.name) and
++      (route.direction == nil or route.direction == ri.direction) then
++    return ri
++  end
++  return nil
++end
++
++function module.update_route_info (dev_info, route)
++  local ri = dev_info.route_infos [route.index]
++  if not ri or ri.name ~= route.name or ri.direction ~= route.direction then
+     ri = {
+       index = route.index,
+       name = route.name,
+       direction = route.direction,
+-      devices = route.devices or {},
+-      profiles = route.profiles,
+-      priority = route.priority or 0,
+       available = route.available or "unknown",
+       prev_available = route.available or "unknown",
+-      active = false,
+-      prev_active = false,
+-      save = false,
+     }
+   end
++  ri.devices = route.devices or {}
++  ri.profiles = route.profiles
++  ri.priority = route.priority or 0
+   return ri
+ end
+ 
+-- 
+2.54.0
+

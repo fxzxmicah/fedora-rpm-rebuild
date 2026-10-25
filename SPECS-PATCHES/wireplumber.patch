@@ -1,8 +1,18 @@
 diff --git OLD/wireplumber.spec NEW/wireplumber.spec
-index 6cbc47e..0ba9d0e 100644
+index 6cbc47e..44ded3d 100644
 --- OLD/wireplumber.spec
 +++ NEW/wireplumber.spec
-@@ -32,9 +32,27 @@ BuildRequires:  systemd-rpm-macros
+@@ -13,6 +13,9 @@ Source0:    https://gitlab.freedesktop.org/pipewire/%{name}/-/archive/%{version}
+ 
+ ## fedora patches
+ 
++# Keep route preferences independent per profile device
++Patch0:     wireplumber-store-routes-per-profile-device.patch
++
+ BuildRequires:  gettext
+ BuildRequires:  meson gcc pkgconfig
+ BuildRequires:  pkgconfig(glib-2.0)
+@@ -32,9 +35,27 @@ BuildRequires:  systemd-rpm-macros
  # Make sure that we have -libs package in the same version
  Requires:       %{name}-libs%{?_isa} = %{version}-%{release}
  
@@ -30,7 +40,7 @@ index 6cbc47e..0ba9d0e 100644
  %package        libs
  Summary:        Libraries for WirePlumber clients
  Recommends:     %{name}%{?_isa} = %{version}-%{release}
-@@ -59,12 +77,6 @@ Recommends:     %{name}%{?_isa} = %{version}-%{release}
+@@ -59,12 +80,6 @@ Recommends:     %{name}%{?_isa} = %{version}-%{release}
  %description doc
  This package contains the documentation for WirePlumber.
  
@@ -43,7 +53,7 @@ index 6cbc47e..0ba9d0e 100644
  %prep
  %autosetup -p1
  
-@@ -111,11 +123,13 @@ fi
+@@ -111,11 +126,13 @@ fi
  %dir %{_sysconfdir}/wireplumber/main.lua.d
  %dir %{_sysconfdir}/wireplumber/policy.lua.d
  %{_datadir}/wireplumber/

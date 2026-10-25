@@ -1,5 +1,5 @@
 diff --git OLD/pipewire.spec NEW/pipewire.spec
-index a30a407..20a1aaf 100644
+index a30a407..684bd5d 100644
 --- OLD/pipewire.spec
 +++ NEW/pipewire.spec
 @@ -24,6 +24,7 @@
@@ -10,7 +10,17 @@ index a30a407..20a1aaf 100644
  
  # Features disabled for RHEL 8
  %if 0%{?rhel} && 0%{?rhel} < 9
-@@ -110,6 +111,7 @@ BuildRequires:  pkgconfig(ldacBT-abr)
+@@ -89,6 +90,9 @@ Source1:        pipewire.sysusers
+ 
+ ## fedora patches
+ 
++# Preserve jack detection and keep internal routes selectable
++Patch0:         pipewire-preserve-jack-detection-and-internal-fallbacks.patch
++
+ BuildRequires:  gettext
+ BuildRequires:  meson >= 0.59.0
+ BuildRequires:  gcc
+@@ -110,6 +114,7 @@ BuildRequires:  pkgconfig(ldacBT-abr)
  %endif
  BuildRequires:  pkgconfig(fdk-aac)
  BuildRequires:  pkgconfig(bluez)
@@ -18,7 +28,7 @@ index a30a407..20a1aaf 100644
  BuildRequires:  systemd
  BuildRequires:  systemd-devel
  BuildRequires:  alsa-lib-devel
-@@ -122,7 +124,9 @@ BuildRequires:  liblc3-devel
+@@ -122,7 +127,9 @@ BuildRequires:  liblc3-devel
  BuildRequires:  libsndfile-devel
  BuildRequires:  ncurses-devel
  BuildRequires:  pulseaudio-libs-devel
@@ -28,7 +38,7 @@ index a30a407..20a1aaf 100644
  %if (0%{?fedora} && 0%{?fedora} < 44) || (0%{?rhel} && 0%{?rhel} < 11)
  BuildRequires:  pkgconfig(webrtc-audio-processing-1)
  %else
-@@ -447,14 +451,6 @@ Requires:       %{name}-libs%{?_isa} = %{version}-%{release}
+@@ -447,14 +454,6 @@ Requires:       %{name}-libs%{?_isa} = %{version}-%{release}
  %description config-upmix
  This package contains the configuration files to support upmixing.
  
@@ -43,7 +53,7 @@ index a30a407..20a1aaf 100644
  
  %prep
  %autosetup -p1 %{?snapdate:-n %{name}-%{gitcommit}}
-@@ -474,12 +470,18 @@ cp %{SOURCE1} subprojects/packagefiles/
+@@ -474,12 +473,18 @@ cp %{SOURCE1} subprojects/packagefiles/
      -D volume=disabled -D bluez5-codec-aptx=disabled 		  		\
      -D bluez5-codec-lc3plus=disabled -D bluez5-codec-lc3=enabled		\
      -D bluez5-codec-ldac-dec=disabled 						\
@@ -62,7 +72,7 @@ index a30a407..20a1aaf 100644
      %{!?with_jack:-D pipewire-jack=disabled} 					\
      %{!?with_jackserver_plugin:-D jack=disabled} 				\
      %{!?with_libcamera_plugin:-D libcamera=disabled} 				\
-@@ -546,8 +548,18 @@ ln -s ../client.conf.avail/20-upmix.conf \
+@@ -546,8 +551,18 @@ ln -s ../client.conf.avail/20-upmix.conf \
  		%{buildroot}%{_datadir}/pipewire/client.conf.d/20-upmix.conf
  
  # raop config
@@ -83,7 +93,7 @@ index a30a407..20a1aaf 100644
  
  %find_lang %{name}
  
-@@ -590,7 +602,6 @@ systemctl --no-reload preset --global pipewire.socket >/dev/null 2>&1 || :
+@@ -590,7 +605,6 @@ systemctl --no-reload preset --global pipewire.socket >/dev/null 2>&1 || :
  %{_datadir}/pipewire/pipewire.conf
  %{_datadir}/pipewire/pipewire.conf.avail/10-rates.conf
  %{_datadir}/pipewire/pipewire.conf.avail/20-upmix.conf
@@ -91,7 +101,7 @@ index a30a407..20a1aaf 100644
  %{_datadir}/pipewire/minimal.conf
  %{_datadir}/pipewire/filter-chain.conf
  %{_datadir}/pipewire/filter-chain/*.conf
-@@ -626,24 +637,31 @@ systemctl --no-reload preset --global pipewire.socket >/dev/null 2>&1 || :
+@@ -626,24 +640,31 @@ systemctl --no-reload preset --global pipewire.socket >/dev/null 2>&1 || :
  %{_libdir}/pipewire-%{apiversion}/libpipewire-module-profiler.so
  %{_libdir}/pipewire-%{apiversion}/libpipewire-module-protocol-native.so
  %{_libdir}/pipewire-%{apiversion}/libpipewire-module-protocol-simple.so
@@ -124,7 +134,7 @@ index a30a407..20a1aaf 100644
  %dir %{_datadir}/alsa-card-profile/
  %dir %{_datadir}/alsa-card-profile/mixer/
  %{_datadir}/alsa-card-profile/mixer/paths/
-@@ -683,7 +701,6 @@ systemctl --no-reload preset --global pipewire.socket >/dev/null 2>&1 || :
+@@ -683,7 +704,6 @@ systemctl --no-reload preset --global pipewire.socket >/dev/null 2>&1 || :
  %{_mandir}/man7/libpipewire-module-example-sink.7.gz
  %{_mandir}/man7/libpipewire-module-example-source.7.gz
  %{_mandir}/man7/libpipewire-module-fallback-sink.7.gz
@@ -132,7 +142,7 @@ index a30a407..20a1aaf 100644
  %{_mandir}/man7/libpipewire-module-filter-chain.7.gz
  %{_mandir}/man7/libpipewire-module-jack-tunnel.7.gz
  %{_mandir}/man7/libpipewire-module-jackdbus-detect.7.gz
-@@ -697,16 +714,16 @@ systemctl --no-reload preset --global pipewire.socket >/dev/null 2>&1 || :
+@@ -697,16 +717,16 @@ systemctl --no-reload preset --global pipewire.socket >/dev/null 2>&1 || :
  %{_mandir}/man7/libpipewire-module-portal.7.gz
  %{_mandir}/man7/libpipewire-module-profiler.7.gz
  %{_mandir}/man7/libpipewire-module-protocol-native.7.gz
@@ -153,7 +163,7 @@ index a30a407..20a1aaf 100644
  %{_mandir}/man7/libpipewire-module-rtp-sink.7.gz
  %{_mandir}/man7/libpipewire-module-rtp-source.7.gz
  %{_mandir}/man7/libpipewire-module-spa-device-factory.7.gz
-@@ -714,11 +731,14 @@ systemctl --no-reload preset --global pipewire.socket >/dev/null 2>&1 || :
+@@ -714,11 +734,14 @@ systemctl --no-reload preset --global pipewire.socket >/dev/null 2>&1 || :
  %{_mandir}/man7/libpipewire-module-spa-node-factory.7.gz
  %{_mandir}/man7/libpipewire-module-spa-node.7.gz
  %{_mandir}/man7/libpipewire-module-session-manager.7.gz
@@ -169,7 +179,7 @@ index a30a407..20a1aaf 100644
  %{_mandir}/man7/libpipewire-modules.7.gz
  
  
-@@ -844,6 +864,9 @@ systemctl --no-reload preset --global pipewire.socket >/dev/null 2>&1 || :
+@@ -844,6 +867,9 @@ systemctl --no-reload preset --global pipewire.socket >/dev/null 2>&1 || :
  %{_datadir}/pipewire/pipewire-pulse.conf.avail/20-upmix.conf
  %{_datadir}/glib-2.0/schemas/org.freedesktop.pulseaudio.gschema.xml
  %{_libdir}/pipewire-%{apiversion}/libpipewire-module-protocol-pulse.so
@@ -179,7 +189,7 @@ index a30a407..20a1aaf 100644
  %{_mandir}/man1/pipewire-pulse.1*
  %{_mandir}/man5/pipewire-pulse.conf.5.gz
  %{_mandir}/man7/pipewire-pulse-module-alsa-sink.7.gz
-@@ -862,12 +885,11 @@ systemctl --no-reload preset --global pipewire.socket >/dev/null 2>&1 || :
+@@ -862,12 +888,11 @@ systemctl --no-reload preset --global pipewire.socket >/dev/null 2>&1 || :
  %{_mandir}/man7/pipewire-pulse-module-null-sink.7.gz
  %{_mandir}/man7/pipewire-pulse-module-pipe-sink.7.gz
  %{_mandir}/man7/pipewire-pulse-module-pipe-source.7.gz
@@ -194,7 +204,7 @@ index a30a407..20a1aaf 100644
  %{_mandir}/man7/pipewire-pulse-module-rtp-recv.7.gz
  %{_mandir}/man7/pipewire-pulse-module-rtp-send.7.gz
  %{_mandir}/man7/pipewire-pulse-module-simple-protocol-tcp.7.gz
-@@ -877,9 +899,10 @@ systemctl --no-reload preset --global pipewire.socket >/dev/null 2>&1 || :
+@@ -877,9 +902,10 @@ systemctl --no-reload preset --global pipewire.socket >/dev/null 2>&1 || :
  %{_mandir}/man7/pipewire-pulse-module-tunnel-source.7.gz
  %{_mandir}/man7/pipewire-pulse-module-virtual-sink.7.gz
  %{_mandir}/man7/pipewire-pulse-module-virtual-source.7.gz
@@ -206,7 +216,7 @@ index a30a407..20a1aaf 100644
  %{_mandir}/man7/pipewire-pulse-modules.7.gz
  %endif
  
-@@ -892,16 +915,24 @@ systemctl --no-reload preset --global pipewire.socket >/dev/null 2>&1 || :
+@@ -892,16 +918,24 @@ systemctl --no-reload preset --global pipewire.socket >/dev/null 2>&1 || :
  
  %files module-x11
  %{_libdir}/pipewire-%{apiversion}/libpipewire-module-x11-bell.so
@@ -231,7 +241,7 @@ index a30a407..20a1aaf 100644
  %endif
  
  %if %{with libmysofa}
-@@ -929,9 +960,6 @@ systemctl --no-reload preset --global pipewire.socket >/dev/null 2>&1 || :
+@@ -929,9 +963,6 @@ systemctl --no-reload preset --global pipewire.socket >/dev/null 2>&1 || :
  %{_datadir}/pipewire/pipewire-pulse.conf.d/20-upmix.conf
  %endif
  

@@ -1,0 +1,182 @@
+From dedd4cd9ed71db6dc7c7fca3fb1da77e7bee2534 Mon Sep 17 00:00:00 2001
+From: Fxzx micah <48860358+fxzxmicah@users.noreply.github.com>
+Date: Sun, 25 Oct 2026 13:32:16 +0800
+Subject: [PATCH] alsa: Preserve jack detection and internal fallback routes
+
+Sharing a jack with a path whose plugged state is unknown does not make
+an affirmative detection ambiguous. Only downgrade YES mappings when
+multiple paths explicitly claim the same jack, and defer the downgrade
+until all paths have been examined so traversal order cannot change which
+mappings are considered affirmative.
+
+Keep speakers and internal microphones selectable when external jacks
+are plugged in. Map these exclusion states to unknown instead of no,
+without changing path priorities or interpreting Phantom controls as
+physical microphone detection.
+---
+ spa/plugins/alsa/acp/alsa-mixer.c             | 36 +++++++++++--------
+ .../paths/analog-input-internal-mic.conf      |  8 ++---
+ .../mixer/paths/analog-output-speaker.conf    | 16 ++++-----
+ 3 files changed, 33 insertions(+), 27 deletions(-)
+
+diff --git a/spa/plugins/alsa/acp/alsa-mixer.c b/spa/plugins/alsa/acp/alsa-mixer.c
+index b18d7c6..17d7e01 100644
+--- a/spa/plugins/alsa/acp/alsa-mixer.c
++++ b/spa/plugins/alsa/acp/alsa-mixer.c
+@@ -4402,24 +4402,26 @@ fail:
+     return -1;
+ }
+ 
+-/* the logic is simple: if we see the jack in multiple paths */
+-/* assign all those paths to one availability_group */
++/* Group paths sharing a jack, but only downgrade positive detection when
++ * multiple paths map that jack to YES. Defer the downgrade so comparisons
++ * always use the configured states. */
+ static void profile_set_set_availability_groups(pa_alsa_profile_set *ps) {
+-    pa_dynarray *paths;
++    pa_dynarray *paths, *ambiguous_jacks;
+     pa_alsa_path *p;
++    pa_alsa_jack *j;
+     void *state;
+     unsigned idx1;
+     uint32_t num = 1;
+ 
+     /* Merge ps->input_paths and ps->output_paths into one dynarray. */
+     paths = pa_dynarray_new(NULL);
++    ambiguous_jacks = pa_dynarray_new(NULL);
+     PA_HASHMAP_FOREACH(p, ps->input_paths, state)
+         pa_dynarray_append(paths, p);
+     PA_HASHMAP_FOREACH(p, ps->output_paths, state)
+         pa_dynarray_append(paths, p);
+ 
+     PA_DYNARRAY_FOREACH(p, paths, idx1) {
+-        pa_alsa_jack *j;
+         const char *found = NULL;
+         bool has_control = false;
+ 
+@@ -4436,31 +4438,35 @@ static void profile_set_set_availability_groups(pa_alsa_profile_set *ps) {
+                 if (p2 == p)
+                     break;
+                 PA_LLIST_FOREACH(j2, p2->jacks) {
+-                    if (!j2->has_control || j2->state_plugged == PA_AVAILABLE_NO)
++                    if (!j2->has_control || j2->state_plugged == PA_AVAILABLE_NO ||
++                        !pa_streq(j->alsa_id.name, j2->alsa_id.name) ||
++                        j->alsa_id.index != j2->alsa_id.index)
+                         continue;
+-                    if (pa_streq(j->alsa_id.name, j2->alsa_id.name) &&
+-                        j->alsa_id.index == j2->alsa_id.index) {
+-                        j->state_plugged = PA_AVAILABLE_UNKNOWN;
+-                        j2->state_plugged = PA_AVAILABLE_UNKNOWN;
+-                        found = p2->availability_group;
+-                        break;
++                    if (j->state_plugged == PA_AVAILABLE_YES &&
++                        j2->state_plugged == PA_AVAILABLE_YES) {
++                        pa_dynarray_append(ambiguous_jacks, j);
++                        pa_dynarray_append(ambiguous_jacks, j2);
+                     }
++                    if (!found)
++                        found = p2->availability_group;
++                    break;
+                 }
+             }
+-            if (found)
+-                break;
+         }
+         if (!has_control)
+             continue;
+         if (!found) {
+             p->availability_group = pa_sprintf_malloc("Legacy %d", num);
++            num++;
+         } else {
+             p->availability_group = pa_xstrdup(found);
+         }
+-        if (!found)
+-            num++;
+     }
+ 
++    PA_DYNARRAY_FOREACH(j, ambiguous_jacks, idx1)
++        j->state_plugged = PA_AVAILABLE_UNKNOWN;
++
++    pa_dynarray_free(ambiguous_jacks);
+     pa_dynarray_free(paths);
+ }
+ 
+diff --git a/spa/plugins/alsa/mixer/paths/analog-input-internal-mic.conf b/spa/plugins/alsa/mixer/paths/analog-input-internal-mic.conf
+index 898410a..90b1bd9 100644
+--- a/spa/plugins/alsa/mixer/paths/analog-input-internal-mic.conf
++++ b/spa/plugins/alsa/mixer/paths/analog-input-internal-mic.conf
+@@ -23,19 +23,19 @@ priority = 89
+ description-key = analog-input-microphone-internal
+ 
+ [Jack Mic]
+-state.plugged = no
++state.plugged = unknown
+ state.unplugged = unknown
+ 
+ [Jack Dock Mic]
+-state.plugged = no
++state.plugged = unknown
+ state.unplugged = unknown
+ 
+ [Jack Front Mic]
+-state.plugged = no
++state.plugged = unknown
+ state.unplugged = unknown
+ 
+ [Jack Rear Mic]
+-state.plugged = no
++state.plugged = unknown
+ state.unplugged = unknown
+ 
+ [Jack Internal Mic Phantom]
+diff --git a/spa/plugins/alsa/mixer/paths/analog-output-speaker.conf b/spa/plugins/alsa/mixer/paths/analog-output-speaker.conf
+index 72f928f..90ae885 100644
+--- a/spa/plugins/alsa/mixer/paths/analog-output-speaker.conf
++++ b/spa/plugins/alsa/mixer/paths/analog-output-speaker.conf
+@@ -25,35 +25,35 @@ description-key = analog-output-speaker
+ device.icon_name = audio-speakers
+ 
+ [Jack Headphone]
+-state.plugged = no
++state.plugged = unknown
+ state.unplugged = unknown
+ 
+ [Jack Dock Headphone]
+-state.plugged = no
++state.plugged = unknown
+ state.unplugged = unknown
+ 
+ [Jack Front Headphone]
+-state.plugged = no
++state.plugged = unknown
+ state.unplugged = unknown
+ 
+ [Jack Line Out]
+-state.plugged = no
++state.plugged = unknown
+ state.unplugged = unknown
+ 
+ [Jack Line Out Front]
+-state.plugged = no
++state.plugged = unknown
+ state.unplugged = unknown
+ 
+ [Jack Front Line Out]
+-state.plugged = no
++state.plugged = unknown
+ state.unplugged = unknown
+ 
+ [Jack Rear Line Out]
+-state.plugged = no
++state.plugged = unknown
+ state.unplugged = unknown
+ 
+ [Jack Dock Line Out]
+-state.plugged = no
++state.plugged = unknown
+ state.unplugged = unknown
+ 
+ [Jack Speaker]
+-- 
+2.54.0
+
