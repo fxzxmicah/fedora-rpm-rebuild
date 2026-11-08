@@ -1,8 +1,8 @@
 diff --git OLD/glibc.spec NEW/glibc.spec
-index 2062b38..e4df1d5 100644
+index fd83f95..7d345ca 100644
 --- OLD/glibc.spec
 +++ NEW/glibc.spec
-@@ -373,7 +373,8 @@ Provides: rtld(GNU_HASH)
+@@ -371,7 +371,8 @@ Provides: rtld(GNU_HASH)
  # We need libgcc for cancellation support in POSIX threads.
  Requires: libgcc%{_isa}
  
@@ -12,7 +12,7 @@ index 2062b38..e4df1d5 100644
  
  # Various components (regex, glob) have been imported from gnulib.
  Provides: bundled(gnulib)
-@@ -493,9 +494,10 @@ BuildRequires: gzip
+@@ -491,9 +492,10 @@ BuildRequires: gzip
  Requires: glibc-langpack = %{version}-%{release}
  Suggests: glibc-minimal-langpack = %{version}-%{release}
  
@@ -26,7 +26,7 @@ index 2062b38..e4df1d5 100644
  # Use redhat-rpm-config as a marker for a buildroot configuration, and
  # unconditionally pull in glibc-gconv-extra in that case.
  Requires: (glibc-gconv-extra%{_isa} = %{version}-%{release} if redhat-rpm-config)
-@@ -627,6 +629,17 @@ call_ldconfig()
+@@ -625,6 +627,17 @@ call_ldconfig()
  call_ldconfig()
  %end
  
@@ -44,8 +44,8 @@ index 2062b38..e4df1d5 100644
  # We need to run ldconfig manually because __brp_ldconfig assumes that
  # glibc itself is always installed in $RPM_BUILD_ROOT, but with sysroots
  # we may be installed into a subdirectory of that path.  Therefore we
-@@ -961,6 +974,121 @@ local locales =  {
-   { code="zu", name="Zulu", regions={ "ZA" } } 
+@@ -960,6 +973,121 @@ local locales =  {
+   { code="zu", name="Zulu", regions={ "ZA" } }
  }
  
 +-- Module ownership and language associations; RPM handles ELF dependencies.
@@ -54,7 +54,7 @@ index 2062b38..e4df1d5 100644
 +local gconv_groups = {
 +  { name="common", modules="UNICODE UTF-16 UTF-32 ISO8859-1 ISO8859-15 CP1252 UTF8_UTF16_Z9 UTF16_UTF32_Z9 UTF8_UTF32_Z9" },
 +  { name="iso646", languages="da de en es fi fr hr hu it ja ko nb nn pt sl sr sv zh yue", modules="ISO646" },
-+  { name="western", languages="af an ast br ca cy da de en es eu fi fo fr fy ga gd gl gv id is it lb ms nb nds nl nn oc pt sc sq sv sw tl wa", modules="MACINTOSH DEC-MCS HP-ROMAN8 HP-ROMAN9 IBM037 IBM038 IBM256 IBM437 IBM500 IBM850 IBM858 IBM1004 IBM1047 IBM1140 IBM1148 IBM9030 IBM9066 ISO-8859-1_CP037_Z900" },
++  { name="western", languages="af an ast br ca cy da de en es eu fi fo fr fy ga gd gl gv hrx id is it lb ms nb nds nl nn oc pt sc sq sv sw tl wa", modules="MACINTOSH DEC-MCS HP-ROMAN8 HP-ROMAN9 IBM037 IBM038 IBM256 IBM437 IBM500 IBM850 IBM858 IBM1004 IBM1047 IBM1140 IBM1148 IBM9030 IBM9066 ISO-8859-1_CP037_Z900" },
 +  { name="central-european", languages="bs cs hr hsb hu pl ro sk sl sq", modules="ISO8859-2 CP1250 IBM852 IBM870 IBM1153 IBM4899 IBM5347 MAC-CENTRALEUROPE" },
 +  { name="baltic", languages="et lt lv", modules="ISO8859-4 ISO8859-13 CP1257 CP775 IBM1112 IBM1157 IBM4517 IBM4971" },
 +  { name="nordic", languages="da fi fo is nb nn se sv", modules="ISO8859-10 NATS-DANO NATS-SEFI IBM277 IBM278 IBM865 IBM1142 IBM1143 EBCDIC-DK-NO EBCDIC-DK-NO-A EBCDIC-FI-SE EBCDIC-FI-SE-A" },
@@ -166,7 +166,7 @@ index 2062b38..e4df1d5 100644
  -- Prints a list of LANGUAGE "_" REGION pairs.  The output is expected
  -- to be identical to parse-SUPPORTED.py.  Called from the %%prep section.
  function print_locale_pairs()
-@@ -1001,6 +1129,11 @@ Provides: glibc-langpack = %{version}-%{release}
+@@ -1000,6 +1128,11 @@ Provides: glibc-langpack = %{version}-%{release}
  Requires: %{name} = %{version}-%{release}
  Requires: %{name}-common = %{version}-%{release}
  Supplements: ((glibc and (]]..suppl..[[)) unless glibc-all-langpacks)
@@ -178,7 +178,7 @@ index 2062b38..e4df1d5 100644
  %description langpack-]]..lang..[[
  
  The glibc-langpack-]]..lang..[[ package includes the basic information required
-@@ -1012,6 +1145,11 @@ end
+@@ -1011,6 +1144,11 @@ end
  for i = 1, #locales do
     lang_package(locales[i])
  end
@@ -190,7 +190,7 @@ index 2062b38..e4df1d5 100644
  }
  
  # The glibc-all-langpacks provides the virtual glibc-langpack,
-@@ -1023,6 +1161,7 @@ Summary: All language packs for %{name}.
+@@ -1022,6 +1160,7 @@ Summary: All language packs for %{name}.
  Requires: %{name} = %{version}-%{release}
  Requires: %{name}-common = %{version}-%{release}
  Provides: %{name}-langpack = %{version}-%{release}
@@ -198,7 +198,7 @@ index 2062b38..e4df1d5 100644
  %description all-langpacks
  
  # No %files, this is an empty package. The C/POSIX and
-@@ -1042,14 +1181,27 @@ This package ensures you can use C, POSIX, or C.UTF-8 locales, but
+@@ -1041,14 +1180,27 @@ This package ensures you can use C, POSIX, or C.UTF-8 locales, but
  nothing else. It is designed for assembling a minimal system.
  %files minimal-langpack
  
@@ -229,7 +229,7 @@ index 2062b38..e4df1d5 100644
  
  ##############################################################################
  # Subpackages for NSS modules except nss_files, nss_compat, nss_dns
-@@ -1861,69 +2013,126 @@ popd
+@@ -1866,69 +2018,126 @@ popd
  %endif
  
  ##############################################################################
@@ -417,7 +417,7 @@ index 2062b38..e4df1d5 100644
  
  ##############################################################################
  # Run the glibc testsuite
-@@ -2154,15 +2363,7 @@ end
+@@ -2159,15 +2368,7 @@ end
  
  call_ldconfig()
  
@@ -434,7 +434,7 @@ index 2062b38..e4df1d5 100644
  -- not suppress the error message (which is common in chroots), so
  -- open-code rpm.execute with standard error suppressed.
  if tonumber(arg[2]) >= 2
-@@ -2206,17 +2407,8 @@ if posix.access(save_path) then
+@@ -2211,17 +2412,8 @@ if posix.access(save_path) then
    posix.unlink(save_path)
  end
  
@@ -453,7 +453,7 @@ index 2062b38..e4df1d5 100644
  %{_libexecdir}/getconf
  %{_prefix}%{glibc_ldso}
  %{_libdir}/libBrokenLocale.so.1
-@@ -2248,13 +2440,6 @@ update_gconv_modules_cache ()
+@@ -2253,13 +2445,6 @@ update_gconv_modules_cache ()
  %verify(not md5 size mtime) %config(noreplace) /etc/ld.so.conf
  %verify(not md5 size mtime) %config(noreplace) /etc/rpc
  %dir /etc/ld.so.conf.d
@@ -467,7 +467,7 @@ index 2062b38..e4df1d5 100644
  %dir %attr(0700,root,root) /var/cache/ldconfig
  %attr(0600,root,root) %verify(not md5 size mtime) %ghost %config(missingok,noreplace) /var/cache/ldconfig/aux-cache
  %attr(0644,root,root) %verify(not md5 size mtime) %ghost %config(missingok,noreplace) /etc/ld.so.cache
-@@ -2263,7 +2448,12 @@ update_gconv_modules_cache ()
+@@ -2268,7 +2453,12 @@ update_gconv_modules_cache ()
  %{!?_licensedir:%global license %%doc}
  %license COPYINGv2 COPYINGv3 COPYING.LESSERv2 COPYING.LIB LICENSES
  
@@ -481,7 +481,7 @@ index 2062b38..e4df1d5 100644
  %{_bindir}/gencat
  %{_bindir}/getconf
  %{_bindir}/getent
-@@ -2357,8 +2547,9 @@ update_gconv_modules_cache ()
+@@ -2362,8 +2552,9 @@ update_gconv_modules_cache ()
  %{_libdir}/libc_malloc_debug.so.0
  %endif
  

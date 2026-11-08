@@ -1,5 +1,5 @@
 diff --git OLD/fwupd.spec NEW/fwupd.spec
-index dfc6c8e..236c571 100644
+index 29e025a..832a9c8 100644
 --- OLD/fwupd.spec
 +++ NEW/fwupd.spec
 @@ -100,6 +100,8 @@ Requires: libxmlb%{?_isa} >= %{libxmlb_version}
@@ -37,7 +37,7 @@ index dfc6c8e..236c571 100644
  %package devel
  Summary: Development package for %{name}
  Requires: %{name}%{?_isa} = %{version}-%{release}
-@@ -210,6 +231,8 @@ mkdir -p --mode=0700 $RPM_BUILD_ROOT%{_localstatedir}/lib/fwupd
+@@ -215,6 +236,8 @@ mkdir -p --mode=0700 $RPM_BUILD_ROOT%{_localstatedir}/lib/fwupd
  # workaround for https://bugzilla.redhat.com/show_bug.cgi?id=1757948
  mkdir -p $RPM_BUILD_ROOT%{_localstatedir}/cache/fwupd
  
@@ -46,7 +46,7 @@ index dfc6c8e..236c571 100644
  %find_lang %{name}
  
  %post
-@@ -243,10 +266,6 @@ systemctl --no-reload preset fwupd-refresh.timer &>/dev/null || :
+@@ -248,10 +271,6 @@ systemctl --no-reload preset fwupd-refresh.timer &>/dev/null || :
  %dir %{_sysconfdir}/fwupd/bios-settings.d
  %{_sysconfdir}/fwupd/bios-settings.d/README.md
  %dir %{_sysconfdir}/fwupd/remotes.d
@@ -57,7 +57,7 @@ index dfc6c8e..236c571 100644
  %config(noreplace)%{_sysconfdir}/pki/fwupd
  %{_sysconfdir}/pki/fwupd-metadata
  %if 0%{?have_msr}
-@@ -256,11 +275,14 @@ systemctl --no-reload preset fwupd-refresh.timer &>/dev/null || :
+@@ -261,11 +280,14 @@ systemctl --no-reload preset fwupd-refresh.timer &>/dev/null || :
  %{_datadir}/dbus-1/system.d/org.freedesktop.fwupd.conf
  %{_datadir}/bash-completion/completions/fwupdmgr
  %{_datadir}/bash-completion/completions/fwupdtool
@@ -73,7 +73,7 @@ index dfc6c8e..236c571 100644
  %dir %{_datadir}/fwupd/remotes.d/vendor
  %dir %{_datadir}/fwupd/remotes.d/vendor/firmware
  %{_datadir}/fwupd/remotes.d/vendor/firmware/README.md
-@@ -277,10 +299,6 @@ systemctl --no-reload preset fwupd-refresh.timer &>/dev/null || :
+@@ -282,10 +304,6 @@ systemctl --no-reload preset fwupd-refresh.timer &>/dev/null || :
  %{_mandir}/man8/*
  %{_datadir}/metainfo/org.freedesktop.fwupd.metainfo.xml
  %{_datadir}/icons/hicolor/*/apps/org.freedesktop.fwupd.*
@@ -84,7 +84,7 @@ index dfc6c8e..236c571 100644
  %{_unitdir}/fwupd.service
  %{_unitdir}/fwupd-refresh.service
  %{_unitdir}/fwupd-refresh.timer
-@@ -298,6 +316,15 @@ systemctl --no-reload preset fwupd-refresh.timer &>/dev/null || :
+@@ -303,6 +321,15 @@ systemctl --no-reload preset fwupd-refresh.timer &>/dev/null || :
  %dir %{_libdir}/fwupd-%{version}
  %{_libdir}/fwupd-%{version}/libfwupd*.so
  

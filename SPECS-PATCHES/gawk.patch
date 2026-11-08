@@ -1,5 +1,5 @@
 diff --git OLD/gawk.spec NEW/gawk.spec
-index e230f55..aec8b23 100644
+index bff3fdf..b14dcb9 100644
 --- OLD/gawk.spec
 +++ NEW/gawk.spec
 @@ -63,9 +63,7 @@ Provides:         /bin/gawk
@@ -13,7 +13,7 @@ index e230f55..aec8b23 100644
  
  BuildRequires:    git
  BuildRequires:    gcc
-@@ -148,6 +146,19 @@ text processing.
+@@ -145,6 +143,19 @@ text processing.
  
  # === SUBPACKAGES =============================================================
  
@@ -33,7 +33,7 @@ index e230f55..aec8b23 100644
  %package devel
  Summary:          Header file for gawk extensions development
  Requires:         %{name}%{?_isa} = %{version}-%{release}
-@@ -259,19 +270,24 @@ install -m 0644 -p awklib/eg/data/* %{buildroot}%{_docdir}/%{name}/eg/data/
+@@ -256,14 +267,9 @@ install -m 0644 -p awklib/eg/data/* %{buildroot}%{_docdir}/%{name}/eg/data/
  #%files -f %{name}.lang
  %files
  %{_bindir}/*awk
@@ -48,6 +48,8 @@ index e230f55..aec8b23 100644
 +%{_mandir}/man1/*awk.1*
  %{_infodir}/*awk*.info*
  
+ #Excluding this file for now to avoid possible naming conflicts with other packages.
+@@ -272,6 +278,16 @@ install -m 0644 -p awklib/eg/data/* %{buildroot}%{_docdir}/%{name}/eg/data/
  %doc NEWS README POSIX.STD README_d/README.multibyte
  %license COPYING LICENSE.GPLv2 LICENSE.LGPLv2 LICENSE.BSD
  

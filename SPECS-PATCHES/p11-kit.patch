@@ -1,5 +1,5 @@
 diff --git OLD/p11-kit.spec NEW/p11-kit.spec
-index 37c2471..c4a0e56 100644
+index bbc8f07..c601f03 100644
 --- OLD/p11-kit.spec
 +++ NEW/p11-kit.spec
 @@ -50,6 +50,8 @@ BuildRequires:  mingw64-libffi

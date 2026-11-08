@@ -1,15 +1,15 @@
 diff --git OLD/gnome-desktop3.spec NEW/gnome-desktop3.spec
-index 11f5b25..80696b8 100644
+index 6ffab43..9b74f8b 100644
 --- OLD/gnome-desktop3.spec
 +++ NEW/gnome-desktop3.spec
-@@ -12,7 +12,7 @@ Version: 44.5
+@@ -10,7 +10,7 @@ Version: 51.0
  Release: %autorelease
  Summary: Library with common API for various GNOME modules
  
 -License: GPL-2.0-or-later AND LGPL-2.0-or-later AND GFDL-1.1-or-later
 +License: GPL-2.0-or-later AND LGPL-2.0-or-later
  URL:     https://gitlab.gnome.org/GNOME/gnome-desktop
- Source:  https://download.gnome.org/sources/gnome-desktop/44/gnome-desktop-%{tarball_version}.tar.xz
+ Source:  https://download.gnome.org/sources/gnome-desktop/%{gnome_major_version}/gnome-desktop-%{gnome_tarball_version}.tar.xz
  
 @@ -42,6 +42,7 @@ Requires: gdk-pixbuf2%{?_isa} >= %{gdk_pixbuf2_version}
  Requires: glib2%{?_isa} >= %{glib2_version}
@@ -82,7 +82,7 @@ index 11f5b25..80696b8 100644
 -%license COPYING COPYING.LIB
 +%files
  # LGPL
- %{_libdir}/libgnome-desktop-3.so.20{,.*}
+ %{_libdir}/libgnome-desktop-3.so.21{,.*}
  %{_libdir}/girepository-1.0/GnomeDesktop-3.0.typelib
 +
 +%files -n gnome-desktop-common -f %{po_package}.lang

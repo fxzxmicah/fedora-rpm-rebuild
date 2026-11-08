@@ -1,5 +1,5 @@
 diff --git OLD/bubblewrap.spec NEW/bubblewrap.spec
-index f0ff8c9..2b6ad9c 100644
+index 4009715..3d6e356 100644
 --- OLD/bubblewrap.spec
 +++ NEW/bubblewrap.spec
 @@ -15,11 +15,23 @@ BuildRequires: pkgconfig(libcap)
@@ -44,5 +44,5 @@ index f0ff8c9..2b6ad9c 100644
 +%{_datadir}/zsh/site-functions/*
 +
  %changelog
- * Fri Jan 16 2026 Fedora Release Engineering <releng@fedoraproject.org> - 0.11.0-4
- - Rebuilt for https://fedoraproject.org/wiki/Fedora_44_Mass_Rebuild
+ * Thu Oct 15 2026 David King <amigadave@amigadave.com> - 0.13.0-1
+ - Update to 0.13.1 (#2537824)

@@ -1,10 +1,9 @@
 diff --git OLD/gdm.spec NEW/gdm.spec
-index bd036d1..e2286f1 100644
+index 6b37c0a..c2f049c 100644
 --- OLD/gdm.spec
 +++ NEW/gdm.spec
-@@ -5,13 +5,8 @@
- %global major_version %%(echo %{version} | cut -d '.' -f1 | cut -d '~' -f1)
- %global tarball_version %%(echo %{version} | tr '~' '.')
+@@ -1,12 +1,7 @@
+ %global _hardened_build 1
  
 -# This controls support for launching X11 desktops.
 -# gdm itself will always use Wayland.
@@ -17,7 +16,7 @@ index bd036d1..e2286f1 100644
  
  Name:           gdm
  Epoch:          1
-@@ -28,7 +23,6 @@ Source2:        gdm.sysusers
+@@ -27,7 +22,6 @@ Source2:        gdm.sysusers
  # Downstream patches
  Patch:          0001-Honor-initial-setup-being-disabled-by-distro-install.patch
  Patch:          0001-data-add-system-dconf-databases-to-gdm-profile.patch
@@ -25,7 +24,7 @@ index bd036d1..e2286f1 100644
  
  BuildRequires:  dconf
  BuildRequires:  desktop-file-utils
-@@ -71,13 +65,14 @@ Requires: gnome-session-wayland-session >= 50~alpha
+@@ -68,13 +62,14 @@ Requires: gnome-session-wayland-session >= 50~alpha
  Requires: gnome-settings-daemon >= 3.27.90
  Requires: gnome-shell
  Requires: iso-codes
@@ -41,7 +40,7 @@ index bd036d1..e2286f1 100644
  
  %if %{with x11}
  Requires: xorg-x11-xinit
-@@ -89,9 +84,7 @@ Provides: gdm-libs%{?_isa} = %{epoch}:%{version}-%{release}
+@@ -86,9 +81,7 @@ Provides: gdm-libs%{?_isa} = %{epoch}:%{version}-%{release}
  GDM, the GNOME Display Manager, handles authentication-related backend
  functionality for logging in a user and unlocking the user's session after
  it's been locked. GDM also provides functionality for initiating user-switching,
@@ -52,7 +51,7 @@ index bd036d1..e2286f1 100644
  
  %package devel
  Summary: Development files for gdm
-@@ -175,12 +168,12 @@ ln -sf ../X11/xinit/Xsession %{buildroot}%{_sysconfdir}/gdm/
+@@ -173,12 +166,12 @@ ln -sf ../X11/xinit/Xsession %{buildroot}%{_sysconfdir}/gdm/
  %if %{with x11}
  %{_libexecdir}/gdm-x-session
  %endif
@@ -66,7 +65,7 @@ index bd036d1..e2286f1 100644
  %dir %{_datadir}/gdm/greeter
  %dir %{_datadir}/gdm/greeter/applications
  %dir %{_datadir}/gdm/greeter/wayland-sessions
-@@ -194,7 +187,7 @@ ln -sf ../X11/xinit/Xsession %{buildroot}%{_sysconfdir}/gdm/
+@@ -192,7 +185,7 @@ ln -sf ../X11/xinit/Xsession %{buildroot}%{_sysconfdir}/gdm/
  %{_datadir}/polkit-1/actions/org.gnome.displaymanager.policy
  %{_libdir}/girepository-1.0/Gdm-1.0.typelib
  %{_libdir}/security/pam_gdm.so

@@ -1,8 +1,8 @@
 diff --git OLD/curl.spec NEW/curl.spec
-index 897f325..16f537d 100644
+index f7e0baa..2d98b71 100644
 --- OLD/curl.spec
 +++ NEW/curl.spec
-@@ -7,7 +7,7 @@
+@@ -8,7 +8,7 @@
  # HTTP/3 support
  # This is using ngtcp2 with OpenSSL 3.5 QUIC support instead of curl's
  # experimental native OpenSSL 3.5 support.
@@ -11,7 +11,7 @@ index 897f325..16f537d 100644
  
  Summary: A utility for getting files from remote servers (FTP, HTTP, and others)
  Name: curl
-@@ -164,6 +164,8 @@ BuildRequires: stunnel
+@@ -151,6 +151,8 @@ BuildRequires: stunnel
  # using an older version of libcurl could result in CURLE_UNKNOWN_OPTION
  Requires: libcurl%{?_isa} >= %{version}-%{release}
  
@@ -20,7 +20,7 @@ index 897f325..16f537d 100644
  # Define OPENSSL_NO_ENGINE to avoid inclusion of <openssl/engine.h>
  %if %{without openssl_engine_support}
  %global _preprocessor_defines %{?_preprocessor_defines} -DOPENSSL_NO_ENGINE
-@@ -202,6 +204,16 @@ uploading, HTTP form based upload, proxies, cookies, user+password
+@@ -193,6 +195,16 @@ uploading, HTTP form based upload, proxies, cookies, user+password
  authentication (Basic, Digest, NTLM, Negotiate, kerberos...), file transfer
  resume, proxy tunneling and a busload of other useful tricks.
  
@@ -37,7 +37,7 @@ index 897f325..16f537d 100644
  %package -n libcurl
  Summary: A library for getting files from web servers
  Requires: libnghttp2%{?_isa} >= %{libnghttp2_version}
-@@ -439,7 +451,9 @@ rm -f ${RPM_BUILD_ROOT}%{_mandir}/man1/wcurl.1*
+@@ -460,7 +472,9 @@ rm -f ${RPM_BUILD_ROOT}%{_mandir}/man1/wcurl.1*
  %doc docs/TheArtOfHttpScripting.md
  %{_bindir}/curl
  %{_mandir}/man1/curl.1*

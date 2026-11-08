@@ -1,10 +1,10 @@
 diff --git OLD/evolution-ews.spec NEW/evolution-ews.spec
-index a84e99c..acc70db 100644
+index a77c0a6..1a95ecc 100644
 --- OLD/evolution-ews.spec
 +++ NEW/evolution-ews.spec
 @@ -12,6 +12,8 @@ License: LGPL-2.1-or-later
  URL: https://gitlab.gnome.org/GNOME/evolution/-/wikis/home
- Source: http://download.gnome.org/sources/%{name}/3.60/%{name}-%{version}.tar.xz
+ Source: http://download.gnome.org/sources/%{name}/%{gnome_major_minor_version}/%{name}-%{version}.tar.xz
  
 +Patch: evolution-ews-send-from-alias.patch
 +

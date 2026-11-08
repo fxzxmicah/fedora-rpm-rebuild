@@ -1,8 +1,8 @@
 diff --git OLD/udisks2.spec NEW/udisks2.spec
-index ba5e5b9..f346ab5 100644
+index 0d1136b..d09177a 100644
 --- OLD/udisks2.spec
 +++ NEW/udisks2.spec
-@@ -109,6 +109,7 @@ Recommends: ntfs-3g
+@@ -105,6 +105,7 @@ Recommends: ntfs-3g
  Recommends: btrfs-progs
  %endif
  
@@ -10,7 +10,7 @@ index ba5e5b9..f346ab5 100644
  
  # For /proc/self/mountinfo, only available in 2.6.26 or higher
  Conflicts: kernel < 2.6.26
-@@ -195,6 +196,16 @@ Obsoletes: storaged-lsm < %{version}-%{release}
+@@ -191,6 +192,16 @@ Obsoletes: storaged-lsm < %{version}-%{release}
  This package contains module for LSM configuration.
  %endif
  
@@ -27,7 +27,7 @@ index ba5e5b9..f346ab5 100644
  %prep
  %autosetup -p1 -n udisks-%{version}
  rm -f src/tests/dbus-tests/config_h.py
-@@ -270,7 +281,6 @@ fi
+@@ -266,7 +277,6 @@ fi
  
  %{_datadir}/dbus-1/system.d/org.freedesktop.UDisks2.conf
  %{_datadir}/bash-completion/completions/udisksctl
@@ -35,7 +35,7 @@ index ba5e5b9..f346ab5 100644
  %{_tmpfilesdir}/%{name}.conf
  %{_unitdir}/udisks2.service
  %{_udevrulesdir}/80-udisks2.rules
-@@ -344,6 +354,9 @@ fi
+@@ -340,6 +350,9 @@ fi
  %attr(0600,root,root) %{_sysconfdir}/udisks2/modules.conf.d/udisks2_lsm.conf
  %endif
  
@@ -43,5 +43,5 @@ index ba5e5b9..f346ab5 100644
 +%{_datadir}/zsh/site-functions/*
 +
  %changelog
- * Wed Apr 01 2026 Tomas Bzatek <tbzatek@redhat.com> - 2.11.1-2
- - Use 'sys_tz' exfat mount option by default (#2403452)
+ * Thu Aug 06 2026 Tomas Bzatek <tbzatek@redhat.com> - 2.11.2-1
+ - Version 2.11.2

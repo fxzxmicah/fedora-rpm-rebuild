@@ -1,5 +1,5 @@
 diff --git OLD/kmod.spec NEW/kmod.spec
-index a41c634..75493ea 100644
+index cac6148..5d852aa 100644
 --- OLD/kmod.spec
 +++ NEW/kmod.spec
 @@ -84,6 +84,9 @@ BuildRequires:  make automake libtool
@@ -12,7 +12,7 @@ index a41c634..75493ea 100644
  Provides:	module-init-tools = 4.0-1
  Obsoletes:	module-init-tools < 4.0-1
  Provides:	/sbin/modprobe
-@@ -113,9 +116,29 @@ Summary:	Libraries to handle kernel module loading and unloading
+@@ -113,6 +116,26 @@ Summary:	Libraries to handle kernel module loading and unloading
  The kmod-libs package provides runtime libraries for any application that
  wishes to load or unload Linux kernel modules from the running system.
  
@@ -38,11 +38,7 @@ index a41c634..75493ea 100644
 +
  %package devel
  Summary:	Header files for kmod development
--Requires:	%{name}-libs%{?_isa} = %{version}-%{release}
-+Requires:	%{name}%{?_isa} = %{version}-%{release}
- 
- %description devel
- The kmod-devel package provides header files used for development of
+ Requires:	%{name}-libs%{?_isa} = %{version}-%{release}
 @@ -177,12 +200,9 @@ install -m 0644 %{SOURCE2} $RPM_BUILD_ROOT%{_sysconfdir}/depmod.d/dist.conf
  %{_sbindir}/weak-modules
  %endif

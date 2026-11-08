@@ -1,5 +1,5 @@
 diff --git OLD/evolution-data-server.spec NEW/evolution-data-server.spec
-index c823a88..0e9d7e8 100644
+index 6316de9..dad40a1 100644
 --- OLD/evolution-data-server.spec
 +++ NEW/evolution-data-server.spec
 @@ -1,17 +1,15 @@

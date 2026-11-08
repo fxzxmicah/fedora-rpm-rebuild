@@ -1,8 +1,8 @@
 diff --git OLD/ibus.spec NEW/ibus.spec
-index a028cea..9df99ce 100644
+index e91c9c4..84d3fc0 100644
 --- OLD/ibus.spec
 +++ NEW/ibus.spec
-@@ -1,9 +1,9 @@
+@@ -1,12 +1,12 @@
 -%global source_version %%(echo "%version" | tr '~' '-')
 +%global source_version %%(echo "%{version}" | tr '~' '-')
  
@@ -13,56 +13,52 @@ index a028cea..9df99ce 100644
 +%global pkgcache /var/cache/%{name}
  
  # No gtk2 in RHEL 10
- %if 0%{?rhel} > 9
-@@ -61,9 +61,9 @@ Version:        1.5.34~rc2
+-%if 0%{?rhel} > 9
++%if 0%{?fedora} > 43 || 0%{?rhel} > 9
+ %bcond_with    gtk2
+ %bcond_with    xinit
+ %else
+@@ -52,9 +52,9 @@ Version:        1.5.35
  Release:        1%{?dist}
  Summary:        Intelligent Input Bus for Linux OS
  License:        LGPL-2.1-or-later
 -URL:            https://github.com/ibus/%name/wiki
--Source0:        https://github.com/ibus/%name/releases/download/%{source_version}/%{name}-%{source_version}.tar.gz
--Source1:        https://github.com/ibus/%name/releases/download/%{source_version}/%{name}-%{source_version}.tar.gz.sum#/%{name}.tar.gz.sum
+-Source0:        https://github.com/ibus/%name/releases/download/%{source_version}/%{name}-%{source_version}.tar.xz
+-Source1:        https://github.com/ibus/%name/releases/download/%{source_version}/%{name}-%{source_version}.tar.xz.sha256sum#/%{name}.tar.xz.sha256sum
 +URL:            https://github.com/ibus/%{name}/wiki
-+Source0:        https://github.com/ibus/%{name}/releases/download/%{source_version}/%{name}-%{source_version}.tar.gz
-+Source1:        https://github.com/ibus/%{name}/releases/download/%{source_version}/%{name}-%{source_version}.tar.gz.sum#/%{name}.tar.gz.sum
++Source0:        https://github.com/ibus/%{name}/releases/download/%{source_version}/%{name}-%{source_version}.tar.xz
++Source1:        https://github.com/ibus/%{name}/releases/download/%{source_version}/%{name}-%{source_version}.tar.xz.sha256sum#/%{name}.tar.xz.sha256sum
  Source2:        %{name}-xinput
  Source3:        %{name}.conf.5
- # Patch0:         %%{name}-HEAD.patch
-@@ -104,14 +104,13 @@ Requires:       %{name}-libs%{?_isa}   = %{version}-%{release}
- Requires:      (%{name}-gtk2%{?_isa}   = %{version}-%{release} if gtk2)
- %endif
- Requires:      (%{name}-gtk3%{?_isa}   = %{version}-%{release} if gtk3)
-+Recommends:     %{name}-setup          = %{version}-%{release}
- %if 0%{?fedora}
- Requires:      (%{name}-panel%{?_isa}  = %{version}-%{release} if %ibus_panel_condition)
- %endif
+ # Patch:          %%{name}-HEAD.patch
+@@ -104,7 +104,6 @@ Requires:      (%{name}-panel%{?_isa}  = %{version}-%{release} if %ibus_panel_co
  %if %{with xinit}
  Requires:      (%{name}-xinit          = %{version}-%{release} if %ibus_xinit_condition)
  %endif
 -Requires:       python3-ibus           = %{version}-%{release}
--Recommends:     %{name}-setup          = %{version}-%{release}
+ Recommends:     %{name}-setup          = %{version}-%{release}
  
  Requires:       iso-codes
- # rpmlint asks to delete librsvg2
-@@ -193,6 +192,7 @@ This package contains IBus IM module for GTK4
+@@ -183,6 +182,7 @@ This package contains IBus IM module for GTK4
  Summary:        IBus setup utility
  Requires:       %{name} = %{version}-%{release}
  Requires:       python3-gobject
 +Requires:       python3-ibus
- BuildRequires:  gobject-introspection-devel
  BuildRequires:  python3-gobject-devel
- BuildRequires:  make
-@@ -283,8 +283,8 @@ the functionality of the installed %{name} package.
+ BuildArch:      noarch
+ 
+@@ -271,8 +271,8 @@ the functionality of the installed %{name} package.
  
  
  %prep
--SAVED_SUM=$(grep sha512sum %SOURCE1 | awk '{print $2}')
--MY_SUM=$(sha512sum %SOURCE0 | awk '{print $1}')
-+SAVED_SUM=$(grep sha512sum %{SOURCE1} | awk '{print $2}')
-+MY_SUM=$(sha512sum %{SOURCE0} | awk '{print $1}')
+-SAVED_SUM=$(cat %SOURCE1 | awk '{print $1}')
+-MY_SUM=$(sha256sum %SOURCE0 | awk '{print $1}')
++SAVED_SUM=$(cat %{SOURCE1} | awk '{print $1}')
++MY_SUM=$(sha256sum %{SOURCE0} | awk '{print $1}')
  if test x"$SAVED_SUM" != x"$MY_SUM" ; then
      abort
  fi
-@@ -368,11 +368,11 @@ done
+@@ -340,11 +340,11 @@ done
  # install xinput config file
  install -pm 644 -D %{SOURCE2} $RPM_BUILD_ROOT%{_xinputconf}
  
@@ -76,7 +72,7 @@ index a028cea..9df99ce 100644
  
  # install .desktop files
  echo "NoDisplay=true" >> $RPM_BUILD_ROOT%{_datadir}/applications/org.freedesktop.IBus.Setup.desktop
-@@ -423,12 +423,6 @@ make check \
+@@ -392,12 +392,6 @@ desktop-file-install --delete-original          \
  
  %postun
  if [ "$1" -eq 0 ]; then
@@ -89,7 +85,7 @@ index a028cea..9df99ce 100644
    # 'dconf update' sometimes does not update the db...
    dconf update || :
    [ -f %{_sysconfdir}/dconf/db/ibus ] && \
-@@ -445,17 +439,13 @@ fi
+@@ -414,17 +408,13 @@ fi
  %posttrans
  dconf update || :
  
@@ -109,7 +105,7 @@ index a028cea..9df99ce 100644
  
  
  %ldconfig_scriptlets libs
-@@ -478,7 +468,6 @@ dconf update || :
+@@ -447,7 +437,6 @@ dconf update || :
  %{_datadir}/ibus/dicts
  %dir %{_datadir}/ibus/engine
  %{_datadir}/ibus/keymaps
@@ -117,7 +113,7 @@ index a028cea..9df99ce 100644
  %{_datadir}/man/man1/ibus.1.gz
  %{_datadir}/man/man1/ibus-daemon.1.gz
  %{_datadir}/man/man7/ibus-emoji.7.gz
-@@ -497,10 +486,10 @@ dconf update || :
+@@ -466,10 +455,10 @@ dconf update || :
  %dir %{_prefix}/lib/systemd/user/gnome-session.target.wants
  %{_prefix}/lib/systemd/user/gnome-session.target.wants/*.service
  %{_prefix}/lib/systemd/user/org.freedesktop.IBus.session.*.service
@@ -131,9 +127,9 @@ index a028cea..9df99ce 100644
  
  %files -n python3-ibus
  %{python3_sitearch}/gi/overrides/__pycache__/*.py*
-@@ -525,12 +514,11 @@ dconf update || :
+@@ -492,12 +481,11 @@ dconf update || :
+ %dir %{_libdir}/gtk-4.0/%{gtk4_binary_version}/immodules
  %{_libdir}/gtk-4.0/%{gtk4_binary_version}/immodules/libim-ibus.so
- %endif
  
 -# The setup package won't include icon files so that
 -# gtk-update-icon-cache is executed in the main package only one time.

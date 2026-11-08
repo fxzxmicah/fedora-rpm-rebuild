@@ -1,8 +1,8 @@
 diff --git OLD/selinux-policy.spec NEW/selinux-policy.spec
-index 9344da2..d339d46 100644
+index 29525fb..72b441e 100644
 --- OLD/selinux-policy.spec
 +++ NEW/selinux-policy.spec
-@@ -59,6 +59,7 @@ BuildRequires: groff
+@@ -66,6 +66,7 @@ BuildRequires: groff
  Requires(pre): policycoreutils >= %{POLICYCOREUTILSVER}
  Requires(pre): /usr/bin/sha512sum
  Requires(meta): (rpm-plugin-selinux if rpm-libs)
@@ -10,7 +10,7 @@ index 9344da2..d339d46 100644
  Requires: selinux-policy-any = %{version}-%{release}
  Provides: selinux-policy-base = %{version}-%{release}
  Provides: selinux-policy-stable = %{STABLEVER}
-@@ -73,18 +74,12 @@ the policy has been adjusted to provide support for Fedora.
+@@ -80,18 +81,12 @@ the policy has been adjusted to provide support for Fedora.
  %{!?_licensedir:%global license %%doc}
  %license COPYING
  %dir %{_datadir}/selinux
@@ -29,7 +29,7 @@ index 9344da2..d339d46 100644
  %{_unitdir}/selinux-check-proper-disable.service
  %{_libexecdir}/selinux/binsbin-convert.sh
  %{_libexecdir}/selinux/varrun-convert.sh
-@@ -157,6 +152,17 @@ and some additional files.
+@@ -164,6 +159,17 @@ and some additional files.
  selinuxenabled && sepolgen-ifgen 2>/dev/null
  exit 0
  
@@ -47,7 +47,7 @@ index 9344da2..d339d46 100644
  %package doc
  Summary: SELinux policy documentation
  Requires(pre): selinux-policy = %{version}-%{release}
-@@ -724,6 +730,7 @@ exit 0
+@@ -734,6 +740,7 @@ exit 0
  %config(noreplace) %{_sysconfdir}/selinux/minimum/contexts/users/unconfined_u
  %config(noreplace) %{_sysconfdir}/selinux/minimum/contexts/users/sysadm_u
  %fileList minimum
@@ -55,7 +55,7 @@ index 9344da2..d339d46 100644
  %{_datadir}/selinux/minimum/modules-enabled.lst
  %endif
  
-@@ -781,6 +788,7 @@ exit 0
+@@ -791,6 +798,7 @@ exit 0
  %config(noreplace) %{_sysconfdir}/dnf/protected.d/selinux-policy-mls.conf
  %config(noreplace) %{_sysconfdir}/selinux/mls/contexts/users/unconfined_u
  %fileList mls

@@ -1,5 +1,5 @@
 diff --git OLD/setup.spec NEW/setup.spec
-index ceee55e..0b82c35 100644
+index 8bb50b9..32d3789 100644
 --- OLD/setup.spec
 +++ NEW/setup.spec
 @@ -41,10 +41,19 @@ BuildRequires: systemd-rpm-macros

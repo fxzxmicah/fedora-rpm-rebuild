@@ -1,14 +1,14 @@
 diff --git OLD/exiv2.spec NEW/exiv2.spec
-index 86a15a6..b5b3884 100644
+index 71a5b8d..49e693b 100644
 --- OLD/exiv2.spec
 +++ NEW/exiv2.spec
 @@ -1,3 +1,5 @@
 +%bcond_with inih
 +
  Name:           exiv2
- Version:        0.28.6
+ Version:        0.28.9
  Release:        %autorelease
-@@ -30,7 +32,9 @@ BuildRequires:  gcc-c++
+@@ -25,7 +27,9 @@ BuildRequires:  gcc-c++
  BuildRequires:  gettext
  BuildRequires:  pkgconfig
  BuildRequires:  pkgconfig(expat)
@@ -18,7 +18,7 @@ index 86a15a6..b5b3884 100644
  BuildRequires:  pkgconfig(libbrotlidec)
  BuildRequires:  pkgconfig(zlib)
  # docs
-@@ -106,7 +110,13 @@ API documentation for %{name}.
+@@ -101,7 +105,13 @@ API documentation for %{name}.
    -DCMAKE_INSTALL_DOCDIR="%{_pkgdocdir}" \
    -DEXIV2_BUILD_DOC:BOOL=ON \
    -DEXIV2_BUILD_SAMPLES:BOOL=OFF \

@@ -1,13 +1,10 @@
 diff --git OLD/kbd.spec NEW/kbd.spec
-index fd9e681..d95bc31 100644
+index 3497939..3b81e21 100644
 --- OLD/kbd.spec
 +++ NEW/kbd.spec
-@@ -40,9 +40,9 @@ Patch8:         kbd-2.9.0-fix-setfont-segfault.patch
- 
- BuildRequires:  gcc, bison, flex, gettext, pam-devel, check-devel, automake
- BuildRequires:  console-setup, xkeyboard-config
--BuildRequires: make
-+BuildRequires:  make
+@@ -38,7 +38,7 @@ Patch7:         kbd-2.0.4-vlock-add-prompt-option.patch
+ BuildRequires:  gcc, bison, flex, gettext, pam-devel, check-devel, automake, make
+ BuildRequires:  console-setup, xkeyboard-config, libxkbcommon-devel
  Requires:       %{name}-misc = %{version}-%{release}
 -Requires:       %{name}-legacy = %{version}-%{release}
 +Recommends:     %{name}-legacy = %{version}-%{release}

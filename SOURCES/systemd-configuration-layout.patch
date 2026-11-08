@@ -1,0 +1,390 @@
+From ba71916e6a978338323ecb7b4cde5b28953e2abd Mon Sep 17 00:00:00 2001
+From: Fxzx micah <48860358+fxzxmicah@users.noreply.github.com>
+Date: Sun, 8 Nov 2026 14:48:22 +0800
+Subject: [PATCH] conf: separate component defaults and user configuration
+ paths
+
+Separate guest namespace links, machine and report runtime directories, virtual-console initialization, and host-global sysctls into component-owned files. Use the standard lib-based hierarchy for global user tmpfiles.
+---
+ man/systemd-tmpfiles.xml          |  4 +++-
+ man/tmpfiles.d.xml                |  7 +++---
+ meson.build                       |  2 +-
+ src/core/systemd.pc.in            |  2 +-
+ src/tmpfiles/tmpfiles.c           | 32 ++++++++++++++++-----------
+ sysctl.d/50-default-host.conf     | 33 ++++++++++++++++++++++++++++
+ sysctl.d/50-default.conf          | 27 +----------------------
+ sysctl.d/meson.build              |  1 +
+ tmpfiles.d/etc.conf.in            |  1 -
+ tmpfiles.d/meson.build            | 36 +++++++++++++++++--------------
+ tmpfiles.d/systemd-container.conf | 13 +++++++++++
+ tmpfiles.d/systemd-machined.conf  | 10 +++++++++
+ tmpfiles.d/systemd-nspawn.conf    |  5 -----
+ tmpfiles.d/systemd-report.conf    | 10 +++++++++
+ tmpfiles.d/systemd-vconsole.conf  | 10 +++++++++
+ tmpfiles.d/systemd.conf.in        |  2 --
+ 16 files changed, 126 insertions(+), 69 deletions(-)
+ create mode 100644 sysctl.d/50-default-host.conf
+ create mode 100644 tmpfiles.d/systemd-container.conf
+ create mode 100644 tmpfiles.d/systemd-machined.conf
+ create mode 100644 tmpfiles.d/systemd-report.conf
+ create mode 100644 tmpfiles.d/systemd-vconsole.conf
+
+diff --git a/man/systemd-tmpfiles.xml b/man/systemd-tmpfiles.xml
+index 4fd2760..659c50a 100644
+--- a/man/systemd-tmpfiles.xml
++++ b/man/systemd-tmpfiles.xml
+@@ -85,7 +85,9 @@
+     <filename>systemd-tmpfiles-clean.service</filename>) also invoke <command>systemd-tmpfiles</command>, but
+     it reads a separate set of files, which includes user-controlled files under
+     <filename>~/.config/user-tmpfiles.d/</filename> and <filename>~/.local/share/user-tmpfiles.d/</filename>,
+-    and administrator-controlled files under <filename>/usr/share/user-tmpfiles.d/</filename>. Users may use
++    and system-wide files under <filename>/etc/user-tmpfiles.d/</filename>,
++    <filename>/run/user-tmpfiles.d/</filename>, <filename>/usr/local/lib/user-tmpfiles.d/</filename>, and
++    <filename>/usr/lib/user-tmpfiles.d/</filename>. Users may use
+     this to create and clean up files under their control, but the system instance performs global cleanup
+     and is not influenced by user configuration. Note that this means a time-based cleanup configured in the
+     system instance, such as the one typically configured for <filename>/tmp/</filename>, will thus also
+diff --git a/man/tmpfiles.d.xml b/man/tmpfiles.d.xml
+index 5ebace1..9d80d01 100644
+--- a/man/tmpfiles.d.xml
++++ b/man/tmpfiles.d.xml
+@@ -36,9 +36,10 @@
+       <member><filename>~/.config/user-tmpfiles.d/*.conf</filename></member>
+       <member><filename>$XDG_RUNTIME_DIR/user-tmpfiles.d/*.conf</filename></member>
+       <member><filename>~/.local/share/user-tmpfiles.d/*.conf</filename></member>
+-      <member><filename index='false'>…</filename></member>
+-      <member><filename>/usr/local/share/user-tmpfiles.d/*.conf</filename></member>
+-      <member><filename>/usr/share/user-tmpfiles.d/*.conf</filename></member>
++      <member><filename>/etc/user-tmpfiles.d/*.conf</filename></member>
++      <member><filename>/run/user-tmpfiles.d/*.conf</filename></member>
++      <member><filename>/usr/local/lib/user-tmpfiles.d/*.conf</filename></member>
++      <member><filename>/usr/lib/user-tmpfiles.d/*.conf</filename></member>
+     </simplelist></para>
+ 
+     <programlisting>#Type Path                                     Mode User Group Age         Argument
+diff --git a/meson.build b/meson.build
+index a4d13f1..ed6f11a 100644
+--- a/meson.build
++++ b/meson.build
+@@ -161,7 +161,7 @@ pkgsysconfdir = sysconfdir / 'systemd'
+ userunitdir = libexecdir / 'user'
+ userpresetdir = libexecdir / 'user-preset'
+ tmpfilesdir = prefixdir / 'lib/tmpfiles.d'
+-usertmpfilesdir = prefixdir / 'share/user-tmpfiles.d'
++usertmpfilesdir = prefixdir / 'lib/user-tmpfiles.d'
+ sysusersdir = prefixdir / 'lib/sysusers.d'
+ sysctldir = prefixdir / 'lib/sysctl.d'
+ binfmtdir = prefixdir / 'lib/binfmt.d'
+diff --git a/src/core/systemd.pc.in b/src/core/systemd.pc.in
+index 862d57d..9cc9185 100644
+--- a/src/core/systemd.pc.in
++++ b/src/core/systemd.pc.in
+@@ -73,7 +73,7 @@ systemdshutdowndir=${systemd_shutdown_dir}
+ tmpfiles_dir=${prefix}/lib/tmpfiles.d
+ tmpfilesdir=${tmpfiles_dir}
+ 
+-user_tmpfiles_dir=${prefix}/share/user-tmpfiles.d
++user_tmpfiles_dir=${prefix}/lib/user-tmpfiles.d
+ 
+ sysusers_dir=${prefix}/lib/sysusers.d
+ sysusersdir=${sysusers_dir}
+diff --git a/src/tmpfiles/tmpfiles.c b/src/tmpfiles/tmpfiles.c
+index 8924950..4821171 100644
+--- a/src/tmpfiles/tmpfiles.c
++++ b/src/tmpfiles/tmpfiles.c
+@@ -373,26 +373,32 @@ static int log_unresolvable_specifier(const char *filename, unsigned line) {
+                  __VA_ARGS__)
+ 
+ static int user_config_paths(char ***ret) {
+-        _cleanup_strv_free_ char **config_dirs = NULL, **data_dirs = NULL;
+-        _cleanup_free_ char *runtime_config = NULL;
++        static const uint64_t user_dirs[] = {
++                SD_PATH_USER_CONFIGURATION,
++                SD_PATH_USER_RUNTIME,
++                SD_PATH_USER_SHARED,
++        };
++        _cleanup_strv_free_ char **config_dirs = NULL;
+         int r;
+ 
+         assert(ret);
+ 
+-        /* Combined user-specific and global dirs */
+-        r = user_search_dirs("/user-tmpfiles.d", &config_dirs, &data_dirs);
+-        if (r < 0)
+-                return r;
++        FOREACH_ELEMENT(type, user_dirs) {
++                _cleanup_free_ char *path = NULL;
+ 
+-        r = xdg_user_runtime_dir("/user-tmpfiles.d", &runtime_config);
+-        if (r < 0 && !ERRNO_IS_NEG_NOINFO(r))
+-                return r;
++                r = sd_path_lookup(*type, "user-tmpfiles.d", &path);
++                if (r < 0) {
++                        if (ERRNO_IS_NEG_NOINFO(r))
++                                continue;
++                        return r;
++                }
+ 
+-        r = strv_consume(&config_dirs, TAKE_PTR(runtime_config));
+-        if (r < 0)
+-                return r;
++                r = strv_consume(&config_dirs, TAKE_PTR(path));
++                if (r < 0)
++                        return r;
++        }
+ 
+-        r = strv_extend_strv_consume(&config_dirs, TAKE_PTR(data_dirs), /* filter_duplicates= */ true);
++        r = strv_extend(&config_dirs, CONF_PATHS("user-tmpfiles.d"));
+         if (r < 0)
+                 return r;
+ 
+diff --git a/sysctl.d/50-default-host.conf b/sysctl.d/50-default-host.conf
+new file mode 100644
+index 0000000..6349d66
+--- /dev/null
++++ b/sysctl.d/50-default-host.conf
+@@ -0,0 +1,33 @@
++#  This file is part of systemd.
++#
++#  systemd is free software; you can redistribute it and/or modify it
++#  under the terms of the GNU Lesser General Public License as published by
++#  the Free Software Foundation; either version 2.1 of the License, or
++#  (at your option) any later version.
++
++# See sysctl.d(5) and core(5) for documentation.
++
++# To override settings in this file, create a local file in /etc
++# (e.g. /etc/sysctl.d/90-override.conf), and put any assignments
++# there.
++
++# System Request functionality of the kernel (SYNC)
++#
++# Use kernel.sysrq = 1 to allow all keys.
++# See https://docs.kernel.org/admin-guide/sysrq.html for a list
++# of values and keys.
++kernel.sysrq = 16
++
++# Append the PID to the core filename
++kernel.core_uses_pid = 1
++
++# Fair Queue CoDel packet scheduler to fight bufferbloat
++-net.core.default_qdisc = fq_codel
++
++# Enable hard and soft link protection
++fs.protected_hardlinks = 1
++fs.protected_symlinks = 1
++
++# Enable regular file and FIFO protection
++fs.protected_regular = 1
++fs.protected_fifos = 1
+diff --git a/sysctl.d/50-default.conf b/sysctl.d/50-default.conf
+index 69de91a..daae2c6 100644
+--- a/sysctl.d/50-default.conf
++++ b/sysctl.d/50-default.conf
+@@ -5,21 +5,7 @@
+ #  the Free Software Foundation; either version 2.1 of the License, or
+ #  (at your option) any later version.
+ 
+-# See sysctl.d(5) and core(5) for documentation.
+-
+-# To override settings in this file, create a local file in /etc
+-# (e.g. /etc/sysctl.d/90-override.conf), and put any assignments
+-# there.
+-
+-# System Request functionality of the kernel (SYNC)
+-#
+-# Use kernel.sysrq = 1 to allow all keys.
+-# See https://docs.kernel.org/admin-guide/sysrq.html for a list
+-# of values and keys.
+-kernel.sysrq = 16
+-
+-# Append the PID to the core filename
+-kernel.core_uses_pid = 1
++# See sysctl.d(5) for documentation.
+ 
+ # Source route verification
+ net.ipv4.conf.default.rp_filter = 2
+@@ -43,14 +29,3 @@ net.ipv4.conf.*.promote_secondaries = 1
+ # That's not so bad because values between 2^31 and 2^32-1 are reserved on
+ # systemd-based systems anyway: https://systemd.io/UIDS-GIDS#summary
+ -net.ipv4.ping_group_range = 0 2147483647
+-
+-# Fair Queue CoDel packet scheduler to fight bufferbloat
+--net.core.default_qdisc = fq_codel
+-
+-# Enable hard and soft link protection
+-fs.protected_hardlinks = 1
+-fs.protected_symlinks = 1
+-
+-# Enable regular file and FIFO protection
+-fs.protected_regular = 1
+-fs.protected_fifos = 1
+diff --git a/sysctl.d/meson.build b/sysctl.d/meson.build
+index 10cbd55..90856c1 100644
+--- a/sysctl.d/meson.build
++++ b/sysctl.d/meson.build
+@@ -3,6 +3,7 @@
+ install_data(
+         'README',
+         '50-default.conf',
++        '50-default-host.conf',
+         install_dir : sysctldir)
+ 
+ # Kernel determines PID_MAX_LIMIT by
+diff --git a/tmpfiles.d/etc.conf.in b/tmpfiles.d/etc.conf.in
+index 9c1ed67..c9c2dd1 100644
+--- a/tmpfiles.d/etc.conf.in
++++ b/tmpfiles.d/etc.conf.in
+@@ -14,7 +14,6 @@ t /etc/mtab - - - - security.SMACK64=_
+ {% endif %}
+ C! /etc/locale.conf - - - -
+ C! /etc/nsswitch.conf - - - -
+-C! /etc/vconsole.conf - - - -
+ {% if HAVE_PAM %}
+ C! /etc/pam.d - - - -
+ {% endif %}
+diff --git a/tmpfiles.d/meson.build b/tmpfiles.d/meson.build
+index 83839dd..dd1d959 100644
+--- a/tmpfiles.d/meson.build
++++ b/tmpfiles.d/meson.build
+@@ -4,22 +4,26 @@ if conf.get('ENABLE_TMPFILES') != 1
+         subdir_done()
+ endif
+ 
+-files = [['README'                                  ],
+-         ['home.conf'                               ],
+-         ['root.conf'                               ],
+-         ['journal-nocow.conf'                      ],
+-         ['portables.conf',       'ENABLE_PORTABLED'],
+-         ['systemd-network.conf', 'ENABLE_NETWORKD' ],
+-         ['systemd-nologin.conf', 'HAVE_PAM'        ],
+-         ['systemd-nspawn.conf',  'ENABLE_MACHINED' ],
+-         ['systemd-pstore.conf',  'ENABLE_PSTORE'   ],
+-         ['systemd-resolve.conf', 'ENABLE_RESOLVE'  ],
+-         ['20-systemd-varlink.conf'                 ],
+-         ['systemd-tmp.conf'                        ],
+-         ['tmp.conf'                                ],
+-         ['x11.conf'                                ],
+-         ['provision.conf'                          ],
+-         ['credstore.conf'                          ],
++files = [['README'                                   ],
++         ['home.conf'                                ],
++         ['root.conf'                                ],
++         ['journal-nocow.conf'                       ],
++         ['portables.conf',        'ENABLE_PORTABLED'],
++         ['systemd-network.conf',  'ENABLE_NETWORKD' ],
++         ['systemd-nologin.conf',  'HAVE_PAM'        ],
++         ['systemd-nspawn.conf',   'ENABLE_MACHINED' ],
++         ['systemd-machined.conf', 'ENABLE_MACHINED' ],
++         ['systemd-container.conf'                  ],
++         ['systemd-pstore.conf',   'ENABLE_PSTORE'   ],
++         ['systemd-report.conf'                     ],
++         ['systemd-resolve.conf',  'ENABLE_RESOLVE'  ],
++         ['systemd-vconsole.conf'                   ],
++         ['20-systemd-varlink.conf'                  ],
++         ['systemd-tmp.conf'                         ],
++         ['tmp.conf'                                 ],
++         ['x11.conf'                                 ],
++         ['provision.conf'                           ],
++         ['credstore.conf'                           ],
+         ]
+ 
+ foreach f : files
+diff --git a/tmpfiles.d/systemd-container.conf b/tmpfiles.d/systemd-container.conf
+new file mode 100644
+index 0000000..cf216f2
+--- /dev/null
++++ b/tmpfiles.d/systemd-container.conf
+@@ -0,0 +1,13 @@
++#  This file is part of systemd.
++#
++#  systemd is free software; you can redistribute it and/or modify it
++#  under the terms of the GNU Lesser General Public License as published by
++#  the Free Software Foundation; either version 2.1 of the License, or
++#  (at your option) any later version.
++
++# See tmpfiles.d(5) for details.
++
++# If the nsresourced/mountfsd sockets are mounted into /run/host, symlink them to their canonical
++# location in /run/systemd.
++L? /run/systemd/io.systemd.NamespaceResource - - - - /run/host/io.systemd.NamespaceResource
++L? /run/systemd/io.systemd.MountFileSystem   - - - - /run/host/io.systemd.MountFileSystem
+diff --git a/tmpfiles.d/systemd-machined.conf b/tmpfiles.d/systemd-machined.conf
+new file mode 100644
+index 0000000..687eaeb
+--- /dev/null
++++ b/tmpfiles.d/systemd-machined.conf
+@@ -0,0 +1,10 @@
++#  This file is part of systemd.
++#
++#  systemd is free software; you can redistribute it and/or modify it
++#  under the terms of the GNU Lesser General Public License as published by
++#  the Free Software Foundation; either version 2.1 of the License, or
++#  (at your option) any later version.
++
++# See tmpfiles.d(5) for details.
++
++d /run/systemd/machines 0755 root root -
+diff --git a/tmpfiles.d/systemd-nspawn.conf b/tmpfiles.d/systemd-nspawn.conf
+index 8254650..40e6787 100644
+--- a/tmpfiles.d/systemd-nspawn.conf
++++ b/tmpfiles.d/systemd-nspawn.conf
+@@ -21,8 +21,3 @@ Q /var/lib/machines 0700 - - -
+ 
+ R! /var/lib/machines/.#*
+ R! /.#machine.*
+-
+-# If the nsresourced/mountfsd sockets are mounted into /run/host, symlink them to their canonical
+-# location in /run/systemd.
+-L? /run/systemd/io.systemd.NamespaceResource - - - - /run/host/io.systemd.NamespaceResource
+-L? /run/systemd/io.systemd.MountFileSystem   - - - - /run/host/io.systemd.MountFileSystem
+diff --git a/tmpfiles.d/systemd-report.conf b/tmpfiles.d/systemd-report.conf
+new file mode 100644
+index 0000000..84c8a86
+--- /dev/null
++++ b/tmpfiles.d/systemd-report.conf
+@@ -0,0 +1,10 @@
++#  This file is part of systemd.
++#
++#  systemd is free software; you can redistribute it and/or modify it
++#  under the terms of the GNU Lesser General Public License as published by
++#  the Free Software Foundation; either version 2.1 of the License, or
++#  (at your option) any later version.
++
++# See tmpfiles.d(5) for details.
++
++d /run/systemd/report.sign 0700 root root -
+diff --git a/tmpfiles.d/systemd-vconsole.conf b/tmpfiles.d/systemd-vconsole.conf
+new file mode 100644
+index 0000000..e3ac00e
+--- /dev/null
++++ b/tmpfiles.d/systemd-vconsole.conf
+@@ -0,0 +1,10 @@
++#  This file is part of systemd.
++#
++#  systemd is free software; you can redistribute it and/or modify it
++#  under the terms of the GNU Lesser General Public License as published by
++#  the Free Software Foundation; either version 2.1 of the License, or
++#  (at your option) any later version.
++
++# See tmpfiles.d(5) for details.
++
++C! /etc/vconsole.conf - - - -
+diff --git a/tmpfiles.d/systemd.conf.in b/tmpfiles.d/systemd.conf.in
+index 786b86d..e8c9f72 100644
+--- a/tmpfiles.d/systemd.conf.in
++++ b/tmpfiles.d/systemd.conf.in
+@@ -16,10 +16,8 @@ d /run/systemd/ask-password 0755 root root -
+ d$ /run/systemd/seats 0755 root root -
+ d$ /run/systemd/sessions 0755 root root -
+ d$ /run/systemd/users 0755 root root -
+-d /run/systemd/machines 0755 root root -
+ d$ /run/systemd/shutdown 0755 root root -
+ d /run/systemd/dissect-root 0000 root root -
+-d /run/systemd/report.sign 0700 root root -
+ 
+ d /run/log 0755 root root -
+ 
+-- 
+2.54.0
+

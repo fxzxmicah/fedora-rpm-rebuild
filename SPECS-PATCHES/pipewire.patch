@@ -1,5 +1,5 @@
 diff --git OLD/pipewire.spec NEW/pipewire.spec
-index a30a407..684bd5d 100644
+index a5103e9..5dcbda8 100644
 --- OLD/pipewire.spec
 +++ NEW/pipewire.spec
 @@ -24,6 +24,7 @@
@@ -249,5 +249,5 @@ index a30a407..684bd5d 100644
 -%{_datadir}/pipewire/pipewire.conf.d/50-raop.conf
 -
  %changelog
- * Wed Apr 22 2026 Wim Taymans <wtaymans@redhat.com> - 1.6.4-1
- - Update version to 1.6.4
+ * Thu Oct 29 2026 Wim Taymans <wtaymans@redhat.com> - 1.6.11-1
+ - Update version to 1.6.11

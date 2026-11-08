@@ -1,10 +1,10 @@
 diff --git OLD/switcheroo-control.spec NEW/switcheroo-control.spec
-index 8590a41..f6e2a37 100644
+index afc5c66..aca593f 100644
 --- OLD/switcheroo-control.spec
 +++ NEW/switcheroo-control.spec
 @@ -8,6 +8,9 @@ URL:            https://gitlab.freedesktop.org/hadess/switcheroo-control/
  # URL from https://gitlab.freedesktop.org/hadess/switcheroo-control/-/releases
- Source0:        https://gitlab.freedesktop.org/hadess/switcheroo-control/-/releases/3.0/downloads/switcheroo-control-3.0.tar.xz
+ Source0:        https://gitlab.freedesktop.org/hadess/%{name}/-/releases/%{version}/downloads/%{name}-%{version}.tar.xz
  
 +# Replace switcherooctl with a native executable
 +Patch0:         switcheroo-control-native-switcherooctl.patch

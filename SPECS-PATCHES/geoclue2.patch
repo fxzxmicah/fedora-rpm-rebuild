@@ -1,5 +1,5 @@
 diff --git OLD/geoclue2.spec NEW/geoclue2.spec
-index d7fb128..c91d0b5 100644
+index 5edcbd0..bbe0ba8 100644
 --- OLD/geoclue2.spec
 +++ NEW/geoclue2.spec
 @@ -75,6 +75,7 @@ The %{name}-demos package contains demo applications that use %{name}.
@@ -10,7 +10,7 @@ index d7fb128..c91d0b5 100644
         -Ddbus-srv-user=geoclue \
         %{nil}
  
-@@ -108,18 +109,13 @@ exit 0
+@@ -110,18 +111,13 @@ exit 0
  %license COPYING
  %doc NEWS
  %config %{_sysconfdir}/geoclue/
@@ -29,7 +29,7 @@ index d7fb128..c91d0b5 100644
  %{_sysusersdir}/geoclue-sysusers.conf
  %attr(755,geoclue,geoclue) %dir /var/lib/geoclue
  
-@@ -146,7 +142,12 @@ exit 0
+@@ -148,7 +144,12 @@ exit 0
  %{_libdir}/libgeoclue-2.so
  
  %files demos

@@ -1,8 +1,8 @@
 diff --git OLD/gvfs.spec NEW/gvfs.spec
-index 39d05d2..2fc0226 100644
+index 732be03..aa67f33 100644
 --- OLD/gvfs.spec
 +++ NEW/gvfs.spec
-@@ -19,6 +19,9 @@
+@@ -18,6 +18,9 @@
  %global talloc_version 1.3.0
  %global udisks2_version 1.97
  
@@ -10,9 +10,9 @@ index 39d05d2..2fc0226 100644
 +%bcond bluray 0
 +
  Name:    gvfs
- Version: 1.60.0
+ Version: 1.62.0
  Release: %autorelease
-@@ -35,20 +38,23 @@ BuildRequires: pkgconfig(glib-2.0) >= %{glib2_version}
+@@ -40,20 +43,23 @@ BuildRequires: pkgconfig(glib-2.0) >= %{glib2_version}
  BuildRequires: pkgconfig(dbus-1)
  BuildRequires: pkgconfig(gcr-4)
  BuildRequires: pkgconfig(gsettings-desktop-schemas) >= %{gsettings_desktop_schemas_version}
@@ -34,10 +34,10 @@ index 39d05d2..2fc0226 100644
  BuildRequires: pkgconfig(libbluray)
  %endif
 +%endif
- BuildRequires: systemd-devel >= %{systemd_version}
- BuildRequires: pkgconfig(libxslt)
- BuildRequires: docbook-style-xsl
-@@ -59,8 +65,8 @@ Requires: %{name}-client%{?_isa} = %{version}-%{release}
+ %if ! (0%{?rhel} >= 9)
+ BuildRequires: libgcrypt-devel >= %{libgcrypt_version}
+ %endif
+@@ -68,8 +74,8 @@ Requires: gcr
  Requires: glib2%{?_isa} >= %{glib2_version}
  Requires: gsettings-desktop-schemas >= %{gsettings_desktop_schemas_version}
  Requires: polkit
@@ -48,7 +48,7 @@ index 39d05d2..2fc0226 100644
  
  Obsoletes: gnome-mount <= 0.8
  Obsoletes: gnome-mount-nautilus-properties <= 0.8
-@@ -74,7 +80,7 @@ Obsoletes: gvfs-mtp < 1.55.1-4
+@@ -85,7 +91,7 @@ Obsoletes: gvfs-mtp < 1.55.1-4
  
  %description
  The gvfs package provides backend implementations for the gio
@@ -57,7 +57,7 @@ index 39d05d2..2fc0226 100644
  
  
  %package client
-@@ -86,6 +92,59 @@ The gvfs package provides client modules of backend implementations for the gio
+@@ -97,6 +103,59 @@ The gvfs package provides client modules of backend implementations for the gio
  framework in GLib.
  
  
@@ -117,7 +117,7 @@ index 39d05d2..2fc0226 100644
  %package fuse
  Summary: FUSE support for gvfs
  Requires: %{name}%{?_isa} = %{version}-%{release}
-@@ -102,6 +161,7 @@ to access the gvfs filesystems.
+@@ -113,6 +172,7 @@ to access the gvfs filesystems.
  Summary: Windows fileshare support for gvfs
  Requires: %{name}%{?_isa} = %{version}-%{release}
  Requires: %{name}-client%{?_isa} = %{version}-%{release}
@@ -125,7 +125,15 @@ index 39d05d2..2fc0226 100644
  BuildRequires: libsmbclient-devel >= %{libsmbclient_version}
  BuildRequires: pkgconfig(talloc) >= %{talloc_version}
  
-@@ -235,6 +295,16 @@ file services.
+@@ -198,7 +258,6 @@ file services.
+ %build
+ %meson \
+        -Dman=true \
+-       -Dsystemd_ssh_agent_unit=gcr-ssh-agent.socket \
+ %ifarch s390 s390x
+        -Dafc=false \
+        -Dgphoto2=false \
+@@ -216,6 +275,16 @@ file services.
  %endif
  %if 0%{?rhel} >= 10
         -Dcdda=false \
@@ -142,7 +150,7 @@ index 39d05d2..2fc0226 100644
  %endif
          %{nil}
  %meson_build
-@@ -252,6 +322,16 @@ cp -p daemon/trashlib/COPYING COPYING.GPL3
+@@ -233,6 +302,16 @@ cp -p daemon/trashlib/COPYING COPYING.GPL3
  killall -USR1 gvfsd >&/dev/null || :
  
  # Reload .mount files when single subpackage is installed:
@@ -159,7 +167,7 @@ index 39d05d2..2fc0226 100644
  %post smb
  killall -USR1 gvfsd >&/dev/null || :
  %ifnarch s390 s390x
-@@ -287,56 +367,34 @@ killall -USR1 gvfsd >&/dev/null || :
+@@ -260,56 +339,34 @@ killall -USR1 gvfsd >&/dev/null || :
  %dir %{_datadir}/gvfs
  %dir %{_datadir}/gvfs/mounts
  %{_datadir}/gvfs/mounts/admin.mount
@@ -221,7 +229,7 @@ index 39d05d2..2fc0226 100644
  
  %files client -f gvfs.lang
  %license COPYING COPYING.GPL3
-@@ -347,6 +405,44 @@ killall -USR1 gvfsd >&/dev/null || :
+@@ -320,6 +377,44 @@ killall -USR1 gvfsd >&/dev/null || :
  %{_libdir}/gio/modules/libgvfsdbus.so
  %{_mandir}/man7/gvfs.7*
  
@@ -266,7 +274,7 @@ index 39d05d2..2fc0226 100644
  %files fuse
  %{_libexecdir}/gvfsd-fuse
  %{_mandir}/man1/gvfsd-fuse.1*
-@@ -357,6 +453,8 @@ killall -USR1 gvfsd >&/dev/null || :
+@@ -330,6 +425,8 @@ killall -USR1 gvfsd >&/dev/null || :
  %{_libexecdir}/gvfsd-smb-browse
  %{_datadir}/gvfs/mounts/smb-browse.mount
  %{_datadir}/gvfs/mounts/smb.mount
@@ -274,4 +282,4 @@ index 39d05d2..2fc0226 100644
 +%{_datadir}/glib-2.0/schemas/org.gnome.system.smb.gschema.xml
  
  
- %if ! (0%{?rhel} >= 9)
+ %ifnarch s390 s390x

@@ -1,16 +1,16 @@
 diff --git OLD/wpa_supplicant.spec NEW/wpa_supplicant.spec
-index 243440c..927118b 100644
+index 454d686..721fe27 100644
 --- OLD/wpa_supplicant.spec
 +++ NEW/wpa_supplicant.spec
-@@ -67,7 +67,6 @@ BuildRequires: gcc
- %if 0%{?fedora} >= 41
+@@ -69,7 +69,6 @@ BuildRequires: gcc
+ %if 0%{?fedora} >= 41 && 0%{?fedora} < 45
  BuildRequires: openssl-devel-engine
  %endif
 -Requires(post): systemd-sysv
  Requires(post): systemd
  Requires(preun): systemd
  Requires(postun): systemd
-@@ -100,6 +99,12 @@ Graphical User Interface for wpa_supplicant written using QT
+@@ -102,6 +101,12 @@ Graphical User Interface for wpa_supplicant written using QT
  %endif
  
  
@@ -23,7 +23,7 @@ index 243440c..927118b 100644
  %prep
  %autosetup -p1 -n %{name}-%{version}
  
-@@ -160,10 +165,13 @@ install -d %{buildroot}%{_mandir}/man{5,8}
+@@ -162,10 +167,13 @@ install -d %{buildroot}%{_mandir}/man{5,8}
  install -m 0644 wpa_supplicant/doc/docbook/*.8 %{buildroot}%{_mandir}/man8
  install -m 0644 wpa_supplicant/doc/docbook/*.5 %{buildroot}%{_mandir}/man5
  
@@ -39,7 +39,7 @@ index 243440c..927118b 100644
  
  
  %post
-@@ -173,16 +181,6 @@ chmod -R 0644 wpa_supplicant/examples/*.py
+@@ -175,16 +183,6 @@ chmod -R 0644 wpa_supplicant/examples/*.py
  %preun
  %systemd_preun wpa_supplicant.service
  
@@ -56,7 +56,7 @@ index 243440c..927118b 100644
  
  %files
  %config(noreplace) %{_sysconfdir}/wpa_supplicant/wpa_supplicant.conf
-@@ -208,8 +206,6 @@ chmod -R 0644 wpa_supplicant/examples/*.py
+@@ -210,8 +208,6 @@ chmod -R 0644 wpa_supplicant/examples/*.py
  %doc wpa_supplicant/ChangeLog
  %doc wpa_supplicant/eap_testing.txt
  %doc wpa_supplicant/todo.txt
@@ -65,7 +65,7 @@ index 243440c..927118b 100644
  %license COPYING
  
  
-@@ -220,6 +216,11 @@ chmod -R 0644 wpa_supplicant/examples/*.py
+@@ -222,6 +218,11 @@ chmod -R 0644 wpa_supplicant/examples/*.py
  %endif
  
  
@@ -75,5 +75,5 @@ index 243440c..927118b 100644
 +
 +
  %changelog
- * Thu Feb 12 2026 Beniamino Galvani <bgalvani@redhat.com> - 1:2.11-10
- - Fix loading multiple certificates from the ca_cert blob (#2439303)
+ * Fri Jul 17 2026 Fedora Release Engineering <releng@fedoraproject.org> - 1:2.11-13
+ - Rebuilt for https://fedoraproject.org/wiki/Fedora_45_Mass_Rebuild

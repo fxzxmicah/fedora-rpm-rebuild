@@ -1,5 +1,5 @@
 diff --git OLD/wireplumber.spec NEW/wireplumber.spec
-index 6cbc47e..44ded3d 100644
+index beb9730..5899435 100644
 --- OLD/wireplumber.spec
 +++ NEW/wireplumber.spec
 @@ -13,6 +13,9 @@ Source0:    https://gitlab.freedesktop.org/pipewire/%{name}/-/archive/%{version}

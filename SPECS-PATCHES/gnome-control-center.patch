@@ -1,10 +1,10 @@
 diff --git OLD/gnome-control-center.spec NEW/gnome-control-center.spec
-index dfebc4a..8fab447 100644
+index d87aa37..58c329d 100644
 --- OLD/gnome-control-center.spec
 +++ NEW/gnome-control-center.spec
-@@ -13,8 +13,12 @@
- 
- %global tarball_version %%(echo %{version} | tr '~' '.')
+@@ -11,8 +11,12 @@
+ %global libadwaita_version 1.8~alpha
+ %global nm_version 1.52.0
  
 -# Disable parental control for RHEL builds
 -%bcond malcontent %[!0%{?rhel}]
@@ -16,18 +16,18 @@ index dfebc4a..8fab447 100644
 +%bcond libwacom 0
  
  Name:           gnome-control-center
- Version:        50.1
-@@ -25,6 +29,10 @@ License:        GPL-2.0-or-later AND CC0-1.0
+ Version:        51.1
+@@ -23,6 +27,10 @@ License:        GPL-2.0-or-later AND CC0-1.0
  URL:            https://gitlab.gnome.org/GNOME/gnome-control-center/
- Source0:        https://download.gnome.org/sources/%{name}/50/%{name}-%{tarball_version}.tar.xz
+ Source0:        https://download.gnome.org/sources/%{name}/%{gnome_major_version}/%{name}-%{gnome_tarball_version}.tar.xz
  
 +# Downstream optional feature and service visibility patches
 +Patch0:         gnome-control-center-make-libwacom-samba-optional.patch
 +Patch1:         gnome-control-center-hide-unavailable-service-entries.patch
 +
+ %gnome_check_version
+ 
  BuildRequires:  blueprint-compiler >= %{blueprint_compiler_version}
- BuildRequires:  desktop-file-utils
- BuildRequires:  docbook-style-xsl libxslt
 @@ -63,7 +71,9 @@ BuildRequires:  pkgconfig(malcontent-0)
  BuildRequires:  pkgconfig(mm-glib)
  BuildRequires:  pkgconfig(polkit-gobject-1)
@@ -49,7 +49,7 @@ index dfebc4a..8fab447 100644
  
  # Versioned library deps
  Requires: libadwaita%{?_isa} >= %{libadwaita_version}
-@@ -122,10 +134,8 @@ Requires: /usr/bin/tecla
+@@ -120,10 +132,8 @@ Requires: /usr/bin/tecla
  %if 0%{?fedora} >= 35 || 0%{?rhel} >= 9
  # For the power panel
  Recommends: ppd-service
@@ -61,7 +61,7 @@ index dfebc4a..8fab447 100644
  %endif
  %endif
  
-@@ -155,6 +165,13 @@ for applications. This package contains directories where applications
+@@ -153,6 +163,13 @@ for applications. This package contains directories where applications
  can install configuration files that are picked up by the control-center
  utilities.
  
@@ -73,9 +73,9 @@ index dfebc4a..8fab447 100644
 +This package contains development files for the GNOME Control Center.
 +
  %prep
- %autosetup -p1 -n %{name}-%{tarball_version}
+ %autosetup -p1 -n %{name}-%{gnome_tarball_version}
  
-@@ -174,6 +191,16 @@ utilities.
+@@ -172,6 +189,16 @@ utilities.
    -Dmalcontent=true \
  %else
    -Dmalcontent=false \
@@ -92,7 +92,7 @@ index dfebc4a..8fab447 100644
  %endif
    %{nil}
  %meson_build
-@@ -210,7 +237,6 @@ rm -rf $RPM_BUILD_ROOT%{_datadir}/gnome/cursor-fonts
+@@ -208,7 +235,6 @@ rm -rf $RPM_BUILD_ROOT%{_datadir}/gnome/cursor-fonts
  %{_mandir}/man1/gnome-control-center.1*
  %{_metainfodir}/org.gnome.Settings.metainfo.xml
  %{_datadir}/pixmaps/faces
@@ -100,7 +100,7 @@ index dfebc4a..8fab447 100644
  %{_datadir}/polkit-1/actions/org.gnome.controlcenter.*.policy
  %{_datadir}/polkit-1/rules.d/gnome-control-center.rules
  %{_datadir}/sounds/gnome/default/*/*.ogg
-@@ -223,5 +249,8 @@ rm -rf $RPM_BUILD_ROOT%{_datadir}/gnome/cursor-fonts
+@@ -221,5 +247,8 @@ rm -rf $RPM_BUILD_ROOT%{_datadir}/gnome/cursor-fonts
  %dir %{_datadir}/gnome-control-center/keybindings
  %dir %{_datadir}/gnome/wm-properties
  

@@ -1,0 +1,30 @@
+diff --git OLD/fedora-repos.spec NEW/fedora-repos.spec
+index f9d72cd..c49e5f5 100644
+--- OLD/fedora-repos.spec
++++ NEW/fedora-repos.spec
+@@ -198,7 +198,6 @@ install -d -m 755 %{buildroot}%{_datadir}/ima/
+ install -m 644 %{_sourcedir}/fedora-ima-ca.der %{buildroot}%{_datadir}/ima/ca.der
+ 
+ # Install repo files
+-install -d -m 755 %{buildroot}/etc/yum.repos.d
+ install -d -m 755 %{buildroot}%{_datadir}/dnf5/repos.d
+ for file in %{_sourcedir}/fedora*repo ; do
+   install -m 644 $file %{buildroot}%{_datadir}/dnf5/repos.d
+@@ -381,7 +380,6 @@ done
+ rm -f "$TMPRING"
+ 
+ %files
+-%dir /etc/yum.repos.d
+ %dir %{_datadir}/dnf5/repos.d
+ %{_datadir}/dnf5/repos.d/fedora.repo
+ %{_datadir}/dnf5/repos.d/fedora-cisco-openh264.repo
+@@ -401,7 +399,9 @@ rm -f "$TMPRING"
+ %{_datadir}/pki/rpm-gpg/RPM-GPG-KEY-*
+ 
+ # ima-certs
++%dir /etc/keys/ima
+ /etc/keys/ima/fedora*ima*
++%dir %{_datadir}/ima
+ %{_datadir}/ima/ca.der
+ 
+ 

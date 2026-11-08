@@ -1,22 +1,24 @@
 diff --git OLD/localsearch.spec NEW/localsearch.spec
-index a8193d2..7e219fa 100644
+index db2ae7d..e9b836a 100644
 --- OLD/localsearch.spec
 +++ NEW/localsearch.spec
-@@ -11,9 +11,11 @@
+@@ -11,10 +11,12 @@
  %endif
  
  %global with_enca 1
 -%global with_ffmpeg 1
+-%global with_libcue 1
 +%global with_ffmpeg 0
 +%global with_iso 0
- %global with_libcue 1
++%global with_libcue 0
+ %global with_libmediainfo 1
 -%global with_totem_pl_parser 1
 +%global with_totem_pl_parser 0
 +%global with_xps 0
  
  %if 0%{?rhel}
  %global with_enca 0
-@@ -70,7 +72,9 @@ BuildRequires:  pkgconfig(libcue)
+@@ -73,7 +75,9 @@ BuildRequires:  pkgconfig(libcue)
  %endif
  BuildRequires:  pkgconfig(libexif)
  BuildRequires:  pkgconfig(libgsf-1)
@@ -24,9 +26,9 @@ index a8193d2..7e219fa 100644
  BuildRequires:  pkgconfig(libgxps)
 +%endif
  BuildRequires:  pkgconfig(libjpeg)
- BuildRequires:  pkgconfig(libpng)
- BuildRequires:  pkgconfig(libseccomp)
-@@ -84,7 +88,9 @@ BuildRequires:  pkgconfig(totem-plparser)
+ %if 0%{?with_libmediainfo}
+ BuildRequires:  pkgconfig(libmediainfo)
+@@ -90,7 +94,9 @@ BuildRequires:  pkgconfig(totem-plparser)
  BuildRequires:  pkgconfig(tinysparql-3.0) >= %{tinysparql_version}
  BuildRequires:  pkgconfig(vorbisfile)
  %if !0%{?flatpak}
@@ -36,7 +38,7 @@ index a8193d2..7e219fa 100644
  BuildRequires:  pkgconfig(libnm)
  BuildRequires:  pkgconfig(upower-glib)
  %endif
-@@ -102,6 +108,14 @@ tag/metadata database and search tool.
+@@ -108,6 +114,14 @@ tag/metadata database and search tool.
  This package contains various miners and metadata extractors for tinysparql.
  
  
@@ -49,9 +51,9 @@ index a8193d2..7e219fa 100644
 +
 +
  %prep
- %autosetup -p1 -n %{name}-%{tarball_version}
+ %autosetup -p1 -n %{name}-%{gnome_tarball_version}
  
-@@ -126,6 +140,12 @@ This package contains various miners and metadata extractors for tinysparql.
+@@ -135,6 +149,12 @@ This package contains various miners and metadata extractors for tinysparql.
  %endif
  %if ! 0%{?with_totem_pl_parser}
    -Dplaylist=disabled \
@@ -64,7 +66,7 @@ index a8193d2..7e219fa 100644
  %endif
    %{nil}
  
-@@ -154,6 +174,7 @@ This package contains various miners and metadata extractors for tinysparql.
+@@ -163,6 +183,7 @@ This package contains various miners and metadata extractors for tinysparql.
  %config(noreplace) %{_sysconfdir}/xdg/autostart/localsearch-3.desktop
  %{_bindir}/localsearch
  %{_libdir}/localsearch-3.0/
@@ -72,7 +74,7 @@ index a8193d2..7e219fa 100644
  %{_libexecdir}/localsearch-3
  %{_libexecdir}/localsearch-control-3
  %{_libexecdir}/localsearch-extractor-3
-@@ -182,6 +203,9 @@ This package contains various miners and metadata extractors for tinysparql.
+@@ -191,6 +212,9 @@ This package contains various miners and metadata extractors for tinysparql.
  %{_userunitdir}/localsearch*.service
  %endif
  

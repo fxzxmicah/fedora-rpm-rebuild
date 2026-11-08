@@ -1,17 +1,17 @@
-From 068882ef1c847c4c34e86043db9e029de2dda3a5 Mon Sep 17 00:00:00 2001
+From e29b58e1e03c59a668a56374f84a1c35514f8100 Mon Sep 17 00:00:00 2001
 From: Fxzx micah <143358-fxzxmicah@users.noreply.gitlab.gnome.org>
 Date: Sun, 9 Aug 2026 18:57:40 +0800
 Subject: [PATCH 1/2] backends: Prefer writable system monitor config
 
 ---
  doc/monitor-configuration.md             |  18 +-
- src/backends/meta-monitor-config-store.c | 562 +++++++++++++++++++++--
+ src/backends/meta-monitor-config-store.c | 551 +++++++++++++++++++++--
  src/backends/meta-monitor-config-store.h |  17 +-
  src/tests/monitor-store-unit-tests.c     | 236 ++++++++++
- 4 files changed, 794 insertions(+), 39 deletions(-)
+ 4 files changed, 785 insertions(+), 37 deletions(-)
 
 diff --git a/doc/monitor-configuration.md b/doc/monitor-configuration.md
-index a061ee5..0aaa602 100644
+index a061ee5c2..0aaa60284 100644
 --- a/doc/monitor-configuration.md
 +++ b/doc/monitor-configuration.md
 @@ -29,11 +29,17 @@ per hardware setup.
@@ -49,7 +49,7 @@ index a061ee5..0aaa602 100644
  the `<monitors version="2"/>` element in the `monitors.xml` file. Note that
  there may only be one `<policy/>` element in each configuration file.
 diff --git a/src/backends/meta-monitor-config-store.c b/src/backends/meta-monitor-config-store.c
-index 8abb7d9..fdba9fb 100644
+index 03e681a43..52a062209 100644
 --- a/src/backends/meta-monitor-config-store.c
 +++ b/src/backends/meta-monitor-config-store.c
 @@ -22,6 +22,7 @@
@@ -70,7 +70,7 @@ index 8abb7d9..fdba9fb 100644
    GFile *custom_read_file;
    GFile *custom_write_file;
  
-@@ -2171,7 +2175,8 @@ read_config_file (MetaMonitorConfigStore  *config_store,
+@@ -2166,7 +2170,8 @@ read_config_file (MetaMonitorConfigStore  *config_store,
                                                G_MARKUP_TREAT_CDATA_AS_TEXT |
                                                G_MARKUP_PREFIX_ERROR_POSITION,
                                                &parser, NULL);
@@ -80,7 +80,7 @@ index 8abb7d9..fdba9fb 100644
      {
        g_list_free_full (parser.current_logical_monitor_configs,
                          (GDestroyNotify) meta_logical_monitor_config_free);
-@@ -2406,23 +2411,21 @@ append_logical_monitor_xml (GString                  *buffer,
+@@ -2401,23 +2406,21 @@ append_logical_monitor_xml (GString                  *buffer,
    g_string_append (buffer, "    </logicalmonitor>\n");
  }
  
@@ -111,7 +111,7 @@ index 8abb7d9..fdba9fb 100644
          continue;
  
        g_string_append (buffer, "  <configuration>\n");
-@@ -2470,6 +2473,294 @@ generate_config_xml (MetaMonitorConfigStore *config_store)
+@@ -2465,6 +2468,294 @@ generate_config_xml (MetaMonitorConfigStore *config_store)
  
        g_string_append (buffer, "  </configuration>\n");
      }
@@ -136,7 +136,7 @@ index 8abb7d9..fdba9fb 100644
 +} ConfigXmlParser;
 +
 +static gsize
-+xml_position_to_offset (ConfigXmlParser    *parser,
++xml_position_to_offset (ConfigXmlParser     *parser,
 +                        GMarkupParseContext *context)
 +{
 +  const char *line_start = parser->xml;
@@ -237,8 +237,8 @@ index 8abb7d9..fdba9fb 100644
 +      ConfigXmlSpan span = {
 +        .start = parser->configuration_start,
 +        .end = include_trailing_newline (parser->xml,
-+                                        parser->length,
-+                                        position),
++                                         parser->length,
++                                         position),
 +      };
 +
 +      g_array_append_val (parser->spans, span);
@@ -264,8 +264,8 @@ index 8abb7d9..fdba9fb 100644
 + */
 +char *
 +meta_monitor_config_store_replace_configurations (const char  *xml,
-+                                                   const char  *configurations,
-+                                                   GError     **error)
++                                                  const char  *configurations,
++                                                  GError     **error)
 +{
 +  const GMarkupParser markup_parser = {
 +    .start_element = handle_config_xml_start_element,
@@ -352,7 +352,7 @@ index 8abb7d9..fdba9fb 100644
 +static GString *
 +generate_config_xml (MetaMonitorConfigStore  *config_store,
 +                     MetaConfigStore          destination_store,
-+                     char                  **etag,
++                     char                   **etag,
 +                     GError                 **error)
 +{
 +  g_autoptr (GString) configurations = g_string_new ("");
@@ -406,7 +406,7 @@ index 8abb7d9..fdba9fb 100644
  
    g_string_append (buffer, "</monitors>\n");
  
-@@ -2480,8 +2771,25 @@ typedef struct _SaveData
+@@ -2475,8 +2766,25 @@ typedef struct _SaveData
  {
    MetaMonitorConfigStore *config_store;
    GString *buffer;
@@ -432,7 +432,7 @@ index 8abb7d9..fdba9fb 100644
  static void
  saved_cb (GObject      *object,
            GAsyncResult *result,
-@@ -2507,6 +2815,7 @@ saved_cb (GObject      *object,
+@@ -2501,6 +2809,7 @@ saved_cb (GObject      *object,
  
    g_clear_object (&data->config_store);
    g_string_free (data->buffer, TRUE);
@@ -440,9 +440,9 @@ index 8abb7d9..fdba9fb 100644
    g_free (data);
  }
  
-@@ -2515,20 +2824,40 @@ meta_monitor_config_store_save_sync (MetaMonitorConfigStore *config_store)
+@@ -2509,20 +2818,39 @@ meta_monitor_config_store_save_sync (MetaMonitorConfigStore *config_store)
  {
-   GError *error = NULL;
+   g_autoptr (GError) error = NULL;
    GFile *file;
 +  MetaConfigStore destination_store;
    GString *buffer;
@@ -471,7 +471,6 @@ index 8abb7d9..fdba9fb 100644
 +    {
 +      g_warning ("Generating monitor configuration failed: %s",
 +                 error->message);
-+      g_error_free (error);
 +      return;
 +    }
  
@@ -486,7 +485,7 @@ index 8abb7d9..fdba9fb 100644
                                  NULL,
                                  NULL,
                                  &error))
-@@ -2546,6 +2875,8 @@ meta_monitor_config_store_save (MetaMonitorConfigStore *config_store)
+@@ -2536,6 +2864,8 @@ meta_monitor_config_store_save (MetaMonitorConfigStore *config_store)
  {
    GString *buffer;
    SaveData *data;
@@ -495,7 +494,7 @@ index 8abb7d9..fdba9fb 100644
  
    if (config_store->save_cancellable)
      {
-@@ -2564,26 +2895,41 @@ meta_monitor_config_store_save (MetaMonitorConfigStore *config_store)
+@@ -2554,26 +2884,41 @@ meta_monitor_config_store_save (MetaMonitorConfigStore *config_store)
        return;
      }
  
@@ -539,15 +538,14 @@ index 8abb7d9..fdba9fb 100644
                                   buffer->str, buffer->len,
 -                                 NULL,
 -                                 TRUE,
--                                 G_FILE_CREATE_REPLACE_DESTINATION,
 +                                 data->etag,
 +                                 create_flags ==
-+                                   G_FILE_CREATE_REPLACE_DESTINATION,
+                                  G_FILE_CREATE_REPLACE_DESTINATION,
 +                                 create_flags,
                                   config_store->save_cancellable,
                                   saved_cb, data);
  }
-@@ -2614,7 +2960,16 @@ meta_monitor_config_store_add (MetaMonitorConfigStore *config_store,
+@@ -2604,7 +2949,16 @@ meta_monitor_config_store_add (MetaMonitorConfigStore *config_store,
                          config->key, g_object_ref (config));
  
    if (!is_system_config (config))
@@ -564,23 +562,8 @@ index 8abb7d9..fdba9fb 100644
 +    }
  }
  
- void
-@@ -2624,7 +2979,13 @@ meta_monitor_config_store_remove (MetaMonitorConfigStore *config_store,
-   g_hash_table_remove (config_store->configs, config->key);
- 
-   if (!is_system_config (config))
--    maybe_save_configs (config_store);
-+    {
-+      if (config_store->write_store == META_CONFIG_STORE_SYSTEM &&
-+          config_store->system_file_configs)
-+        g_hash_table_remove (config_store->system_file_configs, config->key);
-+
-+      maybe_save_configs (config_store);
-+    }
- }
- 
  gboolean
-@@ -2716,8 +3077,10 @@ meta_monitor_config_store_dispose (GObject *object)
+@@ -2696,8 +3050,10 @@ meta_monitor_config_store_dispose (GObject *object)
      }
  
    g_clear_pointer (&config_store->configs, g_hash_table_destroy);
@@ -591,7 +574,7 @@ index 8abb7d9..fdba9fb 100644
    g_clear_object (&config_store->custom_read_file);
    g_clear_object (&config_store->custom_write_file);
    g_clear_pointer (&config_store->stores_policy, g_list_free);
-@@ -2804,24 +3167,107 @@ replace_configs (MetaMonitorConfigStore *config_store,
+@@ -2784,9 +3140,89 @@ replace_configs (MetaMonitorConfigStore *config_store,
                                   (gpointer *) &key,
                                   (gpointer *) &config))
      {
@@ -600,9 +583,9 @@ index 8abb7d9..fdba9fb 100644
 +      g_hash_table_replace (config_store->configs,
 +                            key,
 +                            g_object_ref (config));
-     }
- }
- 
++    }
++}
++
 +static gboolean
 +config_file_is_writable (const char *file_path)
 +{
@@ -676,21 +659,21 @@ index 8abb7d9..fdba9fb 100644
 +    {
 +      *store = META_CONFIG_STORE_SYSTEM;
 +      return g_object_ref (system_file);
-+    }
+     }
 +
 +  *store = META_CONFIG_STORE_USER;
 +  return g_object_ref (user_file);
-+}
-+
+ }
+ 
  void
- meta_monitor_config_store_reset (MetaMonitorConfigStore *config_store)
+@@ -2794,14 +3230,17 @@ meta_monitor_config_store_reset (MetaMonitorConfigStore *config_store)
  {
    g_autoptr (GHashTable) system_configs = NULL;
    g_autoptr (GHashTable) user_configs = NULL;
 +  g_autoptr (GFile) writable_system_file = NULL;
    const char * const *system_dirs;
    char *user_file_path;
-   GError *error = NULL;
+   g_autoptr (GError) error = NULL;
    gboolean should_save_configs = FALSE;
  
    g_clear_object (&config_store->user_file);
@@ -701,7 +684,7 @@ index 8abb7d9..fdba9fb 100644
    g_hash_table_remove_all (config_store->configs);
  
    g_clear_pointer (&config_store->stores_policy, g_list_free);
-@@ -2829,7 +3275,15 @@ meta_monitor_config_store_reset (MetaMonitorConfigStore *config_store)
+@@ -2809,7 +3248,15 @@ meta_monitor_config_store_reset (MetaMonitorConfigStore *config_store)
    config_store->policy.enable_dbus = TRUE;
    config_store->has_dbus_policy = FALSE;
  
@@ -718,7 +701,7 @@ index 8abb7d9..fdba9fb 100644
         system_dirs && *system_dirs;
         system_dirs++)
      {
-@@ -2838,19 +3292,33 @@ meta_monitor_config_store_reset (MetaMonitorConfigStore *config_store)
+@@ -2818,19 +3265,33 @@ meta_monitor_config_store_reset (MetaMonitorConfigStore *config_store)
        system_file_path = g_build_filename (*system_dirs, "monitors.xml", NULL);
        if (g_file_test (system_file_path, G_FILE_TEST_EXISTS))
          {
@@ -753,7 +736,7 @@ index 8abb7d9..fdba9fb 100644
              }
  
            if (should_save_configs)
-@@ -2864,10 +3332,26 @@ meta_monitor_config_store_reset (MetaMonitorConfigStore *config_store)
+@@ -2844,10 +3305,26 @@ meta_monitor_config_store_reset (MetaMonitorConfigStore *config_store)
          }
      }
  
@@ -784,7 +767,7 @@ index 8abb7d9..fdba9fb 100644
  
    if (g_file_test (user_file_path, G_FILE_TEST_EXISTS))
      {
-@@ -2884,6 +3368,14 @@ meta_monitor_config_store_reset (MetaMonitorConfigStore *config_store)
+@@ -2863,6 +3340,14 @@ meta_monitor_config_store_reset (MetaMonitorConfigStore *config_store)
          }
      }
  
@@ -800,7 +783,7 @@ index 8abb7d9..fdba9fb 100644
      {
        GList *l;
 diff --git a/src/backends/meta-monitor-config-store.h b/src/backends/meta-monitor-config-store.h
-index 01f956a..1e549d8 100644
+index 29ec11225..40fabd7b6 100644
 --- a/src/backends/meta-monitor-config-store.h
 +++ b/src/backends/meta-monitor-config-store.h
 @@ -19,7 +19,7 @@
@@ -812,7 +795,7 @@ index 01f956a..1e549d8 100644
  
  #include "backends/meta-monitor-config-manager.h"
  
-@@ -72,5 +72,20 @@ MetaMonitorManager * meta_monitor_config_store_get_monitor_manager (MetaMonitorC
+@@ -69,5 +69,20 @@ MetaMonitorManager * meta_monitor_config_store_get_monitor_manager (MetaMonitorC
  META_EXPORT_TEST
  void meta_monitor_config_store_reset (MetaMonitorConfigStore *config_store);
  
@@ -834,7 +817,7 @@ index 01f956a..1e549d8 100644
  META_EXPORT_TEST
  const MetaMonitorConfigPolicy * meta_monitor_config_store_get_policy (MetaMonitorConfigStore *config_store);
 diff --git a/src/tests/monitor-store-unit-tests.c b/src/tests/monitor-store-unit-tests.c
-index a09cd5c..3f90687 100644
+index a09cd5c5f..3f9068799 100644
 --- a/src/tests/monitor-store-unit-tests.c
 +++ b/src/tests/monitor-store-unit-tests.c
 @@ -21,6 +21,8 @@
@@ -1096,7 +1079,7 @@ index a09cd5c..3f90687 100644
 2.54.0
 
 
-From d7a90a563fc4c7517aad837e92bb769103605b37 Mon Sep 17 00:00:00 2001
+From 55968e591e3315d10c02e118ec91c667c93f9c92 Mon Sep 17 00:00:00 2001
 From: Fxzx micah <143358-fxzxmicah@users.noreply.gitlab.gnome.org>
 Date: Sun, 9 Aug 2026 19:33:36 +0800
 Subject: [PATCH 2/2] tools: Rewrite gdctl in C
@@ -1132,7 +1115,7 @@ Subject: [PATCH 2/2] tools: Rewrite gdctl in C
  create mode 100644 tools/gdctl.c
 
 diff --git a/doc/man/gdctl.rst b/doc/man/gdctl.rst
-index da7726b..9b7510f 100644
+index da7726bc2..9b7510fae 100644
 --- a/doc/man/gdctl.rst
 +++ b/doc/man/gdctl.rst
 @@ -11,7 +11,7 @@ GNOME Display Controller
@@ -1197,18 +1180,18 @@ index da7726b..9b7510f 100644
  EXAMPLES
  --------
 diff --git a/meson.build b/meson.build
-index 4e8426c..d5778ec 100644
+index cecc3c7bc..50f121c70 100644
 --- a/meson.build
 +++ b/meson.build
-@@ -367,7 +367,6 @@ have_clutter_tests = false
+@@ -331,7 +331,6 @@ have_clutter_tests = false
  have_kvm_tests = false
  have_tty_tests = false
  have_installed_tests = false
 -have_bash_completion = get_option('bash_completion')
  
- if have_tests
-   gtk3_dep = dependency('gtk+-3.0', version: gtk3_req)
-@@ -740,8 +739,6 @@ summary('mandir', mandir, section: 'Directories')
+ if have_fonts or have_xwayland or have_tests
+   cairo_dep = dependency('cairo', version: cairo_req)
+@@ -726,8 +725,6 @@ summary('mandir', mandir, section: 'Directories')
  summary('buildtype', get_option('buildtype'), section: 'Build Configuration')
  summary('debug', get_option('debug'), section: 'Build Configuration')
  
@@ -1218,10 +1201,10 @@ index 4e8426c..d5778ec 100644
  summary('GLES2', have_gles2, section: 'Rendering APIs')
  summary('EGL', have_egl, section: 'Rendering APIs')
 diff --git a/meson.options b/meson.options
-index 4824a8c..3efa83a 100644
+index 4f8c0c9ba..4ed1f817d 100644
 --- a/meson.options
 +++ b/meson.options
-@@ -202,12 +202,6 @@ option('fonts',
+@@ -172,12 +172,6 @@ option('fonts',
    description: 'Enable font rendering integration using Pango'
  )
  
@@ -1236,7 +1219,7 @@ index 4824a8c..3efa83a 100644
    value: 'auto',
 diff --git a/src/tests/gdctl/complete-color-modes b/src/tests/gdctl/complete-color-modes
 new file mode 100644
-index 0000000..fe04516
+index 000000000..fe0451636
 --- /dev/null
 +++ b/src/tests/gdctl/complete-color-modes
 @@ -0,0 +1,3 @@
@@ -1245,7 +1228,7 @@ index 0000000..fe04516
 +sdr-native
 diff --git a/src/tests/gdctl/complete-layout-modes b/src/tests/gdctl/complete-layout-modes
 new file mode 100644
-index 0000000..497d77b
+index 000000000..497d77b86
 --- /dev/null
 +++ b/src/tests/gdctl/complete-layout-modes
 @@ -0,0 +1,2 @@
@@ -1253,7 +1236,7 @@ index 0000000..497d77b
 +physical
 diff --git a/src/tests/gdctl/complete-modes b/src/tests/gdctl/complete-modes
 new file mode 100644
-index 0000000..762f9c1
+index 000000000..762f9c1fb
 --- /dev/null
 +++ b/src/tests/gdctl/complete-modes
 @@ -0,0 +1,4 @@
@@ -1263,7 +1246,7 @@ index 0000000..762f9c1
 +1440x900@60.000
 diff --git a/src/tests/gdctl/complete-monitors b/src/tests/gdctl/complete-monitors
 new file mode 100644
-index 0000000..cca59d9
+index 000000000..cca59d956
 --- /dev/null
 +++ b/src/tests/gdctl/complete-monitors
 @@ -0,0 +1,2 @@
@@ -1271,7 +1254,7 @@ index 0000000..cca59d9
 +DP-2
 diff --git a/src/tests/gdctl/complete-options-set b/src/tests/gdctl/complete-options-set
 new file mode 100644
-index 0000000..a55ca01
+index 000000000..a55ca0129
 --- /dev/null
 +++ b/src/tests/gdctl/complete-options-set
 @@ -0,0 +1,14 @@
@@ -1291,7 +1274,7 @@ index 0000000..a55ca01
 +--for-lease-monitor
 diff --git a/src/tests/gdctl/complete-options-set-monitor b/src/tests/gdctl/complete-options-set-monitor
 new file mode 100644
-index 0000000..2dc18b7
+index 000000000..2dc18b7ff
 --- /dev/null
 +++ b/src/tests/gdctl/complete-options-set-monitor
 @@ -0,0 +1,28 @@
@@ -1325,7 +1308,7 @@ index 0000000..2dc18b7
 +--rgb-range
 diff --git a/src/tests/gdctl/complete-rgb-ranges b/src/tests/gdctl/complete-rgb-ranges
 new file mode 100644
-index 0000000..d848099
+index 000000000..d8480994c
 --- /dev/null
 +++ b/src/tests/gdctl/complete-rgb-ranges
 @@ -0,0 +1,3 @@
@@ -1334,7 +1317,7 @@ index 0000000..d848099
 +limited
 diff --git a/src/tests/gdctl/complete-scales b/src/tests/gdctl/complete-scales
 new file mode 100644
-index 0000000..4192de1
+index 000000000..4192de19e
 --- /dev/null
 +++ b/src/tests/gdctl/complete-scales
 @@ -0,0 +1,12 @@
@@ -1352,7 +1335,7 @@ index 0000000..4192de1
 +4.0
 diff --git a/src/tests/gdctl/complete-transforms b/src/tests/gdctl/complete-transforms
 new file mode 100644
-index 0000000..08f8214
+index 000000000..08f821495
 --- /dev/null
 +++ b/src/tests/gdctl/complete-transforms
 @@ -0,0 +1,8 @@
@@ -1365,7 +1348,7 @@ index 0000000..08f8214
 +flipped-270
 +flipped-180
 diff --git a/src/tests/monitor-gdctl-tests.c b/src/tests/monitor-gdctl-tests.c
-index 3d371fa..1d3745f 100644
+index 3d371fa3e..1d3745f25 100644
 --- a/src/tests/monitor-gdctl-tests.c
 +++ b/src/tests/monitor-gdctl-tests.c
 @@ -19,6 +19,7 @@
@@ -1523,7 +1506,7 @@ index 3d371fa..1d3745f 100644
    g_test_add_func ("/backends/native/monitor/dbus/apply/left-of",
 diff --git a/tools/gdctl-bash-completion b/tools/gdctl-bash-completion
 new file mode 100644
-index 0000000..fc19706
+index 000000000..fc1970617
 --- /dev/null
 +++ b/tools/gdctl-bash-completion
 @@ -0,0 +1,79 @@
@@ -1608,7 +1591,7 @@ index 0000000..fc19706
 +complete -F _gdctl gdctl
 diff --git a/tools/gdctl.c b/tools/gdctl.c
 new file mode 100644
-index 0000000..90709a3
+index 000000000..24001fe6d
 --- /dev/null
 +++ b/tools/gdctl.c
 @@ -0,0 +1,2834 @@
@@ -2300,7 +2283,7 @@ index 0000000..90709a3
 +}
 +
 +static const char *
-+enum_property_to_string (const char *name,
++enum_property_to_string (const char  *name,
 +                         unsigned int value)
 +{
 +  if (g_str_equal (name, "layout-mode"))
@@ -3545,8 +3528,8 @@ index 0000000..90709a3
 +
 +static Config *
 +create_config (MonitorsState  *state,
-+               SetArguments  *args,
-+               GError       **error)
++               SetArguments   *args,
++               GError        **error)
 +{
 +  g_autoptr (GHashTable) monitor_mappings =
 +    g_hash_table_new (g_str_hash, g_str_equal);
@@ -3556,7 +3539,7 @@ index 0000000..90709a3
 +  config = g_new0 (Config, 1);
 +  config->state = state;
 +  config->layout_mode = args->has_layout_mode ?
-+    args->layout_mode : state->layout_mode;
++                        args->layout_mode : state->layout_mode;
 +  if (args->has_layout_mode && !state->supports_changing_layout_mode)
 +    {
 +      g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_FAILED,
@@ -3959,7 +3942,7 @@ index 0000000..90709a3
 +
 +static void
 +print_completion_values (const char * const *values,
-+                          size_t              n_values)
++                         size_t              n_values)
 +{
 +  size_t i;
 +
@@ -4447,7 +4430,7 @@ index 0000000..90709a3
 +    }
 +}
 diff --git a/tools/meson.build b/tools/meson.build
-index 639e0cf..eca887b 100644
+index 639e0cf26..eca887b90 100644
 --- a/tools/meson.build
 +++ b/tools/meson.build
 @@ -1,5 +1,15 @@

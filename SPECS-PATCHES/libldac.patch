@@ -1,45 +1,8 @@
 diff --git OLD/libldac.spec NEW/libldac.spec
-index f3684f5..f8abe74 100644
+index e4fefd9..5cc7e50 100644
 --- OLD/libldac.spec
 +++ NEW/libldac.spec
-@@ -13,10 +13,13 @@ License:        Apache-2.0
- URL:            https://github.com/EHfive/ldacBT
- Source0:        %{url}/releases/download/v%{version}/%{archivename}-%{version}.tar.gz
- 
-+Patch1:         https://github.com/EHfive/ldacBT/compare/365a48ea0adeb5b5770005936842e583820a1d57^...af2dd23979453bcd1cad7c4086af5fb421a955c5.patch#/%{name}-git-head.patch
-+Patch2:         ldacBT-cmake-script.patch
-+
- # Upstream source throws error in a big-endian arch, see #1677491
- ExcludeArch:    s390x
- 
--BuildRequires:  cmake3
-+BuildRequires:  cmake
- BuildRequires:  gcc
- 
- %package        devel
-@@ -33,17 +36,17 @@ The %{name}-devel package contains libraries and header files for
- developing applications that use %{name}.
- 
- %prep
--%autosetup -n %{archivename}
-+%autosetup -p1 -n %{archivename}
- 
- %build
--%cmake3 \
-+%cmake \
-     -DLDAC_SOFT_FLOAT=OFF \
-     -DINSTALL_LIBDIR=%{_libdir}
- 
--%cmake3_build
-+%cmake_build
- 
- %install
--%cmake3_install
-+%cmake_install
- 
- %ldconfig_scriptlets
- 
-@@ -53,10 +56,10 @@ developing applications that use %{name}.
+@@ -53,10 +53,10 @@ developing applications that use %{name}.
  %{_libdir}/libldacBT_abr.so.%{sonamebase}.*
  %{_libdir}/libldacBT_enc.so.%{sonamebase}
  %{_libdir}/libldacBT_enc.so.%{sonamebase}.*

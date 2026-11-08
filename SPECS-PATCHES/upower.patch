@@ -1,5 +1,5 @@
 diff --git OLD/upower.spec NEW/upower.spec
-index c436890..bdc09dc 100644
+index fd25401..e262d00 100644
 --- OLD/upower.spec
 +++ NEW/upower.spec
 @@ -26,10 +26,22 @@ BuildRequires:  systemd

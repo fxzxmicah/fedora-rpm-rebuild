@@ -1,17 +1,18 @@
 diff --git OLD/nautilus.spec NEW/nautilus.spec
-index 39a82bc..160deb8 100644
+index bb4ce28..498c58c 100644
 --- OLD/nautilus.spec
 +++ NEW/nautilus.spec
-@@ -17,8 +17,6 @@ Summary:        File manager for GNOME
- License:        GPL-3.0-or-later AND CC0-1.0
- URL:            https://apps.gnome.org/Nautilus/
- Source0:        https://download.gnome.org/sources/%{name}/%{major_version}/%{name}-%{tarball_version}.tar.xz
+@@ -17,9 +17,6 @@ Source0:        https://download.gnome.org/sources/%{name}/%{gnome_major_version
+ 
+ %gnome_check_version
+ 
 -# https://pagure.io/fedora-workstation/issue/442
 -Patch:          default-terminal.patch
+-
+ Patch:          CVE-2026-111802.patch
  
  BuildRequires:  desktop-file-utils
- BuildRequires:  gcc
-@@ -140,8 +138,6 @@ desktop-file-validate $RPM_BUILD_ROOT%{_datadir}/applications/*.desktop
+@@ -141,8 +138,6 @@ desktop-file-validate $RPM_BUILD_ROOT%{_datadir}/applications/*.desktop
  %{_mandir}/man1/nautilus-autorun-software.1*
  %{_datadir}/glib-2.0/schemas/org.gnome.nautilus.gschema.xml
  %{_datadir}/nautilus/
@@ -20,7 +21,7 @@ index 39a82bc..160deb8 100644
  %{_metainfodir}/org.gnome.Nautilus.metainfo.xml
  
  %files extensions
-@@ -150,6 +146,8 @@ desktop-file-validate $RPM_BUILD_ROOT%{_datadir}/applications/*.desktop
+@@ -151,6 +146,8 @@ desktop-file-validate $RPM_BUILD_ROOT%{_datadir}/applications/*.desktop
  %{_libdir}/girepository-1.0/Nautilus-4.1.typelib
  %dir %{_libdir}/nautilus
  %dir %{_libdir}/nautilus/extensions-4

@@ -1,0 +1,386 @@
+From 58caa3a5146357f77bbbbff200a2a2feb4e5f1cf Mon Sep 17 00:00:00 2001
+From: Fxzx micah <48860358+fxzxmicah@users.noreply.github.com>
+Date: Sun, 8 Nov 2026 14:48:22 +0800
+Subject: [PATCH] build: keep optional component integration with its feature
+
+Add an Xorg integration option while retaining XKB configuration for Wayland. Install the system installation and first-boot completion targets with their respective features, including firstboot synchronization for random-seed.
+---
+ man/org.freedesktop.locale1.xml               |  5 ++++
+ meson.build                                   |  4 +++-
+ meson_options.txt                             |  2 ++
+ src/locale/localed-util.c                     | 24 ++++++++++++++++++-
+ src/locale/localed-util.h                     |  9 +++++--
+ src/locale/localed.c                          | 20 +++++++++++++---
+ units/meson.build                             | 15 ++++++++++--
+ .../10-firstboot.conf                         |  5 ++++
+ units/systemd-random-seed.service.in          |  2 --
+ 9 files changed, 75 insertions(+), 11 deletions(-)
+ create mode 100644 units/systemd-random-seed.service.d/10-firstboot.conf
+
+diff --git a/man/org.freedesktop.locale1.xml b/man/org.freedesktop.locale1.xml
+index 96cca28..bcaba37 100644
+--- a/man/org.freedesktop.locale1.xml
++++ b/man/org.freedesktop.locale1.xml
+@@ -105,6 +105,11 @@ node /org/freedesktop/locale1 {
+       virtual console. Similarly, <function>SetX11Keyboard()</function> may be used to set the default key
+       mapping of any X11 servers.</para>
+ 
++      <para>The XKB settings exposed by this interface can also be used by Wayland compositors. They are
++      stored in <filename>/etc/vconsole.conf</filename>. When built with Xorg integration enabled, the
++      service additionally reads and writes <filename>/etc/X11/xorg.conf.d/00-keyboard.conf</filename>.
++      Disabling Xorg integration does not disable the XKB interface or console keymap conversion.</para>
++
+       <para>Note that <function>SetVConsoleKeyboard()</function> instantly applies the new key mapping to the
+       console, while <function>SetX11Keyboard()</function> simply sets a default that may be used by later
+       sessions.</para>
+diff --git a/meson.build b/meson.build
+index 25276e4..a4d13f1 100644
+--- a/meson.build
++++ b/meson.build
+@@ -1676,6 +1676,7 @@ foreach tuple : [
+                 ['userdb'],
+                 ['vconsole'],
+                 ['xdg-autostart'],
++                ['xorg'],
+         ]
+ 
+         have = get_option(tuple[0])
+@@ -2728,7 +2729,7 @@ install_subdir('factory/etc',
+                install_dir : factorydir)
+ subdir('factory/templates')
+ 
+-if install_sysconfdir
++if install_sysconfdir and get_option('xorg')
+         install_data('xorg/50-systemd-user.sh',
+                      install_dir : xinitrcdir)
+ endif
+@@ -3132,6 +3133,7 @@ foreach tuple : [
+         ['vconsole'],
+         ['vmspawn'],
+         ['xdg-autostart'],
++        ['xorg'],
+ 
+         # optional features
+         ['dmi'],
+diff --git a/meson_options.txt b/meson_options.txt
+index 0077806..5696083 100644
+--- a/meson_options.txt
++++ b/meson_options.txt
+@@ -219,6 +219,8 @@ option('pkgconfiglibdir', type : 'string', value : '',
+        description : 'directory for standard pkg-config files')
+ option('xinitrcdir', type : 'string', value : '',
+        description : 'directory for xinitrc files')
++option('xorg', type : 'boolean', value : true,
++       description : 'Xorg configuration files and session integration')
+ option('rpmmacrosdir', type : 'string', value : 'lib/rpm/macros.d',
+        description : 'directory for rpm macros ["no" disables]')
+ option('update-helper-user-timeout-sec', type : 'integer', value : 15,
+diff --git a/src/locale/localed-util.c b/src/locale/localed-util.c
+index f24d39a..1213f4c 100644
+--- a/src/locale/localed-util.c
++++ b/src/locale/localed-util.c
+@@ -103,12 +103,14 @@ void context_clear(Context *c) {
+         assert(c);
+ 
+         locale_context_clear(&c->locale_context);
++#if ENABLE_XORG
+         x11_context_clear(&c->x11_from_xorg);
++        c->x11_cache = sd_bus_message_unref(c->x11_cache);
++#endif
+         x11_context_clear(&c->x11_from_vc);
+         vc_context_clear(&c->vc);
+ 
+         c->locale_cache = sd_bus_message_unref(c->locale_cache);
+-        c->x11_cache = sd_bus_message_unref(c->x11_cache);
+         c->vc_cache = sd_bus_message_unref(c->vc_cache);
+ 
+         c->polkit_registry = hashmap_free(c->polkit_registry);
+@@ -120,12 +122,28 @@ X11Context *context_get_x11_context(Context *c) {
+         if (!x11_context_isempty(&c->x11_from_vc))
+                 return &c->x11_from_vc;
+ 
++#if ENABLE_XORG
+         if (!x11_context_isempty(&c->x11_from_xorg))
+                 return &c->x11_from_xorg;
++#endif
+ 
+         return &c->x11_from_vc;
+ }
+ 
++bool context_x11_context_equal(Context *c, const X11Context *xc) {
++        assert(c);
++        assert(xc);
++
++        if (!x11_context_equal(&c->x11_from_vc, xc))
++                return false;
++
++#if ENABLE_XORG
++        return x11_context_equal(&c->x11_from_xorg, xc);
++#else
++        return true;
++#endif
++}
++
+ int locale_read_data(Context *c, sd_bus_message *m) {
+         assert(c);
+ 
+@@ -200,6 +218,7 @@ int vconsole_read_data(Context *c, sd_bus_message *m) {
+         return 0;
+ }
+ 
++#if ENABLE_XORG
+ int x11_read_data(Context *c, sd_bus_message *m) {
+         int r;
+ 
+@@ -298,6 +317,7 @@ int x11_read_data(Context *c, sd_bus_message *m) {
+         x11_context_replace(&c->x11_from_xorg, &xc);
+         return 0;
+ }
++#endif
+ 
+ int vconsole_write_data(Context *c) {
+         _cleanup_strv_free_ char **l = NULL;
+@@ -334,6 +354,7 @@ int vconsole_write_data(Context *c) {
+         return 0;
+ }
+ 
++#if ENABLE_XORG
+ int x11_write_data(Context *c) {
+         _cleanup_fclose_ FILE *f = NULL;
+         _cleanup_(unlink_and_freep) char *temp_path = NULL;
+@@ -391,6 +412,7 @@ int x11_write_data(Context *c) {
+ 
+         return 0;
+ }
++#endif
+ 
+ bool locale_gen_check_available(void) {
+ #if HAVE_LOCALEGEN
+diff --git a/src/locale/localed-util.h b/src/locale/localed-util.h
+index 888313b..6c8478f 100644
+--- a/src/locale/localed-util.h
++++ b/src/locale/localed-util.h
+@@ -12,10 +12,12 @@ typedef struct Context {
+         sd_bus_message *locale_cache;
+         LocaleContext locale_context;
+ 
++        X11Context x11_from_vc;
++#if ENABLE_XORG
+         sd_bus_message *x11_cache;
+         struct stat x11_stat;
+         X11Context x11_from_xorg;
+-        X11Context x11_from_vc;
++#endif
+ 
+         sd_bus_message *vc_cache;
+         struct stat vc_stat;
+@@ -29,6 +31,7 @@ static inline int x11_context_verify(const X11Context *xc) {
+         return x11_context_verify_and_warn(xc, LOG_DEBUG, NULL);
+ }
+ X11Context *context_get_x11_context(Context *c);
++bool context_x11_context_equal(Context *c, const X11Context *xc);
+ 
+ int vc_context_verify_and_warn(const VCContext *vc, int log_level, sd_bus_error *error);
+ static inline int vc_context_verify(const VCContext *vc) {
+@@ -37,11 +40,13 @@ static inline int vc_context_verify(const VCContext *vc) {
+ 
+ int locale_read_data(Context *c, sd_bus_message *m);
+ int vconsole_read_data(Context *c, sd_bus_message *m);
+-int x11_read_data(Context *c, sd_bus_message *m);
+ 
+ void context_clear(Context *c);
+ int vconsole_write_data(Context *c);
++#if ENABLE_XORG
++int x11_read_data(Context *c, sd_bus_message *m);
+ int x11_write_data(Context *c);
++#endif
+ 
+ bool locale_gen_check_available(void);
+ int locale_gen_enable_locale(const char *locale);
+diff --git a/src/locale/localed.c b/src/locale/localed.c
+index b5875c0..73e290b 100644
+--- a/src/locale/localed.c
++++ b/src/locale/localed.c
+@@ -107,9 +107,11 @@ static int property_get_xkb(
+         if (r < 0)
+                 return r;
+ 
++#if ENABLE_XORG
+         r = x11_read_data(c, reply);
+         if (r < 0)
+                 return r;
++#endif
+ 
+         xc = context_get_x11_context(c);
+ 
+@@ -353,11 +355,13 @@ static int method_set_vc_keyboard(sd_bus_message *m, void *userdata, sd_bus_erro
+                 return sd_bus_error_set_errnof(error, r, "Failed to read virtual console keymap data: %m");
+         }
+ 
++#if ENABLE_XORG
+         r = x11_read_data(c, m);
+         if (r < 0) {
+                 log_error_errno(r, "Failed to read X11 keyboard layout data: %m");
+                 return sd_bus_error_set_errnof(error, r, "Failed to read X11 keyboard layout data: %m");
+         }
++#endif
+ 
+         if (convert) {
+                 r = vconsole_convert_to_x11(&in, x11_context_verify, &converted);
+@@ -373,9 +377,9 @@ static int method_set_vc_keyboard(sd_bus_message *m, void *userdata, sd_bus_erro
+                                  in.keymap, strempty(converted.layout), strempty(converted.model), strempty(converted.variant), strempty(converted.options));
+ 
+                 /* save the result of conversion to emit changed properties later. */
+-                x_needs_update = !x11_context_equal(&c->x11_from_vc, &converted) || !x11_context_equal(&c->x11_from_xorg, &converted);
++                x_needs_update = !context_x11_context_equal(c, &converted);
+         } else
+-                x_needs_update = !x11_context_equal(&c->x11_from_vc, &c->x11_from_xorg);
++                x_needs_update = !context_x11_context_equal(c, context_get_x11_context(c));
+ 
+         if (vc_context_equal(&c->vc, &in) && !x_needs_update)
+                 return sd_bus_reply_method_return(m, NULL);
+@@ -403,6 +407,7 @@ static int method_set_vc_keyboard(sd_bus_message *m, void *userdata, sd_bus_erro
+                         r = x11_context_copy(&c->x11_from_vc, &converted);
+                         if (r < 0)
+                                 return log_oom();
++#if ENABLE_XORG
+                         x11_context_replace(&c->x11_from_xorg, &converted);
+                 } else {
+                         const X11Context *xc = context_get_x11_context(c);
+@@ -415,6 +420,7 @@ static int method_set_vc_keyboard(sd_bus_message *m, void *userdata, sd_bus_erro
+                         r = x11_context_copy(&c->x11_from_xorg, xc);
+                         if (r < 0)
+                                 return log_oom();
++#endif
+                 }
+         }
+ 
+@@ -422,11 +428,13 @@ static int method_set_vc_keyboard(sd_bus_message *m, void *userdata, sd_bus_erro
+         if (r < 0)
+                 log_warning_errno(r, "Failed to write virtual console keymap, ignoring: %m");
+ 
++#if ENABLE_XORG
+         if (x_needs_update) {
+                 r = x11_write_data(c);
+                 if (r < 0)
+                         log_warning_errno(r, "Failed to write X11 keyboard layout, ignoring: %m");
+         }
++#endif
+ 
+         log_info("Changed virtual console keymap to '%s' toggle '%s'",
+                  strempty(c->vc.keymap), strempty(c->vc.toggle));
+@@ -471,11 +479,13 @@ static int method_set_x11_keyboard(sd_bus_message *m, void *userdata, sd_bus_err
+                 return sd_bus_error_set_errnof(error, r, "Failed to read virtual console keymap data: %m");
+         }
+ 
++#if ENABLE_XORG
+         r = x11_read_data(c, m);
+         if (r < 0) {
+                 log_error_errno(r, "Failed to read x11 keyboard layout data: %m");
+                 return sd_bus_error_set(error, SD_BUS_ERROR_FAILED, "Failed to read x11 keyboard layout data");
+         }
++#endif
+ 
+         if (convert) {
+                 r = x11_convert_to_vconsole(&in, &converted);
+@@ -497,7 +507,7 @@ static int method_set_x11_keyboard(sd_bus_message *m, void *userdata, sd_bus_err
+                 convert = !vc_context_equal(&c->vc, &converted);
+         }
+ 
+-        if (x11_context_equal(&c->x11_from_vc, &in) && x11_context_equal(&c->x11_from_xorg, &in) && !convert)
++        if (context_x11_context_equal(c, &in) && !convert)
+                 return sd_bus_reply_method_return(m, NULL);
+ 
+         r = bus_verify_polkit_async_full(
+@@ -518,9 +528,11 @@ static int method_set_x11_keyboard(sd_bus_message *m, void *userdata, sd_bus_err
+         if (r < 0)
+                 return log_oom();
+ 
++#if ENABLE_XORG
+         r = x11_context_copy(&c->x11_from_xorg, &in);
+         if (r < 0)
+                 return log_oom();
++#endif
+ 
+         if (convert)
+                 vc_context_replace(&c->vc, &converted);
+@@ -529,9 +541,11 @@ static int method_set_x11_keyboard(sd_bus_message *m, void *userdata, sd_bus_err
+         if (r < 0)
+                 log_warning_errno(r, "Failed to update vconsole.conf, ignoring: %m");
+ 
++#if ENABLE_XORG
+         r = x11_write_data(c);
+         if (r < 0)
+                 log_warning_errno(r, "Failed to write X11 keyboard layout, ignoring: %m");
++#endif
+ 
+         log_info("Changed X11 keyboard layout to '%s' model '%s' variant '%s' options '%s'",
+                  strempty(in.layout),
+diff --git a/units/meson.build b/units/meson.build
+index 9f8f8d0..fc7af6c 100644
+--- a/units/meson.build
++++ b/units/meson.build
+@@ -43,7 +43,10 @@ units = [
+         { 'file' : 'factory-reset.target' },
+         { 'file' : 'factory-reset-now.target' },
+         { 'file' : 'final.target' },
+-        { 'file' : 'first-boot-complete.target' },
++        {
++          'file' : 'first-boot-complete.target',
++          'conditions' : ['ENABLE_FIRSTBOOT'],
++        },
+         { 'file' : 'getty-pre.target' },
+         {
+           'file' : 'getty.target',
+@@ -247,7 +250,10 @@ units = [
+         },
+         { 'file' : 'sysinit.target' },
+         { 'file' : 'syslog.socket' },
+-        { 'file' : 'system-install.target' },
++        {
++          'file' : 'system-install.target',
++          'conditions' : ['ENABLE_SYSINSTALL'],
++        },
+         {
+           'file' : 'system-systemd-cryptsetup.slice',
+           'name' : 'system-systemd\\x2dcryptsetup.slice',
+@@ -1198,6 +1204,11 @@ foreach unit : units
+         endif
+ endforeach
+ 
++if conf.get('ENABLE_FIRSTBOOT') == 1
++        install_data('systemd-random-seed.service.d/10-firstboot.conf',
++                     install_dir : systemunitdir / 'systemd-random-seed.service.d')
++endif
++
+ install_data('user-.slice.d/10-defaults.conf',
+              install_dir : systemunitdir + '/user-.slice.d')
+ 
+diff --git a/units/systemd-random-seed.service.d/10-firstboot.conf b/units/systemd-random-seed.service.d/10-firstboot.conf
+new file mode 100644
+index 0000000..2197143
+--- /dev/null
++++ b/units/systemd-random-seed.service.d/10-firstboot.conf
+@@ -0,0 +1,5 @@
++# SPDX-License-Identifier: LGPL-2.1-or-later
++
++[Unit]
++Wants=first-boot-complete.target
++Before=first-boot-complete.target
+diff --git a/units/systemd-random-seed.service.in b/units/systemd-random-seed.service.in
+index 99b5f33..7a02a68 100644
+--- a/units/systemd-random-seed.service.in
++++ b/units/systemd-random-seed.service.in
+@@ -16,9 +16,7 @@ ConditionPathExists=!/etc/initrd-release
+ 
+ DefaultDependencies=no
+ After=systemd-remount-fs.service
+-Before=first-boot-complete.target
+ RequiresMountsFor={{RANDOM_SEED}}
+-Wants=first-boot-complete.target
+ Conflicts=shutdown.target
+ Before=shutdown.target
+ 
+-- 
+2.54.0
+

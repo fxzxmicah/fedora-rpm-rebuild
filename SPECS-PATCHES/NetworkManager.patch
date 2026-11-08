@@ -1,16 +1,25 @@
 diff --git OLD/NetworkManager.spec NEW/NetworkManager.spec
-index 2bb459e..bcee091 100644
+index 0d8fb03..863adf5 100644
 --- OLD/NetworkManager.spec
 +++ NEW/NetworkManager.spec
-@@ -185,6 +185,7 @@ Requires(postun): systemd
+@@ -82,7 +82,7 @@ Release: 3%{?dist}
+ %else
+ %bcond_with connectivity_redhat
+ %endif
+-%if 0%{?rhel}
++%if 0%{?fedora} > 44 || 0%{?rhel}
+ %bcond_with iwd
+ %else
+ %bcond_without iwd
+@@ -166,6 +166,7 @@ Requires(postun): systemd
  Requires: dbus >= %{dbus_version}
  Requires: glib2 >= %{glib2_version}
  Requires: %{name}-libnm%{?_isa} = %{epoch}:%{version}-%{release}
 +Requires: (%{name}-firewalld = %{epoch}:%{version}-%{release} if firewalld)
  
- Recommends: iputils
- 
-@@ -314,6 +315,17 @@ Ethernet, Bridge, Bond, VLAN, Team, InfiniBand, Wi-Fi, mobile broadband
+ %if %{with clat}
+ Requires: libbpf
+@@ -308,6 +309,17 @@ Ethernet, Bridge, Bond, VLAN, Team, InfiniBand, Wi-Fi, mobile broadband
  services.
  
  
@@ -28,7 +37,16 @@ index 2bb459e..bcee091 100644
  %if %{with adsl}
  %package adsl
  Summary: ADSL device plugin for NetworkManager
-@@ -789,11 +801,14 @@ if [ -S /run/udev/control ]; then
+@@ -714,7 +726,7 @@ cp %{SOURCE7} %{buildroot}%{_sysctldir}
+ %if 0%{?fedora} >= 40
+ cp %{SOURCE6} %{buildroot}%{nmlibdir}/conf.d/
+ %endif
+-%if 0%{?fedora} >= 45
++%if %{with clat}
+ cp %{SOURCE10} %{buildroot}%{nmlibdir}/conf.d/
+ %endif
+ 
+@@ -781,11 +793,14 @@ if [ -S /run/udev/control ]; then
      /usr/bin/udevadm control --reload-rules || :
      /usr/bin/udevadm trigger --subsystem-match=net || :
  fi
@@ -44,10 +62,10 @@ index 2bb459e..bcee091 100644
  %if %{with ifcfg_rh}
  %post initscripts-updown
  if [ -f %{_sbindir}/ifup -a ! -L %{_sbindir}/ifup ]; then
-@@ -840,11 +855,14 @@ fi
- %postun
- /usr/bin/udevadm control --reload-rules || :
- /usr/bin/udevadm trigger --subsystem-match=net || :
+@@ -836,11 +851,14 @@ if [ -S /run/udev/control ]; then
+     /usr/bin/udevadm control --reload-rules || :
+     /usr/bin/udevadm trigger --subsystem-match=net || :
+ fi
 -%firewalld_reload
  
  %systemd_postun %{systemd_units}
@@ -60,7 +78,16 @@ index 2bb459e..bcee091 100644
  %if %{with nm_cloud_setup}
  %postun cloud-setup
  %systemd_postun %{systemd_units_cloud_setup}
-@@ -916,7 +934,6 @@ fi
+@@ -870,7 +888,7 @@ fi
+ %if 0%{?fedora} >= 40
+ %{nmlibdir}/conf.d/22-wifi-mac-addr.conf
+ %endif
+-%if 0%{?fedora} >= 45
++%if %{with clat}
+ %{nmlibdir}/conf.d/24-clat-auto.conf
+ %endif
+ %ghost %{_sysconfdir}/%{name}/VPN
+@@ -915,7 +933,6 @@ fi
  %{_datadir}/polkit-1/rules.d/org.freedesktop.NetworkManager.rules
  %endif
  %{_prefix}/lib/udev/rules.d/*.rules
@@ -68,7 +95,7 @@ index 2bb459e..bcee091 100644
  # systemd stuff
  %{_unitdir}/NetworkManager.service
  %{_unitdir}/NetworkManager-wait-online.service
-@@ -933,6 +950,10 @@ fi
+@@ -932,6 +949,10 @@ fi
  %license COPYING.GFDL
  
  

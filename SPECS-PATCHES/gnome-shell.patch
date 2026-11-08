@@ -1,8 +1,18 @@
 diff --git OLD/gnome-shell.spec NEW/gnome-shell.spec
-index 76bae7b..beae12d 100644
+index 04fe857..298c183 100644
 --- OLD/gnome-shell.spec
 +++ NEW/gnome-shell.spec
-@@ -116,8 +116,6 @@ Requires:       accountsservice-libs%{?_isa}
+@@ -32,9 +32,6 @@ Source0:        https://download.gnome.org/sources/%{name}/%{gnome_major_version
+ 
+ %gnome_check_version
+ 
+-# Replace Epiphany with Firefox in the default favourite apps list
+-Patch: gnome-shell-favourite-apps-firefox.patch
+-
+ BuildRequires:  pkgconfig(bash-completion)
+ BuildRequires:  gcc
+ BuildRequires:  meson
+@@ -110,8 +107,6 @@ Requires:       accountsservice-libs%{?_isa}
  Requires:       gdm-libs%{?_isa}
  # needed for settings items in menus
  Requires:       gnome-control-center
@@ -11,7 +21,7 @@ index 76bae7b..beae12d 100644
  # needed for the dual-GPU launch menu
  Requires:       switcheroo-control
  # needed for clocks/weather integration
-@@ -180,6 +178,14 @@ BuildArch: noarch
+@@ -174,11 +169,20 @@ BuildArch: noarch
  %description common
  %{summary}
  
@@ -24,28 +34,33 @@ index 76bae7b..beae12d 100644
 +This package contains development files for %{name}.
 +
  %prep
- %autosetup -S git -n %{name}-%{tarball_version}
+ %autosetup -S git -n %{name}-%{gnome_tarball_version}
  
-@@ -201,6 +207,9 @@ BuildArch: noarch
+ %build
+ %meson \
++  -Dextensions_tool=false \
+ %if %{portal_helper}
+   -Dportal_helper=true \
+ %else
+@@ -194,6 +198,8 @@ BuildArch: noarch
  mkdir -p %{buildroot}%{_datadir}/gnome-shell/extensions
  mkdir -p %{buildroot}%{_datadir}/gnome-shell/search-providers
  
-+rm %{buildroot}%{_bindir}/gnome-shell-extension-tool
 +rm %{buildroot}%{_bindir}/gnome-shell-test-tool
 +
  %find_lang %{name}
  
  %check
-@@ -215,8 +224,6 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/org.gnome.Shell.Porta
+@@ -208,8 +214,6 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/org.gnome.Shell.Porta
  %doc NEWS README.md
  %{_bindir}/gnome-shell
  %{_bindir}/gnome-extensions
 -%{_bindir}/gnome-shell-extension-tool
 -%{_bindir}/gnome-shell-test-tool
  %{_datadir}/glib-2.0/schemas/00_org.gnome.shell.gschema.override
+ %{_datadir}/applications/org.gnome.Shell.CalendarServer.desktop
  %{_datadir}/applications/org.gnome.Shell.Extensions.desktop
- %{_datadir}/bash-completion/completions/gnome-extensions
-@@ -224,6 +231,7 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/org.gnome.Shell.Porta
+@@ -218,6 +222,7 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/org.gnome.Shell.Porta
  %{_datadir}/gnome-control-center/keybindings/50-gnome-shell-screenshots.xml
  %{_datadir}/gnome-control-center/keybindings/50-gnome-shell-system.xml
  %{_datadir}/gnome-shell/
@@ -53,7 +68,7 @@ index 76bae7b..beae12d 100644
  %{_datadir}/dbus-1/services/org.gnome.ScreenSaver.service
  %{_datadir}/dbus-1/services/org.gnome.Shell.CalendarServer.service
  %{_datadir}/dbus-1/services/org.gnome.Shell.Extensions.service
-@@ -264,5 +272,8 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/org.gnome.Shell.Porta
+@@ -258,5 +263,8 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/org.gnome.Shell.Porta
  %files common
  %{_datadir}/glib-2.0/schemas/*.xml
  

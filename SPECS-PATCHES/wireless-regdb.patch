@@ -1,8 +1,8 @@
 diff --git OLD/wireless-regdb.spec NEW/wireless-regdb.spec
-index 37d7bc9..7f1328c 100644
+index e776304..3e6c82b 100644
 --- OLD/wireless-regdb.spec
 +++ NEW/wireless-regdb.spec
-@@ -7,22 +7,26 @@ Summary:        Regulatory database for 802.11 wireless networking
+@@ -7,22 +7,27 @@ Summary:        Regulatory database for 802.11 wireless networking
  
  License:        ISC
  URL:            https://wireless.wiki.kernel.org/en/developers/regulatory/wireless-regdb
@@ -29,12 +29,13 @@ index 37d7bc9..7f1328c 100644
 +# Source2:        setregdomain.1
  Source3:        85-regulatory.rules
  
++# Replace setregdomain with a native executable
 +Patch0:         wireless-regdb-native-setregdomain.patch
 +
  
  %description
  The wireless-regdb package provides the regulatory rules database
-@@ -35,15 +39,18 @@ with radio frequency regulatory rules around the world.
+@@ -35,15 +40,18 @@ with radio frequency regulatory rules around the world.
  
  
  %build

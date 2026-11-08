@@ -1,8 +1,8 @@
 diff --git OLD/tinysparql.spec NEW/tinysparql.spec
-index 339ea71..13bad72 100644
+index 225ab12..6dca54e 100644
 --- OLD/tinysparql.spec
 +++ NEW/tinysparql.spec
-@@ -4,6 +4,8 @@
+@@ -2,6 +2,8 @@
  
  %global tracker_obsoletes_version 3.8
  

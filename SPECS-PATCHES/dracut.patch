@@ -1,8 +1,17 @@
 diff --git OLD/dracut.spec NEW/dracut.spec
-index 9a089dc..1bec154 100644
+index f3b9b93..ac904d1 100644
 --- OLD/dracut.spec
 +++ NEW/dracut.spec
-@@ -195,6 +195,13 @@ This package provides a dracut module to build an initramfs, but store most file
+@@ -149,8 +149,6 @@ Requires: systemd >= 219
+ Requires: systemd-udev >= 219
+ Requires: procps-ng
+ 
+-Requires: libkcapi-hmaccalc
+-
+ %description
+ dracut contains tools to create bootable initramfses for the Linux
+ kernel. Unlike other implementations, dracut hard-codes as little
+@@ -232,6 +230,12 @@ This package provides a dracut module to build an initramfs, but store most file
  in a squashfs image, result in a smaller initramfs size and reduce runtime memory
  usage.
  
@@ -12,11 +21,10 @@ index 9a089dc..1bec154 100644
 +
 +%description devel
 +This package provides the development files for dracut.
-+
+ 
  %prep
- %autosetup -n %{name}-ng-%{version} -S git_am
- cp %{SOURCE1} .
-@@ -287,8 +294,6 @@ echo 'dracut_rescue_image="yes"' > $RPM_BUILD_ROOT%{dracutlibdir}/dracut.conf.d/
+ %autosetup -n %{name}-%{version} -S git_am
+@@ -326,8 +330,6 @@ echo 'dracut_rescue_image="yes"' > $RPM_BUILD_ROOT%{dracutlibdir}/dracut.conf.d/
  %{dracutlibdir}/dracut.conf.d/01-dist.conf
  %dir %{_sysconfdir}/dracut.conf.d
  %dir %{dracutlibdir}/dracut.conf.d
@@ -25,7 +33,7 @@ index 9a089dc..1bec154 100644
  
  %if %{with doc}
  %{_mandir}/man8/dracut.8*
-@@ -489,6 +494,9 @@ echo 'dracut_rescue_image="yes"' > $RPM_BUILD_ROOT%{dracutlibdir}/dracut.conf.d/
+@@ -539,6 +541,9 @@ echo 'dracut_rescue_image="yes"' > $RPM_BUILD_ROOT%{dracutlibdir}/dracut.conf.d/
  %{dracutlibdir}/dracut.conf.d/02-rescue.conf
  %{_prefix}/lib/kernel/install.d/51-dracut-rescue.install
  
@@ -33,5 +41,5 @@ index 9a089dc..1bec154 100644
 +%{_datadir}/pkgconfig/dracut.pc
 +
  %changelog
- * Thu Mar 12 2026 Pavel Valena <pvalena@redhat.com> - 108-6
- - fix(dracut): use grep -q/-s to silence output/error
+ * Wed Sep 30 2026 Angel Cervera Roldan <angelcerveraroldan@protonmail.com> - 111-5
+ - fix(crypt): do not call return to exit a systemd generator

@@ -1,5 +1,5 @@
 diff --git OLD/dnf5.spec NEW/dnf5.spec
-index be49f55..6d5d0df 100644
+index 138539d..ac54267 100644
 --- OLD/dnf5.spec
 +++ NEW/dnf5.spec
 @@ -13,9 +13,11 @@
@@ -15,7 +15,17 @@ index be49f55..6d5d0df 100644
  %bcond_without modulemd
  %endif
  %bcond_without systemd
-@@ -94,8 +96,9 @@ Requires:       coreutils
+@@ -78,6 +80,9 @@ License:        GPL-2.0-or-later AND LGPL-2.1-or-later AND LGPL-2.0-or-later
+ URL:            https://github.com/rpm-software-management/dnf5
+ Source0:        %{url}/archive/%{version}/dnf5-%{version}.tar.gz
+ 
++# Repository configuration directory
++Patch0:         dnf5-repository-directory.patch
++
+ Requires:       libdnf5%{?_isa} = %{version}-%{release}
+ Requires:       libdnf5-cli%{?_isa} = %{version}-%{release}
+ %if %{without dnf5_obsoletes_dnf}
+@@ -89,8 +94,9 @@ Requires:       coreutils
  %if 0%{?fedora} > 41
  Recommends:     (libdnf5-plugin-expired-pgp-keys if gnupg2)
  %endif
@@ -26,7 +36,7 @@ index be49f55..6d5d0df 100644
  Provides:       microdnf = %{version}-%{release}
  Obsoletes:      microdnf < 4
  %endif
-@@ -104,9 +107,6 @@ Obsoletes:      microdnf < 4
+@@ -99,9 +105,6 @@ Obsoletes:      microdnf < 4
  Provides:       dnf = %{version}-%{release}
  Obsoletes:      dnf < 5
  
@@ -36,7 +46,7 @@ index be49f55..6d5d0df 100644
  Conflicts:      python3-dnf-plugins-core < 4.7.0
  %endif
  
-@@ -312,12 +312,11 @@ It supports RPM packages%{?with_modulemd:, modulemd modules,} and comps groups &
+@@ -312,12 +315,11 @@ It supports RPM packages%{?with_modulemd:, modulemd modules,} and comps groups &
  %{_bindir}/dnf5
  %if %{with dnf5_obsoletes_dnf}
  %{_bindir}/dnf
@@ -50,7 +60,7 @@ index be49f55..6d5d0df 100644
  %{_bindir}/microdnf
  %endif
  
-@@ -332,8 +331,7 @@ It supports RPM packages%{?with_modulemd:, modulemd modules,} and comps groups &
+@@ -332,8 +334,7 @@ It supports RPM packages%{?with_modulemd:, modulemd modules,} and comps groups &
  %dir %{_sysconfdir}/dnf/dnf5-plugins
  %doc %{_libdir}/dnf5/plugins/README
  %dir %{_libdir}/libdnf5/plugins
@@ -59,8 +69,25 @@ index be49f55..6d5d0df 100644
 +%{bash_completions_dir}/*
  %license COPYING.md
  %license gpl-2.0.txt
- %doc AUTHORS.md CHANGELOG.md CONTRIBUTING.md README.md
-@@ -459,6 +457,20 @@ It supports RPM packages%{?with_modulemd:, modulemd modules,} and comps groups &
+ %license lgpl-2.1.txt
+@@ -360,7 +361,7 @@ It supports RPM packages%{?with_modulemd:, modulemd modules,} and comps groups &
+ %{_mandir}/man8/dnf5-list.8.*
+ %{_mandir}/man8/dnf5-makecache.8.*
+ %{_mandir}/man8/dnf5-mark.8.*
+-%if 0%{?fedora} || 0%{?rhel} > 10
++%if %{with microdnf}
+ %{_mandir}/man8/microdnf.8.*
+ %endif
+ %if %{with modulemd}
+@@ -434,7 +435,6 @@ It supports RPM packages%{?with_modulemd:, modulemd modules,} and comps groups &
+ %{_mandir}/man8/dnf-system-upgrade.8.*
+ %{_mandir}/man8/dnf-upgrade.8.*
+ %{_mandir}/man8/dnf-versionlock.8.*
+-%{_mandir}/man8/yum.8.*
+ %{_mandir}/man7/dnf-aliases.7.*
+ %{_mandir}/man7/dnf-caching.7.*
+ %{_mandir}/man7/dnf-comps.7.*
+@@ -465,6 +465,20 @@ It supports RPM packages%{?with_modulemd:, modulemd modules,} and comps groups &
  %exclude %{_datadir}/dnf5/aliases.d/compatibility-reposync.conf
  %endif
  
@@ -81,7 +108,15 @@ index be49f55..6d5d0df 100644
  # ========== libdnf5 ==========
  %package -n libdnf5
  Summary:        Package management library
-@@ -1119,7 +1131,6 @@ DNF5 plugin for working with RPM package manifest files.
+@@ -496,6 +510,7 @@ Package management library.
+ %dir %{_datadir}/dnf5/libdnf.conf.d
+ %dir %{_sysconfdir}/dnf/libdnf5.conf.d
+ %dir %{_datadir}/dnf5/repos.override.d
++%dir %{_sysconfdir}/dnf/repos.d
+ %dir %{_sysconfdir}/dnf/repos.override.d
+ %dir %{_sysconfdir}/dnf/libdnf5-plugins
+ %dir %{_datadir}/dnf5/repos.d
+@@ -1138,7 +1153,6 @@ DNF5 plugin for working with RPM package manifest files.
  
  %if %{with dnf5_obsoletes_dnf}
  ln -sr %{buildroot}%{_bindir}/dnf5 %{buildroot}%{_bindir}/dnf
@@ -89,12 +124,20 @@ index be49f55..6d5d0df 100644
  ln -sr %{buildroot}%{bash_completions_dir}/dnf5 %{buildroot}%{bash_completions_dir}/dnf
  %if %{with man}
      for file in %{buildroot}%{_mandir}/man[578]/dnf5[-.]*; do
-@@ -1155,7 +1166,7 @@ touch %{buildroot}%{_sysconfdir}/dnf/versionlock.toml
+@@ -1146,7 +1160,6 @@ ln -sr %{buildroot}%{bash_completions_dir}/dnf5 %{buildroot}%{bash_completions_d
+         filename=$(basename $file)
+         ln -sr $file $dir/${filename/dnf5/dnf}
+     done
+-    ln -sr %{buildroot}%{_mandir}/man8/dnf5.8 %{buildroot}%{_mandir}/man8/yum.8
+ %endif
+ # Make "dnf-makecache" the "real" unit name, but keep compatibility for playbooks that refer to dnf5-makecache
+ mv %{buildroot}%{_unitdir}/dnf5-makecache.service %{buildroot}%{_unitdir}/dnf-makecache.service
+@@ -1175,7 +1188,7 @@ touch %{buildroot}%{_sysconfdir}/dnf/versionlock.toml
  mkdir -p %{buildroot}%{_sharedstatedir}/dnf
  touch %{buildroot}%{_sharedstatedir}/dnf/system-repo.lock
  
 -%if 0%{?fedora} || 0%{?rhel} > 10
 +%if %{with microdnf}
  ln -sr %{buildroot}%{_bindir}/dnf5 %{buildroot}%{_bindir}/microdnf
- %endif
- 
+ %if %{with man}
+ ln -sr %{buildroot}%{_mandir}/man8/dnf5.8 %{buildroot}%{_mandir}/man8/microdnf.8

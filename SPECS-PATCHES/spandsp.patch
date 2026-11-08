@@ -1,5 +1,5 @@
 diff --git OLD/spandsp.spec NEW/spandsp.spec
-index 533dccd..af11af2 100644
+index 6e09e96..bf56102 100644
 --- OLD/spandsp.spec
 +++ NEW/spandsp.spec
 @@ -61,7 +61,6 @@ find doc/api -type f | xargs touch -r configure

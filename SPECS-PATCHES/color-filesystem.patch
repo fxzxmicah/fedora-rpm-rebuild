@@ -1,5 +1,5 @@
 diff --git OLD/color-filesystem.spec NEW/color-filesystem.spec
-index 7ec054c..29f6657 100644
+index a2633b4..ab6c6a3 100644
 --- OLD/color-filesystem.spec
 +++ NEW/color-filesystem.spec
 @@ -8,10 +8,19 @@ BuildArch:      noarch

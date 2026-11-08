@@ -1,5 +1,5 @@
 diff --git OLD/libva.spec NEW/libva.spec
-index 1341a20..63fa677 100644
+index 97783d8..c3a2578 100644
 --- OLD/libva.spec
 +++ NEW/libva.spec
 @@ -49,7 +49,7 @@ developing applications that use %{name}.
@@ -11,15 +11,13 @@ index 1341a20..63fa677 100644
  %{?_without_xorg: -Dwith_glx=no -Dwith_x11=no} \
  %{?_without_wayland: -Dwith_wayland=no}
  
-@@ -61,17 +61,12 @@ developing applications that use %{name}.
+@@ -61,15 +61,11 @@ developing applications that use %{name}.
  # Don't break assumption, set driverdir as one single dir
  sed -i -e 's|driverdir=.*|driverdir=%{_libdir}/dri|' %{buildroot}%{_libdir}/pkgconfig/libva.pc
  
 -# Owns the alternates directories
 -mkdir -p %{buildroot}%{_libdir}/dri-{freeworld,nonfree}
 -
--
- %ldconfig_scriptlets
  
  %files
  %doc NEWS

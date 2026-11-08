@@ -1,5 +1,5 @@
 diff --git OLD/libinput.spec NEW/libinput.spec
-index 52c7ac1..8dbbd60 100644
+index a323e28..13aa428 100644
 --- OLD/libinput.spec
 +++ NEW/libinput.spec
 @@ -3,6 +3,9 @@
@@ -10,7 +10,7 @@ index 52c7ac1..8dbbd60 100644
 +%bcond libwacom 0
 +
  Name:           libinput
- Version:        1.31.1
+ Version:        1.32.0
  Release:        1%{?gitdate:.%{gitdate}git%{gitversion}}%{?dist}
 @@ -25,12 +28,16 @@ BuildRequires:  meson
  BuildRequires:  pkgconfig(libudev)
