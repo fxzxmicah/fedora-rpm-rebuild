@@ -1,4 +1,4 @@
-From ba71916e6a978338323ecb7b4cde5b28953e2abd Mon Sep 17 00:00:00 2001
+From 5f62dfa38842e193fe3a8e95ad0d06c8450603c5 Mon Sep 17 00:00:00 2001
 From: Fxzx micah <48860358+fxzxmicah@users.noreply.github.com>
 Date: Sun, 8 Nov 2026 14:48:22 +0800
 Subject: [PATCH] conf: separate component defaults and user configuration
@@ -89,7 +89,7 @@ index 862d57d..9cc9185 100644
  sysusers_dir=${prefix}/lib/sysusers.d
  sysusersdir=${sysusers_dir}
 diff --git a/src/tmpfiles/tmpfiles.c b/src/tmpfiles/tmpfiles.c
-index 8924950..4821171 100644
+index 8924950..8bb3b22 100644
 --- a/src/tmpfiles/tmpfiles.c
 +++ b/src/tmpfiles/tmpfiles.c
 @@ -373,26 +373,32 @@ static int log_unresolvable_specifier(const char *filename, unsigned line) {
@@ -134,7 +134,7 @@ index 8924950..4821171 100644
 +        }
  
 -        r = strv_extend_strv_consume(&config_dirs, TAKE_PTR(data_dirs), /* filter_duplicates= */ true);
-+        r = strv_extend(&config_dirs, CONF_PATHS("user-tmpfiles.d"));
++        r = strv_extend_many(&config_dirs, CONF_PATHS("user-tmpfiles.d"));
          if (r < 0)
                  return r;
  

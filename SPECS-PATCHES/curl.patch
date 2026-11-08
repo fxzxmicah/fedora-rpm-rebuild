@@ -1,5 +1,5 @@
 diff --git OLD/curl.spec NEW/curl.spec
-index f7e0baa..2d98b71 100644
+index f7e0baa..4a51f08 100644
 --- OLD/curl.spec
 +++ NEW/curl.spec
 @@ -8,7 +8,7 @@
@@ -37,6 +37,15 @@ index f7e0baa..2d98b71 100644
  %package -n libcurl
  Summary: A library for getting files from web servers
  Requires: libnghttp2%{?_isa} >= %{libnghttp2_version}
+@@ -404,7 +416,7 @@ for size in minimal full; do (
+     export LD_LIBRARY_PATH="${PWD}/lib/.libs"
+ 
+     # tests that must run in serial to avoid intermittent failures under parallel execution
+-    serial_tests="766 1399 2402 2404 2500 2502 3300 3301"
++    serial_tests="656 766 1399 2402 2404 2500 2502 3300 3301"
+     serial_excludes=$(for t in $serial_tests; do printf ' !%s' "$t"; done)
+     # run the bulk of tests in parallel, excluding serial ones
+     # cap at 64 jobs to avoid overwhelming system resources on high-CPU machines
 @@ -460,7 +472,9 @@ rm -f ${RPM_BUILD_ROOT}%{_mandir}/man1/wcurl.1*
  %doc docs/TheArtOfHttpScripting.md
  %{_bindir}/curl
