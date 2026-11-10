@@ -1,0 +1,21 @@
+diff --git OLD/appstream.spec NEW/appstream.spec
+index 1542e3f..18eb64c 100644
+--- OLD/appstream.spec
++++ NEW/appstream.spec
+@@ -155,8 +155,6 @@ mv %{buildroot}%{_datadir}/metainfo/*.xml \
+ %{_libdir}/libappstream.so.5
+ %{_libdir}/libappstream.so.%{version}
+ %{_metainfodir}/org.freedesktop.appstream.cli.*.xml
+-# put in -devel? -- rex
+-%{_datadir}/gettext/its/metainfo.*
+ %ghost /var/cache/swcatalog/cache.watch
+ %dir /var/cache/swcatalog/
+ %dir /var/cache/swcatalog/icons/
+@@ -169,6 +167,7 @@ mv %{buildroot}%{_datadir}/metainfo/*.xml \
+ %{_libdir}/pkgconfig/appstream.pc
+ %dir %{_datadir}/gir-1.0/
+ %{_datadir}/gir-1.0/AppStream-1.0.gir
++%{_datadir}/gettext/
+ %dir %{_datadir}/vala
+ %dir %{_datadir}/vala/vapi
+ %{_datadir}/vala/vapi/appstream.deps

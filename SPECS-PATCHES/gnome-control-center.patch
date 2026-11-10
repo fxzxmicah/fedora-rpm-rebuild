@@ -1,5 +1,5 @@
 diff --git OLD/gnome-control-center.spec NEW/gnome-control-center.spec
-index d87aa37..58c329d 100644
+index d87aa37..719e0a1 100644
 --- OLD/gnome-control-center.spec
 +++ NEW/gnome-control-center.spec
 @@ -11,8 +11,12 @@
@@ -92,7 +92,15 @@ index d87aa37..58c329d 100644
  %endif
    %{nil}
  %meson_build
-@@ -208,7 +235,6 @@ rm -rf $RPM_BUILD_ROOT%{_datadir}/gnome/cursor-fonts
+@@ -198,7 +225,6 @@ rm -rf $RPM_BUILD_ROOT%{_datadir}/gnome/cursor-fonts
+ %{_datadir}/dbus-1/services/org.gnome.Settings.service
+ %{_datadir}/dbus-1/services/org.gnome.Settings.GlobalShortcutsProvider.service
+ %{_datadir}/dbus-1/interfaces/org.gnome.GlobalShortcutsRebind.xml
+-%{_datadir}/gettext/
+ %{_datadir}/glib-2.0/schemas/org.gnome.Settings.gschema.xml
+ %{_datadir}/gnome-control-center/keybindings/*.xml
+ %{_datadir}/gnome-control-center/pixmaps
+@@ -208,7 +234,6 @@ rm -rf $RPM_BUILD_ROOT%{_datadir}/gnome/cursor-fonts
  %{_mandir}/man1/gnome-control-center.1*
  %{_metainfodir}/org.gnome.Settings.metainfo.xml
  %{_datadir}/pixmaps/faces
@@ -100,11 +108,12 @@ index d87aa37..58c329d 100644
  %{_datadir}/polkit-1/actions/org.gnome.controlcenter.*.policy
  %{_datadir}/polkit-1/rules.d/gnome-control-center.rules
  %{_datadir}/sounds/gnome/default/*/*.ogg
-@@ -221,5 +247,8 @@ rm -rf $RPM_BUILD_ROOT%{_datadir}/gnome/cursor-fonts
+@@ -221,5 +246,9 @@ rm -rf $RPM_BUILD_ROOT%{_datadir}/gnome/cursor-fonts
  %dir %{_datadir}/gnome-control-center/keybindings
  %dir %{_datadir}/gnome/wm-properties
  
 +%files devel
++%{_datadir}/gettext
 +%{_datadir}/pkgconfig/gnome-keybindings.pc
 +
  %changelog

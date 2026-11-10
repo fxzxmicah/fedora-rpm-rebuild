@@ -1,5 +1,5 @@
 diff --git OLD/shared-mime-info.spec NEW/shared-mime-info.spec
-index 582ab87..bfc3a44 100644
+index 582ab87..1e4551e 100644
 --- OLD/shared-mime-info.spec
 +++ NEW/shared-mime-info.spec
 @@ -36,6 +36,14 @@ files. Frequently, it is necessary to work out the correct MIME type for
@@ -17,7 +17,7 @@ index 582ab87..bfc3a44 100644
  %prep
  %autosetup -S git_am
  
-@@ -83,13 +91,10 @@ update-mime-database -n %{_datadir}/mime &> /dev/null ||:
+@@ -83,19 +91,16 @@ update-mime-database -n %{_datadir}/mime &> /dev/null ||:
  
  %files -f %{name}.files
  %license COPYING
@@ -30,15 +30,16 @@ index 582ab87..bfc3a44 100644
 -%dir %{_datadir}/pkgconfig
 -%{_datadir}/pkgconfig/shared-mime-info.pc
  %{_mandir}/man*/update-mime-database.*
- # also co-own the gettext dirs, we don't require it
- %dir %{_datadir}/gettext
-@@ -97,5 +102,9 @@ update-mime-database -n %{_datadir}/mime &> /dev/null ||:
- %{_datadir}/gettext/its/shared-mime-info.its
- %{_datadir}/gettext/its/shared-mime-info.loc
- 
+-# also co-own the gettext dirs, we don't require it
+-%dir %{_datadir}/gettext
+-%dir %{_datadir}/gettext/its
+-%{_datadir}/gettext/its/shared-mime-info.its
+-%{_datadir}/gettext/its/shared-mime-info.loc
++
 +%files devel
 +%doc data/shared-mime-info-spec.xml
++%{_datadir}/gettext
 +%{_datadir}/pkgconfig/shared-mime-info.pc
-+
+ 
  %changelog
  %autochangelog
