@@ -1,18 +1,30 @@
 diff --git OLD/gnome-shell.spec NEW/gnome-shell.spec
-index 04fe857..f722154 100644
+index 04fe857..0edd5ad 100644
 --- OLD/gnome-shell.spec
 +++ NEW/gnome-shell.spec
-@@ -32,9 +32,6 @@ Source0:        https://download.gnome.org/sources/%{name}/%{gnome_major_version
+@@ -30,10 +30,10 @@ License:        GPL-2.0-or-later
+ URL:            https://wiki.gnome.org/Projects/GnomeShell
+ Source0:        https://download.gnome.org/sources/%{name}/%{gnome_major_version}/%{name}-%{gnome_tarball_version}.tar.xz
  
- %gnome_check_version
+-%gnome_check_version
++# Separate extension management and development commands
++Patch0:         gnome-shell-split-extension-development.patch
  
 -# Replace Epiphany with Firefox in the default favourite apps list
 -Patch: gnome-shell-favourite-apps-firefox.patch
--
++%gnome_check_version
+ 
  BuildRequires:  pkgconfig(bash-completion)
  BuildRequires:  gcc
- BuildRequires:  meson
-@@ -110,8 +107,6 @@ Requires:       accountsservice-libs%{?_isa}
+@@ -44,6 +44,7 @@ BuildRequires:  pkgconfig(libedataserver-1.2) >= %{eds_version}
+ BuildRequires:  pkgconfig(gcr-4)
+ BuildRequires:  pkgconfig(gjs-1.0) >= %{gjs_version}
+ BuildRequires:  pkgconfig(gio-2.0) >= %{glib2_version}
++BuildRequires:  pkgconfig(gmodule-2.0)
+ BuildRequires:  pkgconfig(gnome-autoar-0)
+ BuildRequires:  pkgconfig(gnome-desktop-4) >= %{gnome_desktop_version}
+ BuildRequires:  mesa-libGL-devel
+@@ -110,15 +111,13 @@ Requires:       accountsservice-libs%{?_isa}
  Requires:       gdm-libs%{?_isa}
  # needed for settings items in menus
  Requires:       gnome-control-center
@@ -21,22 +33,33 @@ index 04fe857..f722154 100644
  # needed for the dual-GPU launch menu
  Requires:       switcheroo-control
  # needed for clocks/weather integration
-@@ -174,6 +169,14 @@ BuildArch: noarch
+ Requires:       geoclue2-libs%{?_isa}
+ Requires:       libgweather4%{?_isa}
+-# for gnome-extensions CLI tool
+-Requires:  gettext
++# for runtime translation tools
++Requires:       gettext-runtime
+ # needed for thunderbolt support
+ Recommends:     bolt%{?_isa}
+ # Needed for launching flatpak apps etc
+@@ -174,6 +173,16 @@ BuildArch: noarch
  %description common
  %{summary}
  
 +%package devel
 +Summary: Development files for %{name}
 +Requires: %{name} = %{version}-%{release}
++Requires: gettext
 +
 +%description devel
 +%{summary}
-+This package contains development files for %{name}.
++This package contains development files and extension creation, packaging
++and upload commands for %{name}.
 +
  %prep
  %autosetup -S git -n %{name}-%{gnome_tarball_version}
  
-@@ -208,8 +211,6 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/org.gnome.Shell.Porta
+@@ -208,8 +217,6 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/org.gnome.Shell.Porta
  %doc NEWS README.md
  %{_bindir}/gnome-shell
  %{_bindir}/gnome-extensions
@@ -45,7 +68,7 @@ index 04fe857..f722154 100644
  %{_datadir}/glib-2.0/schemas/00_org.gnome.shell.gschema.override
  %{_datadir}/applications/org.gnome.Shell.CalendarServer.desktop
  %{_datadir}/applications/org.gnome.Shell.Extensions.desktop
-@@ -218,6 +219,7 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/org.gnome.Shell.Porta
+@@ -218,6 +225,7 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/org.gnome.Shell.Porta
  %{_datadir}/gnome-control-center/keybindings/50-gnome-shell-screenshots.xml
  %{_datadir}/gnome-control-center/keybindings/50-gnome-shell-system.xml
  %{_datadir}/gnome-shell/
@@ -53,11 +76,13 @@ index 04fe857..f722154 100644
  %{_datadir}/dbus-1/services/org.gnome.ScreenSaver.service
  %{_datadir}/dbus-1/services/org.gnome.Shell.CalendarServer.service
  %{_datadir}/dbus-1/services/org.gnome.Shell.Extensions.service
-@@ -258,5 +260,10 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/org.gnome.Shell.Porta
+@@ -258,5 +266,12 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/org.gnome.Shell.Porta
  %files common
  %{_datadir}/glib-2.0/schemas/*.xml
  
 +%files devel
++%{_libdir}/gnome-extensions/
++%{_mandir}/man1/gnome-extensions-development.1*
 +%{_bindir}/gnome-shell-extension-tool
 +%{_bindir}/gnome-shell-test-tool
 +%{_datadir}/gnome-shell/*.gir

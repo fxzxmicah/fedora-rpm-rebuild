@@ -1,4 +1,4 @@
-From 1b37b03d3d84d0913e64194e8a53c05db8179118 Mon Sep 17 00:00:00 2001
+From 65e6935a7059e6e2177666c7ebf032101f5d4c1e Mon Sep 17 00:00:00 2001
 From: Fxzx micah <48860358+fxzxmicah@users.noreply.github.com>
 Date: Sat, 19 Sep 2026 20:26:47 +0800
 Subject: [PATCH] panels: Hide entries for unavailable system services
@@ -86,7 +86,7 @@ index 3d04310..6343c27 100644
 +
  G_END_DECLS
 diff --git a/panels/system/cc-system-panel.blp b/panels/system/cc-system-panel.blp
-index fa39bf6..46f17a2 100644
+index fa39bf6..94ca61c 100644
 --- a/panels/system/cc-system-panel.blp
 +++ b/panels/system/cc-system-panel.blp
 @@ -47,7 +47,7 @@ template $CcSystemPanel: $CcPanel {
@@ -94,7 +94,7 @@ index fa39bf6..46f17a2 100644
          }
  
 -        $CcListRow {
-+          $CcListRow secure_shell_row {
++        $CcListRow secure_shell_row {
            title: _("Se_cure Shell");
            subtitle: _("SSH network access");
            icon-name: "utilities-terminal-symbolic";

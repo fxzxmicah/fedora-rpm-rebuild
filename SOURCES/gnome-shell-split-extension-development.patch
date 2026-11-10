@@ -1,0 +1,782 @@
+From ff0010dd72db57d6b970720cc7e93e772208627c Mon Sep 17 00:00:00 2001
+From: Fxzx micah <48860358+fxzxmicah@users.noreply.github.com>
+Date: Tue, 10 Nov 2026 02:02:42 +0800
+Subject: [PATCH] extensions-tool: Separate development commands from extension
+ management
+
+Build create, pack and upload in a separate module, keeping management commands independent of the extension development toolchain. Load the module only for development commands or command discovery, preserving the existing command-line interface.
+
+Reuse the command helpers in the executable, keep templates in the development module, and split completion and manual content along the same boundary. Build both components under the existing extensions_tool option so distributions can package the development module separately.
+---
+ po/POTFILES.in                                |   1 +
+ subprojects/extensions-tool/README.md         |  11 ++
+ .../completion/bash/development.bash          |  38 +++++
+ .../completion/bash/gnome-extensions          |  48 ++----
+ .../man/gnome-extensions-development.rst      | 157 ++++++++++++++++++
+ .../extensions-tool/man/gnome-extensions.rst  | 126 +-------------
+ subprojects/extensions-tool/man/meson.build   |   9 +
+ subprojects/extensions-tool/meson.build       |  16 +-
+ subprojects/extensions-tool/src/commands.h    |   8 +
+ subprojects/extensions-tool/src/development.c |  39 +++++
+ subprojects/extensions-tool/src/main.c        |  62 ++++++-
+ subprojects/extensions-tool/src/meson.build   |  26 ++-
+ 12 files changed, 367 insertions(+), 174 deletions(-)
+ create mode 100644 subprojects/extensions-tool/completion/bash/development.bash
+ create mode 100644 subprojects/extensions-tool/man/gnome-extensions-development.rst
+ create mode 100644 subprojects/extensions-tool/src/development.c
+
+diff --git a/po/POTFILES.in b/po/POTFILES.in
+index 7a4b97b..8240516 100644
+--- a/po/POTFILES.in
++++ b/po/POTFILES.in
+@@ -114,6 +114,7 @@ subprojects/extensions-tool/src/command-prefs.c
+ subprojects/extensions-tool/src/command-reset.c
+ subprojects/extensions-tool/src/command-uninstall.c
+ subprojects/extensions-tool/src/command-upload.c
++subprojects/extensions-tool/src/development.c
+ subprojects/extensions-tool/src/main.c
+ subprojects/extensions-tool/src/templates/00-plain.desktop.in
+ subprojects/extensions-tool/src/templates/indicator.desktop.in
+diff --git a/subprojects/extensions-tool/README.md b/subprojects/extensions-tool/README.md
+index dc2e2d7..1beeaee 100644
+--- a/subprojects/extensions-tool/README.md
++++ b/subprojects/extensions-tool/README.md
+@@ -15,6 +15,17 @@ To do that, simply run the included script:
+ $ ./generate-translations.sh
+ ```
+ 
++## Development commands
++The `create`, `pack` and `upload` commands are provided by an optional module.
++Distributions can package it separately from the management commands. Installing
++the module also adds these commands to the command-line help and completion.
++Its manual is `gnome-extensions-development(1)`; packaging translations requires
++gettext's `msgfmt` program.
++
++The module is built together with the management tool. GNOME Shell's
++`extensions_tool` option controls both components; package installation determines
++whether the development commands are available.
++
+ ## License
+ gnome-extensions-tool is distributed under the terms of the GNU General Public
+ License, version 3 or later. See the [COPYING][license] file for details.
+diff --git a/subprojects/extensions-tool/completion/bash/development.bash b/subprojects/extensions-tool/completion/bash/development.bash
+new file mode 100644
+index 0000000..e4dfbef
+--- /dev/null
++++ b/subprojects/extensions-tool/completion/bash/development.bash
+@@ -0,0 +1,38 @@
++# Sourced by the management completion when the development module is installed.
++commands+=" create pack upload"
++
++__gnome_extensions_complete_development() {
++  case "$1" in
++    create)
++      case "$prev" in
++        --template)
++          COMPREPLY=($(compgen -W "`gnome-extensions create --list-templates`" -- "$cur"))
++          return 0
++          ;;
++      esac
++      ;;
++    pack)
++      case "$prev" in
++        --podir|--out-dir|-o)
++          _filedir -d
++          return 0
++          ;;
++        --schema)
++          _filedir gschema.xml
++          return 0
++          ;;
++        --extra-source)
++          _filedir
++          return 0
++          ;;
++      esac
++      ;;
++    upload)
++      if [[ $cur != -* ]]; then
++        _filedir zip
++        return 0
++      fi
++      ;;
++  esac
++  return 1
++}
+diff --git a/subprojects/extensions-tool/completion/bash/gnome-extensions b/subprojects/extensions-tool/completion/bash/gnome-extensions
+index cf2e0a8..158a102 100644
+--- a/subprojects/extensions-tool/completion/bash/gnome-extensions
++++ b/subprojects/extensions-tool/completion/bash/gnome-extensions
+@@ -5,7 +5,11 @@
+ ################################################################################
+ 
+ __gnome_extensions() {
+-  local commands="version enable disable reset info install show list create pack prefs uninstall upload"
++  local commands="version enable disable reset info install show list prefs uninstall"
++  local development_completion='@DEVELOPMENT_COMPLETION@'
++  if [[ -r $development_completion ]]; then
++    source "$development_completion"
++  fi
+   local COMMAND=${COMP_WORDS[1]}
+ 
+   _init_completion -s || return
+@@ -43,39 +47,15 @@ __gnome_extensions() {
+       ;;
+   esac
+ 
+-  case "$COMMAND" in
+-    create)
+-      case "$prev" in
+-        --template)
+-          COMPREPLY=($(compgen -W "`gnome-extensions create --list-templates`" -- "$2"))
+-          return 0
+-          ;;
+-      esac
+-      ;;
+-    pack)
+-      case "$prev" in
+-        --podir|--out-dir|-o)
+-          _filedir -d
+-          return 0
+-          ;;
+-        --schema)
+-          _filedir gschema.xml
+-          return 0
+-          ;;
+-        --extra-source)
+-          _filedir
+-          return 0
+-          ;;
+-      esac
+-      ;;
+-    install|upload)
+-      if [[ $cur != -* ]]
+-      then
+-          _filedir zip
+-          return 0
+-      fi
+-      ;;
+-  esac
++  if [[ $COMMAND == install && $cur != -* ]]; then
++    _filedir zip
++    return 0
++  fi
++
++  if [[ -r $development_completion ]] &&
++      __gnome_extensions_complete_development "$COMMAND"; then
++    return 0
++  fi
+ 
+   # Stop if we are currently waiting for an option value
+   $split && return
+diff --git a/subprojects/extensions-tool/man/gnome-extensions-development.rst b/subprojects/extensions-tool/man/gnome-extensions-development.rst
+new file mode 100644
+index 0000000..c9a952c
+--- /dev/null
++++ b/subprojects/extensions-tool/man/gnome-extensions-development.rst
+@@ -0,0 +1,157 @@
++============================
++gnome-extensions-development
++============================
++
++-----------------------------------------
++Development commands for GNOME extensions
++-----------------------------------------
++
++:Manual section: 1
++:Manual group: User Commands
++
++SYNOPSIS
++--------
++
++|  **gnome-extensions** create [*OPTION*...]
++|  **gnome-extensions** pack [*OPTION*...] [*SOURCE-DIRECTORY*]
++|  **gnome-extensions** upload [*OPTION*...] *PACK*...
++
++DESCRIPTION
++-----------
++These commands create, package and publish GNOME extensions. They are
++provided by the optional development module and use the same
++``gnome-extensions`` command as the management tools.
++
++Packaging translations requires the gettext ``msgfmt`` program.
++All commands accept ``--quiet`` or ``-q`` to suppress error messages.
++Use ``gnome-extensions help COMMAND`` for command-specific help.
++
++COMMANDS
++--------
++``create`` [*OPTION*...]
++
++  Creates a new extension from a template.
++
++  **Options**
++
++    ``--name``\ =\ *NAME*
++
++      Set the user-visible name in the extension's metadata
++      to *NAME*
++
++    ``--description``\ =\ *DESC*
++
++      Set the description in the extension's metadata to *DESC*
++
++    ``--uuid``\ =\ *UUID*
++
++      Set the unique extension ID in the metadata to *UUID*
++
++    ``--gettext-domain``\ =\ *DOMAIN*
++
++      Set the gettext domain used by the extension
++
++    ``--settings-schema``\ =\ *SCHEMA*
++
++      Set the GSettings schema used by the extension
++
++    ``--template``\ =\ *TEMPLATE*
++
++      Use *TEMPLATE* as base for the new extension
++
++    ``--prefs``
++
++      Include a prefs.js template
++
++    ``-i``,
++    ``--interactive``
++
++      Prompt for any extension metadata that hasn't been provided
++      on the command line
++
++``pack`` [*OPTION*...] [*SOURCE-DIRECTORY*]
++
++  Creates an extension bundle that is suitable for publishing.
++
++  The bundle will always include the required files extension.js
++  and metadata.json, as well as any of the optional stylesheet.css,
++  stylesheet-dark.css, stylesheet-light.css or prefs.js if found.
++  Each additional source that should be included must be specified
++  with ``--extra-source``.
++
++  If the extension includes one or more GSettings schemas, they can
++  either be placed in a schemas/ folder to be picked up automatically,
++  or be specified with ``--schema``.
++
++  Similarily, translations are included automatically when they are
++  located in a po/ folder, otherwise the ``--podir`` option can be
++  used to point to the correct directory. If no gettext domain is
++  provided on the command line, the value of the ``gettext-domain``
++  metadata field is used if it exists, and the extension UUID
++  if not.
++
++  All files are searched in *SOURCE-DIRECTORY* if specified, or
++  the current directory otherwise.
++
++  **Options**
++
++    ``--extra-source``\ =\ *FILE*
++
++      Additional source to include in the bundle
++
++    ``--schema``\ =\ *SCHEMA*
++
++      A GSettings schema that should be included
++
++    ``--podir``\ =\ *PODIR*
++
++      A directory with translations that should be
++      compiled and included
++
++    ``--gettext-domain``\ =\ *DOMAIN*
++
++      The gettext domain to use for translations
++
++    ``-f``, ``--force``
++
++      Overwrite an existing pack
++
++    ``-o``, ``--out-dir``\ =\ *DIRECTORY*
++
++      The directory where the pack should be created
++
++``upload`` [*OPTION*...] *PACK*...
++
++  Upload one or more extension packs to https://extensions.gnome.org.
++
++  If login credentials are required, they can be entered interactively
++  when prompted. This is generally preferred over the ``--password``
++  or ``--password-file`` options, which risk exposing the password in
++  logs, the environment or filesystem (depending on how it was provided).
++
++  **Options**
++
++    ``--accept-tos``
++
++      Accept the terms of service at https://extensions.gnome.org/upload/
++
++    ``--user``\ =\ *USER*
++
++      Username to log into https://extensions.gnome.org
++
++    ``--password``\ =\ *PASSWORD*
++
++      Password to log into https://extensions.gnome.org
++
++    ``--password-file``\ =\ *FILE*
++
++      File to read https://extensions.gnome.org password from
++
++
++EXIT STATUS
++-----------
++On success 0 is returned, a non-zero failure code otherwise.
++
++SEE ALSO
++--------
++**gnome-extensions**\ (1)
+diff --git a/subprojects/extensions-tool/man/gnome-extensions.rst b/subprojects/extensions-tool/man/gnome-extensions.rst
+index cfef789..2359c3e 100644
+--- a/subprojects/extensions-tool/man/gnome-extensions.rst
++++ b/subprojects/extensions-tool/man/gnome-extensions.rst
+@@ -21,17 +21,17 @@ SYNOPSIS
+ |  **gnome-extensions** show *UUID*
+ |  **gnome-extensions** list [*OPTION*...]
+ |  **gnome-extensions** prefs *UUID*
+-|  **gnome-extensions** create [*OPTION*...]
+-|  **gnome-extensions** pack [*OPTION*...]
+ |  **gnome-extensions** install [*OPTION*...] *PACK*
+ |  **gnome-extensions** uninstall *UUID*
+-|  **gnome-extensions** upload [*OPTION*...] *PACK*...
+ 
+ DESCRIPTION
+ -----------
+ ``gnome-extensions`` is a utility that makes some common GNOME extensions
+ operations available on the command line.
+ 
++Creating, packaging and uploading extensions require the optional development
++module. See **gnome-extensions-development**\ (1) for those commands.
++
+ COMMON OPTIONS
+ --------------
+ All commands except for ``help`` and ``version`` handle the following options:
+@@ -129,98 +129,6 @@ COMMANDS
+   Open the preference dialog of the extension identified by *UUID*.
+ 
+ 
+-``create`` [*OPTION*...]
+-
+-  Creates a new extension from a template.
+-
+-  **Options**
+-
+-    ``--name``\ =\ *NAME*
+-
+-      Set the user-visible name in the extension's metadata
+-      to *NAME*
+-
+-    ``--description``\ =\ *DESC*
+-
+-      Set the description in the extension's metadata to *DESC*
+-
+-    ``--uuid``\ =\ *UUID*
+-
+-      Set the unique extension ID in the metadata to *UUID*
+-
+-    ``--gettext-domain``\ =\ *DOMAIN*
+-
+-      Set the gettext domain used by the extension
+-
+-    ``--settings-schema``\ =\ *SCHEMA*
+-
+-      Set the GSettings schema used by the extension
+-
+-    ``--template``\ =\ *TEMPLATE*
+-
+-      Use *TEMPLATE* as base for the new extension
+-
+-    ``--prefs``
+-
+-      Include a prefs.js template
+-
+-    ``-i``,
+-    ``--interactive``
+-
+-      Prompt for any extension metadata that hasn't been provided
+-      on the command line
+-
+-``pack`` [*OPTION*...] [*SOURCE-DIRECTORY*]
+-
+-  Creates an extension bundle that is suitable for publishing.
+-
+-  The bundle will always include the required files extension.js
+-  and metadata.json, as well as any of the optional stylesheet.css,
+-  stylesheet-dark.css, stylesheet-light.css or prefs.js if found.
+-  Each additional source that should be included must be specified
+-  with ``--extra-source``.
+-
+-  If the extension includes one or more GSettings schemas, they can
+-  either be placed in a schemas/ folder to be picked up automatically,
+-  or be specified with ``--schema``.
+-
+-  Similarily, translations are included automatically when they are
+-  located in a po/ folder, otherwise the ``--podir`` option can be
+-  used to point to the correct directory. If no gettext domain is
+-  provided on the command line, the value of the ``gettext-domain``
+-  metadata field is used if it exists, and the extension UUID
+-  if not.
+-
+-  All files are searched in *SOURCE-DIRECTORY* if specified, or
+-  the current directory otherwise.
+-
+-  **Options**
+-
+-    ``--extra-source``\ =\ *FILE*
+-
+-      Additional source to include in the bundle
+-
+-    ``--schema``\ =\ *SCHEMA*
+-
+-      A GSettings schema that should be included
+-
+-    ``--podir``\ =\ *PODIR*
+-
+-      A directory with translations that should be
+-      compiled and included
+-
+-    ``--gettext-domain``\ =\ *DOMAIN*
+-
+-      The gettext domain to use for translations
+-
+-    ``-f``, ``--force``
+-
+-      Overwrite an existing pack
+-
+-    ``-o``, ``--out-dir``\ =\ *DIRECTORY*
+-
+-      The directory where the pack should be created
+-
+ ``install`` [*OPTION*...] *PACK*
+ 
+   Installs an extension from the bundle *PACK*.
+@@ -244,34 +152,6 @@ COMMANDS
+ 
+   Uninstalls the extension identified by *UUID*.
+ 
+-``upload`` [*OPTION*...] *PACK*...
+-
+-  Upload one or more extension packs to https://extensions.gnome.org.
+-
+-  If login credentials are required, they can be entered interactively
+-  when prompted. This is generally preferred over the ``--password``
+-  or ``--password-file`` options, which risk exposing the password in
+-  logs, the environment or filesystem (depending on how it was provided).
+-
+-  **Options**
+-
+-    ``--accept-tos``
+-
+-      Accept the terms of service at https://extensions.gnome.org/upload/
+-
+-    ``--user``\ =\ *USER*
+-
+-      Username to log into https://extensions.gnome.org
+-
+-    ``--password``\ =\ *PASSWORD*
+-
+-      Password to log into https://extensions.gnome.org
+-
+-    ``--password-file``\ =\ *FILE*
+-
+-      File to read https://extensions.gnome.org password from
+-
+-
+ EXIT STATUS
+ -----------
+ On success 0 is returned, a non-zero failure code otherwise.
+diff --git a/subprojects/extensions-tool/man/meson.build b/subprojects/extensions-tool/man/meson.build
+index 6148c40..1f85902 100644
+--- a/subprojects/extensions-tool/man/meson.build
++++ b/subprojects/extensions-tool/man/meson.build
+@@ -6,3 +6,12 @@ custom_target('gnome-extensions.1',
+   install_dir: mandir + '/man1',
+   install: true
+ )
++
++custom_target('gnome-extensions-development.1',
++  input: 'gnome-extensions-development.rst',
++  output: 'gnome-extensions-development.1',
++  command: [rst2man, '--syntax-highlight=none', '@INPUT@'],
++  capture: true,
++  install_dir: mandir + '/man1',
++  install: true
++)
+diff --git a/subprojects/extensions-tool/meson.build b/subprojects/extensions-tool/meson.build
+index 4724754..8fd66ec 100644
+--- a/subprojects/extensions-tool/meson.build
++++ b/subprojects/extensions-tool/meson.build
+@@ -31,8 +31,12 @@ gio_dep = dependency('gio-2.0', version: gio_req)
+ gio_unix_dep = dependency('gio-unix-2.0', version: gio_req)
+ autoar_dep = dependency('gnome-autoar-0')
+ json_dep = dependency('json-glib-1.0')
++gmodule_dep = dependency('gmodule-2.0')
+ soup_dep = dependency('libsoup-3.0')
+ 
++development_module_dir = join_paths(prefix, get_option('libdir'), 'gnome-extensions')
++development_module_path = join_paths(development_module_dir, 'development.so')
++
+ cc = meson.get_compiler('c')
+ 
+ bash_completion = dependency('bash-completion', required: get_option('bash_completion'))
+@@ -42,9 +46,19 @@ po_dir = meson.global_source_root() + '/po'
+ subdir('src')
+ 
+ if bash_completion.found()
+-  install_data('completion/bash/gnome-extensions',
++  completion_conf = configuration_data()
++  completion_conf.set('DEVELOPMENT_COMPLETION', join_paths(development_module_dir, 'development-completion.bash'))
++  configure_file(
++    input: 'completion/bash/gnome-extensions',
++    output: 'gnome-extensions',
++    configuration: completion_conf,
++    install: true,
+     install_dir: bash_completion.get_variable('completionsdir', pkgconfig_define: ['datadir', datadir])
+   )
++  install_data('completion/bash/development.bash',
++    rename: 'development-completion.bash',
++    install_dir: development_module_dir,
++  )
+ endif
+ 
+ if get_option('man')
+diff --git a/subprojects/extensions-tool/src/commands.h b/subprojects/extensions-tool/src/commands.h
+index 97e88e4..6cbad26 100644
+--- a/subprojects/extensions-tool/src/commands.h
++++ b/subprojects/extensions-tool/src/commands.h
+@@ -24,6 +24,14 @@
+ 
+ G_BEGIN_DECLS
+ 
++typedef struct {
++  const char *name;
++  const char *description;
++  int (*handler) (int argc, char *argv[], gboolean do_help);
++} ExtensionCommand;
++
++const ExtensionCommand *gnome_extensions_get_development_commands (gsize *n_commands);
++
+ int handle_enable     (int argc, char *argv[], gboolean do_help);
+ int handle_disable    (int argc, char *argv[], gboolean do_help);
+ int handle_reset      (int argc, char *argv[], gboolean do_help);
+diff --git a/subprojects/extensions-tool/src/development.c b/subprojects/extensions-tool/src/development.c
+new file mode 100644
+index 0000000..52bc385
+--- /dev/null
++++ b/subprojects/extensions-tool/src/development.c
+@@ -0,0 +1,39 @@
++/* development.c
++ *
++ * Copyright 2018 Florian Müllner <fmuellner@gnome.org>
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
++ *
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++#include "config.h"
++
++#include <glib/gi18n.h>
++#include <gmodule.h>
++
++#include "commands.h"
++
++G_MODULE_EXPORT const ExtensionCommand *
++gnome_extensions_get_development_commands (gsize *n_commands)
++{
++  static const ExtensionCommand commands[] = {
++    { "create", N_("Create extension"), handle_create },
++    { "pack", N_("Package extension"), handle_pack },
++    { "upload", N_("Upload extension"), handle_upload },
++  };
++
++  *n_commands = G_N_ELEMENTS (commands);
++  return commands;
++}
+diff --git a/subprojects/extensions-tool/src/main.c b/subprojects/extensions-tool/src/main.c
+index 251d8db..a2d2abb 100644
+--- a/subprojects/extensions-tool/src/main.c
++++ b/subprojects/extensions-tool/src/main.c
+@@ -24,6 +24,7 @@
+ 
+ #include <gio/gio.h>
+ #include <glib/gi18n.h>
++#include <gmodule.h>
+ 
+ #include "commands.h"
+ #include "common.h"
+@@ -302,6 +303,42 @@ file_delete_recursively (GFile   *file,
+ }
+ 
+ 
++static const ExtensionCommand *
++get_development_commands (gsize *n_commands)
++{
++  static const ExtensionCommand *commands = NULL;
++  static gsize n_development_commands = 0;
++  static gboolean initialized = FALSE;
++
++  if (!initialized)
++    {
++      GModule *module;
++
++      initialized = TRUE;
++      module = g_module_open (DEVELOPMENT_MODULE, G_MODULE_BIND_LOCAL);
++      if (module != NULL)
++        {
++          const ExtensionCommand *(*get_commands) (gsize *);
++
++          if (g_module_symbol (module, "gnome_extensions_get_development_commands",
++                               (gpointer *) &get_commands))
++            {
++              commands = get_commands (&n_development_commands);
++              g_module_make_resident (module);
++            }
++          else
++            g_printerr ("%s\n", g_module_error ());
++
++          g_module_close (module);
++        }
++      else if (g_file_test (DEVELOPMENT_MODULE, G_FILE_TEST_EXISTS))
++        g_printerr ("%s\n", g_module_error ());
++    }
++
++  *n_commands = n_development_commands;
++  return commands;
++}
++
+ static int
+ handle_version (int argc, char *argv[], gboolean do_help)
+ {
+@@ -327,6 +364,8 @@ static void
+ usage (void)
+ {
+   g_autofree char *help_command = NULL;
++  const ExtensionCommand *commands;
++  gsize n_commands;
+ 
+   help_command = g_strdup_printf ("gnome-extensions help %s", _("COMMAND"));
+ 
+@@ -344,9 +383,10 @@ usage (void)
+   g_printerr ("  info      %s\n", _("Show extension info"));
+   g_printerr ("  show      %s\n", _("Show extension info"));
+   g_printerr ("  prefs     %s\n", _("Open extension preferences"));
+-  g_printerr ("  create    %s\n", _("Create extension"));
+-  g_printerr ("  pack      %s\n", _("Package extension"));
+   g_printerr ("  install   %s\n", _("Install extension bundle"));
++  commands = get_development_commands (&n_commands);
++  for (gsize i = 0; i < n_commands; i++)
++    g_printerr ("  %-9s %s\n", commands[i].name, _(commands[i].description));
+   g_printerr ("\n");
+   g_printerr (_("Use “%s” to get detailed help.\n"), help_command);
+ }
+@@ -414,18 +454,22 @@ main (int argc, char *argv[])
+     return handle_info (argc, argv, do_help);
+   else if (g_str_equal (command, "prefs"))
+     return handle_prefs (argc, argv, do_help);
+-  else if (g_str_equal (command, "create"))
+-    return handle_create (argc, argv, do_help);
+-  else if (g_str_equal (command, "pack"))
+-    return handle_pack (argc, argv, do_help);
+   else if (g_str_equal (command, "install"))
+     return handle_install (argc, argv, do_help);
+   else if (g_str_equal (command, "uninstall"))
+     return handle_uninstall (argc, argv, do_help);
+-  else if (g_str_equal (command, "upload"))
+-    return handle_upload (argc, argv, do_help);
+   else
+-    usage ();
++    {
++      const ExtensionCommand *commands;
++      gsize n_commands;
++
++      commands = get_development_commands (&n_commands);
++      for (gsize i = 0; i < n_commands; i++)
++        if (g_str_equal (command, commands[i].name))
++          return commands[i].handler (argc, argv, do_help);
++
++      usage ();
++    }
+ 
+   return 1;
+ }
+diff --git a/subprojects/extensions-tool/src/meson.build b/subprojects/extensions-tool/src/meson.build
+index 53ded1b..b0fb156 100644
+--- a/subprojects/extensions-tool/src/meson.build
++++ b/subprojects/extensions-tool/src/meson.build
+@@ -2,6 +2,7 @@ config_h = configuration_data()
+ config_h.set_quoted('GETTEXT_PACKAGE', package_name)
+ config_h.set_quoted('VERSION', meson.project_version())
+ config_h.set_quoted('LOCALEDIR', localedir)
++config_h.set_quoted('DEVELOPMENT_MODULE', development_module_path)
+ config_h.set('HAVE_BIND_TEXTDOMAIN_CODESET', cc.has_function('bind_textdomain_codeset'))
+ configure_file(
+   output: 'config.h',
+@@ -9,20 +10,25 @@ configure_file(
+ )
+ 
+ sources = [
+-  'command-create.c',
+   'command-disable.c',
+   'command-enable.c',
+   'command-info.c',
+   'command-install.c',
+   'command-list.c',
+-  'command-pack.c',
+   'command-prefs.c',
+   'command-reset.c',
+   'command-uninstall.c',
+-  'command-upload.c',
+   'main.c'
+ ]
+ 
++executable('gnome-extensions',
++  sources,
++  dependencies: [gio_dep, gio_unix_dep, autoar_dep, json_dep, gmodule_dep],
++  # Let the development module use the command helpers from main.c.
++  export_dynamic: true,
++  install: true
++)
++
+ subdir('templates')
+ 
+ resources = gnome.compile_resources('resources',
+@@ -31,8 +37,14 @@ resources = gnome.compile_resources('resources',
+   dependencies: template_deps,
+ )
+ 
+-executable('gnome-extensions',
+-  sources, resources,
+-  dependencies: [gio_dep, gio_unix_dep, autoar_dep, json_dep, soup_dep],
+-  install: true
++shared_module('development',
++  'command-create.c',
++  'command-pack.c',
++  'command-upload.c',
++  'development.c',
++  resources,
++  dependencies: [gio_dep, gio_unix_dep, autoar_dep, json_dep, gmodule_dep, soup_dep],
++  name_prefix: '',
++  install_dir: development_module_dir,
++  install: true,
+ )
+-- 
+2.54.0
+

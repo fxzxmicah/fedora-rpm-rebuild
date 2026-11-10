@@ -1079,7 +1079,7 @@ index a09cd5c5f..3f9068799 100644
 2.54.0
 
 
-From 55968e591e3315d10c02e118ec91c667c93f9c92 Mon Sep 17 00:00:00 2001
+From 9689e3fd4b27324b30b36b6d5562c77dcc93f414 Mon Sep 17 00:00:00 2001
 From: Fxzx micah <143358-fxzxmicah@users.noreply.gitlab.gnome.org>
 Date: Sun, 9 Aug 2026 19:33:36 +0800
 Subject: [PATCH 2/2] tools: Rewrite gdctl in C
@@ -1591,7 +1591,7 @@ index 000000000..fc1970617
 +complete -F _gdctl gdctl
 diff --git a/tools/gdctl.c b/tools/gdctl.c
 new file mode 100644
-index 000000000..24001fe6d
+index 000000000..8ff37ff17
 --- /dev/null
 +++ b/tools/gdctl.c
 @@ -0,0 +1,2834 @@
@@ -2700,7 +2700,7 @@ index 000000000..24001fe6d
 +  int64_t number;
 +
 +  number = g_ascii_strtoll (value, &end, 10);
-+  if (!end || *end || number < G_MININT || number > G_MAXINT)
++  if (end == value || *end || number < G_MININT || number > G_MAXINT)
 +    {
 +      g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_BAD_VALUE,
 +                   "Invalid integer %s", value);
@@ -2719,7 +2719,7 @@ index 000000000..24001fe6d
 +  char *end = NULL;
 +
 +  *result = g_ascii_strtod (value, &end);
-+  if (!end || *end || !isfinite (*result))
++  if (end == value || *end || !isfinite (*result))
 +    {
 +      g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_BAD_VALUE,
 +                   "Invalid number %s", value);

@@ -1,23 +1,23 @@
-From 6600770dc4e536049740eec4399c8f9c054d8c70 Mon Sep 17 00:00:00 2001
+From 5bd8e3407b30b4ed46e7cd88249b9aec99beba55 Mon Sep 17 00:00:00 2001
 From: Fxzx micah <48860358+fxzxmicah@users.noreply.github.com>
 Date: Sat, 19 Sep 2026 21:16:42 +0800
 Subject: [PATCH] app: Build native flatpak-bisect and flatpak-coredumpctl
 
 ---
- app/flatpak-bisect.c      | 696 ++++++++++++++++++++++++++++++++++++++
+ app/flatpak-bisect.c      | 679 ++++++++++++++++++++++++++++++++++++++
  app/flatpak-coredumpctl.c | 302 +++++++++++++++++
  app/meson.build           |  14 +
  scripts/meson.build       |   7 -
- 4 files changed, 1012 insertions(+), 7 deletions(-)
+ 4 files changed, 995 insertions(+), 7 deletions(-)
  create mode 100644 app/flatpak-bisect.c
  create mode 100644 app/flatpak-coredumpctl.c
 
 diff --git a/app/flatpak-bisect.c b/app/flatpak-bisect.c
 new file mode 100644
-index 0000000..9104214
+index 0000000..11e04be
 --- /dev/null
 +++ b/app/flatpak-bisect.c
-@@ -0,0 +1,696 @@
+@@ -0,0 +1,679 @@
 +/* SPDX-License-Identifier: LGPL-2.1-or-later */
 +
 +#include <errno.h>
@@ -323,36 +323,16 @@ index 0000000..9104214
 +}
 +
 +static gboolean
-+repository_and_ref (BisectContext *bisector, char **repository, char **remote_ref)
-+{
-+  const char *deploy = flatpak_installed_ref_get_deploy_dir (bisector->installed_ref);
-+  const char *marker = strstr (deploy, bisector->runtime ? "/runtime/" : "/app/");
-+  g_autofree char *installation = NULL;
-+
-+  if (marker == NULL)
-+    {
-+      g_printerr ("Could not determine the repository from deployment %s\n", deploy);
-+      return FALSE;
-+    }
-+  installation = g_strndup (deploy, marker - deploy);
-+  *repository = g_build_filename (installation, "repo", NULL);
-+  *remote_ref = ref_name (bisector, TRUE);
-+  return TRUE;
-+}
-+
-+static gboolean
 +load_history (BisectContext *bisector, char **history)
 +{
-+  g_autofree char *repository = NULL;
-+  g_autofree char *remote_ref = NULL;
-+  g_autofree char *repo_option = NULL;
++  g_autoptr(GFile) installation_path = flatpak_installation_get_path (bisector->installation);
++  g_autoptr(GFile) repository = g_file_get_child (installation_path, "repo");
++  g_autofree char *remote_ref = ref_name (bisector, TRUE);
++  g_autofree char *repo_option = g_strdup_printf ("--repo=%s", g_file_peek_path (repository));
 +  char *pull_argv[7];
 +  char *log_argv[5];
 +
 +  g_print ("Getting history\n");
-+  if (!repository_and_ref (bisector, &repository, &remote_ref))
-+    return FALSE;
-+  repo_option = g_strdup_printf ("--repo=%s", repository);
 +  pull_argv[0] = (char *) "ostree";
 +  pull_argv[1] = (char *) "pull";
 +  pull_argv[2] = (char *) "--depth=250";
@@ -584,6 +564,9 @@ index 0000000..9104214
 +      return 1;
 +    }
 +
++  if (update_ref (bisector, NULL) != 0)
++    return 1;
++
 +  g_print ("Removing %s\n", bisector->cache_path);
 +  if (g_unlink (bisector->cache_path) < 0)
 +    {
@@ -592,7 +575,7 @@ index 0000000..9104214
 +      return 1;
 +    }
 +  g_clear_pointer (&bisector->state, bisect_state_free);
-+  return update_ref (bisector, NULL);
++  return 0;
 +}
 +
 +static void
@@ -683,9 +666,9 @@ index 0000000..9104214
 +      print_usage ();
 +      return 2;
 +    }
-+  if (!load_state (&bisector))
-+    goto out;
 +  if (!load_installed_ref (&bisector))
++    goto out;
++  if (!load_state (&bisector))
 +    goto out;
 +
 +  switch (command)
@@ -1058,3 +1041,6 @@ index 211acbe..7c1ce1c 100644
 -  install_dir : get_option('bindir'),
 -  install_mode : 'rwxr-xr-x',
 -)
+-- 
+2.54.0
+

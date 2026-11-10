@@ -1,21 +1,21 @@
-From 647c2712cf5b0313d55bb88af9e7e775cbce8828 Mon Sep 17 00:00:00 2001
+From 80c87ba4d9489e829831dae707d9246a01a19f09 Mon Sep 17 00:00:00 2001
 From: Fxzx micah <48860358+fxzxmicah@users.noreply.github.com>
 Date: Sat, 19 Sep 2026 21:16:42 +0800
 Subject: [PATCH] powerprofilesctl: Replace Python client with native
  implementation
 
 ---
- meson.build                       | 100 ++----
+ meson.build                       | 100 ++---
  meson_options.txt                 |   4 +-
  src/completions/_powerprofilesctl |  27 ++
  src/completions/meson.build       |  24 +-
  src/completions/powerprofilesctl  |  19 +
  src/meson.build                   |  53 +--
- src/powerprofilesctl.1            |  80 +++++
- src/powerprofilesctl.c            | 570 ++++++++++++++++++++++++++++++
+ src/powerprofilesctl.1            |  80 ++++
+ src/powerprofilesctl.c            | 585 ++++++++++++++++++++++++++++++
  tests/integration_test.py         |  18 +-
  tests/meson.build                 |  10 -
- 10 files changed, 746 insertions(+), 159 deletions(-)
+ 10 files changed, 761 insertions(+), 159 deletions(-)
  create mode 100644 src/completions/_powerprofilesctl
  create mode 100644 src/completions/powerprofilesctl
  create mode 100644 src/powerprofilesctl.1
@@ -436,10 +436,10 @@ index 0000000..5486352
 +then terminates from the same signal.
 diff --git a/src/powerprofilesctl.c b/src/powerprofilesctl.c
 new file mode 100644
-index 0000000..5694ace
+index 0000000..ade3a01
 --- /dev/null
 +++ b/src/powerprofilesctl.c
-@@ -0,0 +1,570 @@
+@@ -0,0 +1,585 @@
 +/* SPDX-License-Identifier: GPL-3.0-or-later */
 +
 +#include "config.h"
@@ -463,32 +463,22 @@ index 0000000..5694ace
 +static const int forwarded_signals[] = { SIGTERM, SIGINT, SIGABRT };
 +
 +static int
-+spawn_and_wait (char **argv)
++spawn_and_wait (char           **argv,
++                const sigset_t  *wait_signals,
++                const sigset_t  *previous_mask)
 +{
 +  posix_spawnattr_t attributes;
-+  sigset_t wait_signals;
-+  sigset_t previous_mask;
 +  gboolean attributes_initialized = FALSE;
 +  int status = 1 << 8;
 +  int spawn_error;
 +  pid_t pid;
 +  pid_t waited;
 +
-+  sigemptyset (&wait_signals);
-+  for (guint i = 0; i < G_N_ELEMENTS (forwarded_signals); i++)
-+    sigaddset (&wait_signals, forwarded_signals[i]);
-+  sigaddset (&wait_signals, SIGCHLD);
-+  if (sigprocmask (SIG_BLOCK, &wait_signals, &previous_mask) < 0)
-+    {
-+      g_printerr ("Failed to block signals: %s\n", g_strerror (errno));
-+      return status;
-+    }
-+
 +  spawn_error = posix_spawnattr_init (&attributes);
 +  if (spawn_error == 0)
 +    attributes_initialized = TRUE;
 +  if (spawn_error == 0)
-+    spawn_error = posix_spawnattr_setsigmask (&attributes, &previous_mask);
++    spawn_error = posix_spawnattr_setsigmask (&attributes, previous_mask);
 +  if (spawn_error == 0)
 +    spawn_error = posix_spawnattr_setflags (&attributes, POSIX_SPAWN_SETSIGMASK);
 +  if (spawn_error == 0)
@@ -515,7 +505,7 @@ index 0000000..5694ace
 +            }
 +
 +          siginfo_t signal_info = { 0 };
-+          int signo = sigwaitinfo (&wait_signals, &signal_info);
++          int signo = sigwaitinfo (wait_signals, &signal_info);
 +          if (signo < 0)
 +            {
 +              if (errno == EINTR)
@@ -535,8 +525,6 @@ index 0000000..5694ace
 +        }
 +    }
 +
-+  if (sigprocmask (SIG_SETMASK, &previous_mask, NULL) < 0)
-+    g_printerr ("Failed to restore signal mask: %s\n", g_strerror (errno));
 +  return status;
 +}
 +
@@ -859,7 +847,9 @@ index 0000000..5694ace
 +  const char *reason;
 +  const char *appid;
 +  guint cookie;
-+  int status;
++  sigset_t wait_signals, previous_mask;
++  int status = 1 << 8;
++  int result;
 +  GOptionEntry entries[] = {
 +    { "profile", 'p', 0, G_OPTION_ARG_STRING, &profile_option,
 +      "Power profile to hold", "PROFILE" },
@@ -897,9 +887,22 @@ index 0000000..5694ace
 +  else
 +    reason = reason_option;
 +
++  /* GDBus worker threads must inherit the blocked signals so that only
++   * the launch supervisor receives and forwards them while holding the profile.
++   */
++  sigemptyset (&wait_signals);
++  for (guint i = 0; i < G_N_ELEMENTS (forwarded_signals); i++)
++    sigaddset (&wait_signals, forwarded_signals[i]);
++  sigaddset (&wait_signals, SIGCHLD);
++  if (sigprocmask (SIG_BLOCK, &wait_signals, &previous_mask) < 0)
++    {
++      g_printerr ("Failed to block signals: %s\n", g_strerror (errno));
++      return 1;
++    }
++
 +  bus = get_system_bus (&error);
 +  if (bus == NULL)
-+    return report_error (error);
++    goto error;
 +  reply = g_dbus_connection_call_sync (bus,
 +                                       POWER_PROFILES_DBUS_NAME,
 +                                       POWER_PROFILES_DBUS_PATH,
@@ -909,10 +912,10 @@ index 0000000..5694ace
 +                                       G_VARIANT_TYPE ("(u)"),
 +                                       G_DBUS_CALL_FLAGS_NONE, -1, NULL, &error);
 +  if (reply == NULL)
-+    return report_error (error);
++    goto error;
 +  g_variant_get (reply, "(u)", &cookie);
 +
-+  status = spawn_and_wait (&argv[1]);
++  status = spawn_and_wait (&argv[1], &wait_signals, &previous_mask);
 +
 +  g_clear_pointer (&reply, g_variant_unref);
 +  reply = g_dbus_connection_call_sync (bus,
@@ -922,7 +925,19 @@ index 0000000..5694ace
 +                                       "ReleaseProfile", g_variant_new ("(u)", cookie),
 +                                       NULL, G_DBUS_CALL_FLAGS_NONE, -1, NULL, &error);
 +  if (reply == NULL)
-+    return report_error (error);
++    goto error;
++  result = WIFEXITED (status) ? WEXITSTATUS (status) : 1;
++  goto out;
++
++error:
++  result = report_error (error);
++  status = 1 << 8;
++out:
++  if (sigprocmask (SIG_SETMASK, &previous_mask, NULL) < 0)
++    {
++      g_printerr ("Failed to restore signal mask: %s\n", g_strerror (errno));
++      return 1;
++    }
 +  if (WIFSIGNALED (status))
 +    {
 +      int signo = WTERMSIG (status);
@@ -933,7 +948,7 @@ index 0000000..5694ace
 +      raise (signo);
 +      return 128 + signo;
 +    }
-+  return WIFEXITED (status) ? WEXITSTATUS (status) : 1;
++  return result;
 +}
 +
 +static gboolean

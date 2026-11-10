@@ -1,4 +1,4 @@
-From 77d8fe8582c71ac7badaedf35ccc5c3ca34a0746 Mon Sep 17 00:00:00 2001
+From 451f31ccb4fc21d90140c0114eef0636a2db08e1 Mon Sep 17 00:00:00 2001
 From: Fxzx micah <48860358+fxzxmicah@users.noreply.github.com>
 Date: Sat, 19 Sep 2026 20:26:37 +0800
 Subject: [PATCH] build: Make libwacom and Samba support optional
@@ -10,18 +10,24 @@ Disabling Samba skips smbclient and both Samba implementations, and
 removes Samba discovery, authentication, device, and URI code paths
 from the printers panel.
 ---
- meson.build                             |  18 ++--
- meson_options.txt                       |   2 +
- panels/meson.build                      |   9 +-
- panels/printers/meson.build             |  17 +--
- panels/printers/pp-new-printer-dialog.c | 136 +++++++++++++++++++-----
- panels/printers/pp-print-device.c       |  20 +++-
- panels/printers/pp-print-device.h       |   4 +
- panels/printers/pp-utils.c              |  24 +++--
- panels/printers/pp-utils.h              |   4 +
- shell/cc-panel-list.c                   |   2 +
- shell/meson.build                       |   2 +-
- 11 files changed, 179 insertions(+), 59 deletions(-)
+ meson.build                                   |  18 +-
+ meson_options.txt                             |   2 +
+ panels/meson.build                            |   9 +-
+ panels/printers/meson.build                   |  29 ++-
+ panels/printers/pp-new-printer-dialog.c       | 176 +++++++++++++-----
+ panels/printers/pp-new-printer-dialog.ui      | 143 --------------
+ panels/printers/pp-print-device.c             |  20 +-
+ panels/printers/pp-print-device.h             |   4 +
+ panels/printers/pp-samba-authentication.ui    | 112 +++++++++++
+ panels/printers/pp-utils.c                    |  24 ++-
+ panels/printers/pp-utils.h                    |   4 +
+ ...resource.xml => printers.gresource.xml.in} |   1 +
+ po/POTFILES.in                                |   1 +
+ shell/cc-panel-list.c                         |   2 +
+ shell/meson.build                             |   2 +-
+ 15 files changed, 329 insertions(+), 218 deletions(-)
+ create mode 100644 panels/printers/pp-samba-authentication.ui
+ rename panels/printers/{printers.gresource.xml => printers.gresource.xml.in} (98%)
 
 diff --git a/meson.build b/meson.build
 index 89f9998..dea248c 100644
@@ -111,10 +117,10 @@ index 07c7733..945f175 100644
  
  panels_list = []
 diff --git a/panels/printers/meson.build b/panels/printers/meson.build
-index ca5ee5f..1609a4a 100644
+index ca5ee5f..0d08678 100644
 --- a/panels/printers/meson.build
 +++ b/panels/printers/meson.build
-@@ -52,6 +52,15 @@ sources = files(
+@@ -52,9 +52,28 @@ sources = files(
    'pp-utils.c'
  )
  
@@ -127,10 +133,24 @@ index ca5ee5f..1609a4a 100644
 +  sources += files('pp-samba.c')
 +endif
 +
++resources_conf = configuration_data()
++resources_conf.set('samba_ui', enable_samba ? '<file preprocess="xml-stripblanks">pp-samba-authentication.ui</file>' : '')
++
++resources = configure_file(
++  input: cappletname + '.gresource.xml.in',
++  output: cappletname + '.gresource.xml',
++  configuration: resources_conf,
++)
++
  sources += gnome.compile_resources(
    'cc-' + cappletname + '-resources',
-   cappletname + '.gresource.xml',
-@@ -66,14 +75,8 @@ deps = common_deps + [
+-  cappletname + '.gresource.xml',
++  resources,
++  source_dir: [meson.current_build_dir(), meson.current_source_dir()],
+   c_name: 'cc_' + cappletname,
+   export: true,
+   dependencies: blueprints,
+@@ -66,14 +85,8 @@ deps = common_deps + [
    polkit_gobject_dep,
  ]
  
@@ -147,7 +167,7 @@ index ca5ee5f..1609a4a 100644
  
  printers_panel_lib = static_library(
 diff --git a/panels/printers/pp-new-printer-dialog.c b/panels/printers/pp-new-printer-dialog.c
-index 4368324..a78ed75 100644
+index 4368324..5d34004 100644
 --- a/panels/printers/pp-new-printer-dialog.c
 +++ b/panels/printers/pp-new-printer-dialog.c
 @@ -33,7 +33,9 @@
@@ -172,7 +192,7 @@ index 4368324..a78ed75 100644
  
  static void set_device (PpNewPrinterDialog *self, PpPrintDevice *device, GtkTreeIter *iter);
  static void replace_device (PpNewPrinterDialog *self, PpPrintDevice *old_device, PpPrintDevice *new_device);
-@@ -62,7 +66,9 @@ static void add_cb (PpNewPrinterDialog *self);
+@@ -62,14 +66,15 @@ static void add_cb (PpNewPrinterDialog *self);
  static void cancel_cb (PpNewPrinterDialog *self);
  static void update_dialog_state (PpNewPrinterDialog *self);
  static void add_devices_to_list (PpNewPrinterDialog *self, GPtrArray *devices);
@@ -182,7 +202,14 @@ index 4368324..a78ed75 100644
  
  enum {
      DEVICE_GICON_COLUMN = 0,
-@@ -84,21 +90,29 @@ struct _PpNewPrinterDialog {
+     DEVICE_NAME_COLUMN,
+     DEVICE_DISPLAY_NAME_COLUMN,
+     DEVICE_DESCRIPTION_COLUMN,
+-    SERVER_NEEDS_AUTHENTICATION_COLUMN,
+     DEVICE_VISIBLE_COLUMN,
+     DEVICE_COLUMN,
+     DEVICE_N_COLUMNS
+@@ -84,21 +89,29 @@ struct _PpNewPrinterDialog {
      GtkTreeModelFilter *devices_model_filter;
  
      /* headerbar */
@@ -212,7 +239,7 @@ index 4368324..a78ed75 100644
      GtkStack *stack;
  
      /* scrolledwindow1 */
-@@ -107,12 +121,14 @@ struct _PpNewPrinterDialog {
+@@ -107,12 +120,14 @@ struct _PpNewPrinterDialog {
  
      GtkEntry *search_entry;
  
@@ -227,7 +254,7 @@ index 4368324..a78ed75 100644
  
      UserResponseCallback user_callback;
      gpointer user_data;
-@@ -124,8 +140,10 @@ struct _PpNewPrinterDialog {
+@@ -124,8 +139,10 @@ struct _PpNewPrinterDialog {
      GCancellable *remote_host_cancellable;
  
      gboolean cups_searching;
@@ -238,7 +265,7 @@ index 4368324..a78ed75 100644
  
      PpPPDSelectionDialog *ppd_selection_dialog;
  
-@@ -135,18 +153,23 @@ struct _PpNewPrinterDialog {
+@@ -135,18 +152,23 @@ struct _PpNewPrinterDialog {
  
      GIcon *local_printer_icon;
      GIcon *remote_printer_icon;
@@ -262,7 +289,7 @@ index 4368324..a78ed75 100644
  typedef struct {
      gchar *server_name;
      gpointer dialog;
-@@ -324,18 +347,22 @@ authenticate_samba_server (PpNewPrinterDialog *self)
+@@ -324,19 +346,25 @@ authenticate_samba_server (PpNewPrinterDialog *self)
          }
      }
  }
@@ -276,17 +303,21 @@ index 4368324..a78ed75 100644
 -    gboolean authentication_needed;
      gboolean selected;
 +#ifdef HAVE_SAMBA
++    g_autoptr(PpPrintDevice) device = NULL;
 +    gboolean authentication_needed;
 +#endif
  
      selected = gtk_tree_selection_get_selected (gtk_tree_view_get_selection (self->devices_treeview), &model, &iter);
  
      if (selected) {
+-        gtk_tree_model_get (model, &iter, SERVER_NEEDS_AUTHENTICATION_COLUMN, &authentication_needed, -1);
 +#ifdef HAVE_SAMBA
-         gtk_tree_model_get (model, &iter, SERVER_NEEDS_AUTHENTICATION_COLUMN, &authentication_needed, -1);
++        gtk_tree_model_get (model, &iter, DEVICE_COLUMN, &device, -1);
++        authentication_needed = pp_print_device_is_authenticated_server (device);
  
          gtk_widget_set_sensitive (GTK_WIDGET (self->new_printer_add_button), selected);
-@@ -345,9 +372,13 @@ device_selection_changed_cb (PpNewPrinterDialog *self)
+         gtk_widget_set_sensitive (GTK_WIDGET (self->unlock_button), authentication_needed);
+@@ -345,9 +373,13 @@ device_selection_changed_cb (PpNewPrinterDialog *self)
              gtk_stack_set_visible_child_name (self->headerbar_topright_buttons, "unlock_button");
          else
              gtk_stack_set_visible_child_name (self->headerbar_topright_buttons, ADDPRINTER_PAGE);
@@ -300,7 +331,7 @@ index 4368324..a78ed75 100644
  static void
  remove_device_from_list (PpNewPrinterDialog *self, const gchar *device_name)
  {
-@@ -370,6 +401,7 @@ remove_device_from_list (PpNewPrinterDialog *self, const gchar *device_name)
+@@ -370,6 +402,7 @@ remove_device_from_list (PpNewPrinterDialog *self, const gchar *device_name)
  
      update_dialog_state (self);
  }
@@ -308,7 +339,7 @@ index 4368324..a78ed75 100644
  
  static gboolean
  prepend_original_name (GtkTreeModel *model, GtkTreePath *path, GtkTreeIter *iter, gpointer data)
-@@ -399,10 +431,12 @@ add_device_to_list (PpNewPrinterDialog *self, PpPrintDevice *device)
+@@ -399,10 +432,12 @@ add_device_to_list (PpNewPrinterDialog *self, PpPrintDevice *device)
          acquisition_method = pp_print_device_get_acquisition_method (device);
          if (pp_print_device_get_device_id (device) || pp_print_device_get_device_ppd (device)
              || (pp_print_device_get_host_name (device) && acquisition_method == ACQUISITION_METHOD_REMOTE_CUPS_SERVER)
@@ -325,7 +356,7 @@ index 4368324..a78ed75 100644
              g_autofree gchar *canonicalized_name = NULL;
  
              g_object_set (device, "device-original-name", pp_print_device_get_device_name (device), NULL);
-@@ -423,7 +457,9 @@ add_device_to_list (PpNewPrinterDialog *self, PpPrintDevice *device)
+@@ -423,7 +458,9 @@ add_device_to_list (PpNewPrinterDialog *self, PpPrintDevice *device)
                  g_ptr_array_add (self->local_cups_devices, g_object_ref (device));
              else
                  set_device (self, device, NULL);
@@ -336,7 +367,7 @@ index 4368324..a78ed75 100644
              g_autoptr(PpPrintDevice) store_device = NULL;
  
              store_device = g_object_new (PP_TYPE_PRINT_DEVICE, "device-name", pp_print_device_get_host_name (device),
-@@ -432,6 +468,7 @@ add_device_to_list (PpNewPrinterDialog *self, PpPrintDevice *device)
+@@ -432,6 +469,7 @@ add_device_to_list (PpNewPrinterDialog *self, PpPrintDevice *device)
  
              set_device (self, store_device, NULL);
          }
@@ -344,7 +375,7 @@ index 4368324..a78ed75 100644
      }
  }
  
-@@ -486,9 +523,11 @@ update_dialog_state (PpNewPrinterDialog *self)
+@@ -486,9 +524,11 @@ update_dialog_state (PpNewPrinterDialog *self)
      GtkTreeIter iter;
      gboolean searching;
  
@@ -359,7 +390,7 @@ index 4368324..a78ed75 100644
  
      if (gtk_tree_model_get_iter_first (GTK_TREE_MODEL (self->devices_liststore), &iter))
          gtk_stack_set_visible_child_name (self->stack, "standard-page");
-@@ -740,6 +779,7 @@ get_remote_cups_devices_cb (GObject *source_object, GAsyncResult *res, gpointer
+@@ -740,6 +780,7 @@ get_remote_cups_devices_cb (GObject *source_object, GAsyncResult *res, gpointer
      }
  }
  
@@ -367,7 +398,7 @@ index 4368324..a78ed75 100644
  static void
  get_samba_host_devices_cb (GObject *source_object, GAsyncResult *res, gpointer user_data)
  {
-@@ -791,6 +831,7 @@ get_samba_devices_cb (GObject *source_object, GAsyncResult *res, gpointer user_d
+@@ -791,6 +832,7 @@ get_samba_devices_cb (GObject *source_object, GAsyncResult *res, gpointer user_d
          }
      }
  }
@@ -375,7 +406,7 @@ index 4368324..a78ed75 100644
  
  static void
  get_jetdirect_devices_cb (GObject *source_object, GAsyncResult *res, gpointer user_data)
-@@ -936,10 +977,6 @@ search_for_remote_printers (THostSearchData *data)
+@@ -936,10 +978,6 @@ search_for_remote_printers (THostSearchData *data)
              g_object_set (self->lpd_host, "port", data->host_port, NULL);
      }
  
@@ -386,7 +417,7 @@ index 4368324..a78ed75 100644
      pp_host_get_remote_cups_devices_async (self->remote_cups_host, self->remote_host_cancellable,
                                             get_remote_cups_devices_cb, data->dialog);
  
-@@ -950,8 +987,13 @@ search_for_remote_printers (THostSearchData *data)
+@@ -950,8 +988,13 @@ search_for_remote_printers (THostSearchData *data)
  
      pp_host_get_lpd_devices_async (self->lpd_host, self->remote_host_cancellable, get_lpd_devices_cb, data->dialog);
  
@@ -400,7 +431,7 @@ index 4368324..a78ed75 100644
  
      self->host_search_timeout_id = 0;
  
-@@ -1027,8 +1069,11 @@ search_address (const gchar *text, PpNewPrinterDialog *self, gboolean delay_sear
+@@ -1027,8 +1070,11 @@ search_address (const gchar *text, PpNewPrinterDialog *self, gboolean delay_sear
              acquisition_method = pp_print_device_get_acquisition_method (device);
              if (acquisition_method == ACQUISITION_METHOD_REMOTE_CUPS_SERVER
                  || acquisition_method == ACQUISITION_METHOD_SNMP || acquisition_method == ACQUISITION_METHOD_JETDIRECT
@@ -414,7 +445,7 @@ index 4368324..a78ed75 100644
                  if (!gtk_list_store_remove (self->devices_liststore, &iter))
                      break;
                  else
-@@ -1134,11 +1179,13 @@ set_device (PpNewPrinterDialog *self, PpPrintDevice *device, GtkTreeIter *iter)
+@@ -1134,11 +1180,13 @@ set_device (PpNewPrinterDialog *self, PpPrintDevice *device, GtkTreeIter *iter)
              && (pp_print_device_get_device_id (device) || pp_print_device_get_device_ppd (device)
                  || (pp_print_device_get_host_name (device)
                      && acquisition_method == ACQUISITION_METHOD_REMOTE_CUPS_SERVER)
@@ -433,7 +464,7 @@ index 4368324..a78ed75 100644
              g_autofree gchar *description = NULL;
  
              description = get_local_scheme_description_from_uri (pp_print_device_get_device_uri (device));
-@@ -1163,7 +1210,9 @@ set_device (PpNewPrinterDialog *self, PpPrintDevice *device, GtkTreeIter *iter)
+@@ -1163,7 +1211,9 @@ set_device (PpNewPrinterDialog *self, PpPrintDevice *device, GtkTreeIter *iter)
                  DEVICE_NAME_COLUMN, pp_print_device_get_device_name (device), DEVICE_DISPLAY_NAME_COLUMN,
                  pp_print_device_get_display_name (device), DEVICE_DESCRIPTION_COLUMN, description,
                  DEVICE_VISIBLE_COLUMN, TRUE, DEVICE_COLUMN, device, -1);
@@ -444,31 +475,38 @@ index 4368324..a78ed75 100644
              if (iter == NULL)
                  gtk_list_store_append (self->devices_liststore, &titer);
  
-@@ -1176,6 +1225,7 @@ set_device (PpNewPrinterDialog *self, PpPrintDevice *device, GtkTreeIter *iter)
-                                 _("Server requires authentication"), SERVER_NEEDS_AUTHENTICATION_COLUMN, TRUE,
-                                   DEVICE_VISIBLE_COLUMN, TRUE, DEVICE_COLUMN, device, -1);
+@@ -1173,9 +1223,10 @@ set_device (PpNewPrinterDialog *self, PpPrintDevice *device, GtkTreeIter *iter)
+                                 pp_print_device_get_host_name (device),
+                                 /* Translators: This item is a server which needs authentication to show its printers */
+                                 DEVICE_DESCRIPTION_COLUMN,
+-                                _("Server requires authentication"), SERVER_NEEDS_AUTHENTICATION_COLUMN, TRUE,
+-                                  DEVICE_VISIBLE_COLUMN, TRUE, DEVICE_COLUMN, device, -1);
++                                _("Server requires authentication"), DEVICE_VISIBLE_COLUMN, TRUE, DEVICE_COLUMN, device,
++                                -1);
          }
 +#endif
      }
  }
  
-@@ -1230,19 +1280,22 @@ row_activated_cb (PpNewPrinterDialog *self)
+@@ -1230,19 +1281,22 @@ row_activated_cb (PpNewPrinterDialog *self)
  {
      GtkTreeModel *model;
      GtkTreeIter iter;
+-    gboolean authentication_needed;
 +#ifdef HAVE_SAMBA
-     gboolean authentication_needed;
++    g_autoptr(PpPrintDevice) device = NULL;
 +#endif
      gboolean selected;
  
      selected = gtk_tree_selection_get_selected (gtk_tree_view_get_selection (self->devices_treeview), &model, &iter);
  
      if (selected) {
+-        gtk_tree_model_get (model, &iter, SERVER_NEEDS_AUTHENTICATION_COLUMN, &authentication_needed, -1);
 +#ifdef HAVE_SAMBA
-         gtk_tree_model_get (model, &iter, SERVER_NEEDS_AUTHENTICATION_COLUMN, &authentication_needed, -1);
++        gtk_tree_model_get (model, &iter, DEVICE_COLUMN, &device, -1);
  
 -        if (authentication_needed) {
-+        if (authentication_needed)
++        if (pp_print_device_is_authenticated_server (device))
              authenticate_samba_server (self);
 -        } else {
 +        else
@@ -478,7 +516,7 @@ index 4368324..a78ed75 100644
      }
  }
  
-@@ -1281,11 +1334,15 @@ static void
+@@ -1281,11 +1335,15 @@ static void
  populate_devices_list (PpNewPrinterDialog *self)
  {
      GtkTreeViewColumn *column;
@@ -494,7 +532,7 @@ index 4368324..a78ed75 100644
      GtkCellRenderer *text_renderer;
      GtkCellRenderer *icon_renderer;
  
-@@ -1298,11 +1355,13 @@ populate_devices_list (PpNewPrinterDialog *self)
+@@ -1298,11 +1356,13 @@ populate_devices_list (PpNewPrinterDialog *self)
      self->local_printer_icon = g_themed_icon_new ("printer");
      self->remote_printer_icon = g_themed_icon_new ("printer-network");
  
@@ -508,7 +546,7 @@ index 4368324..a78ed75 100644
  
      icon_renderer = gtk_cell_renderer_pixbuf_new ();
      g_object_set (icon_renderer, "icon-size", GTK_ICON_SIZE_LARGE, NULL);
-@@ -1323,11 +1382,13 @@ populate_devices_list (PpNewPrinterDialog *self)
+@@ -1323,11 +1383,13 @@ populate_devices_list (PpNewPrinterDialog *self)
      cups = pp_cups_new ();
      pp_cups_get_dests_async (cups, self->cancellable, cups_get_dests_cb, self);
  
@@ -524,7 +562,7 @@ index 4368324..a78ed75 100644
  }
  
  static void
-@@ -1398,8 +1459,11 @@ add_cb (PpNewPrinterDialog *self)
+@@ -1398,8 +1460,11 @@ add_cb (PpNewPrinterDialog *self)
  
      if (device) {
          acquisition_method = pp_print_device_get_acquisition_method (device);
@@ -538,7 +576,7 @@ index 4368324..a78ed75 100644
              self->new_device = pp_print_device_copy (device);
              self->ppd_selection_dialog = pp_ppd_selection_dialog_new (self->list, NULL, ppd_selection_cb, self);
  
-@@ -1436,6 +1500,7 @@ pp_new_printer_dialog_new (PPDList *ppd_list, UserResponseCallback user_callback
+@@ -1436,6 +1501,7 @@ pp_new_printer_dialog_new (PPDList *ppd_list, UserResponseCallback user_callback
      g_signal_connect_object (self->search_entry, "search-changed", G_CALLBACK (search_entry_changed_cb), self,
                               G_CONNECT_SWAPPED);
  
@@ -546,7 +584,7 @@ index 4368324..a78ed75 100644
      g_signal_connect_object (self->unlock_button, "clicked", G_CALLBACK (authenticate_samba_server), self,
                               G_CONNECT_SWAPPED);
  
-@@ -1446,6 +1511,7 @@ pp_new_printer_dialog_new (PPDList *ppd_list, UserResponseCallback user_callback
+@@ -1446,6 +1512,7 @@ pp_new_printer_dialog_new (PPDList *ppd_list, UserResponseCallback user_callback
                               G_CONNECT_SWAPPED);
      g_signal_connect_object (self->go_back_button, "clicked", G_CALLBACK (on_go_back_button_clicked), self,
                               G_CONNECT_SWAPPED);
@@ -554,7 +592,7 @@ index 4368324..a78ed75 100644
  
      /* Fill with data */
      populate_devices_list (self);
-@@ -1479,12 +1545,16 @@ pp_new_printer_dialog_dispose (GObject *object)
+@@ -1479,12 +1546,16 @@ pp_new_printer_dialog_dispose (GObject *object)
      g_clear_object (&self->new_device);
      g_clear_object (&self->local_printer_icon);
      g_clear_object (&self->remote_printer_icon);
@@ -571,7 +609,7 @@ index 4368324..a78ed75 100644
  
      if (self->ppd_selection_dialog != NULL) {
          gtk_window_destroy (GTK_WINDOW (self->ppd_selection_dialog));
-@@ -1516,6 +1586,7 @@ pp_new_printer_dialog_class_init (PpNewPrinterDialogClass *klass)
+@@ -1516,20 +1587,21 @@ pp_new_printer_dialog_class_init (PpNewPrinterDialogClass *klass)
      gtk_widget_class_bind_template_child (widget_class, PpNewPrinterDialog, devices_model_filter);
  
      /* headerbar */
@@ -579,16 +617,15 @@ index 4368324..a78ed75 100644
      gtk_widget_class_bind_template_child (widget_class, PpNewPrinterDialog, header_title);
  
      /* headerbar topleft buttons */
-@@ -1524,12 +1595,17 @@ pp_new_printer_dialog_class_init (PpNewPrinterDialogClass *klass)
+     gtk_widget_class_bind_template_child (widget_class, PpNewPrinterDialog, headerbar_topleft_buttons);
+-    gtk_widget_class_bind_template_child (widget_class, PpNewPrinterDialog, go_back_button);
  
      /* headerbar topright buttons */
      gtk_widget_class_bind_template_child (widget_class, PpNewPrinterDialog, headerbar_topright_buttons);
 +#endif
      gtk_widget_class_bind_template_child (widget_class, PpNewPrinterDialog, new_printer_add_button);
-+#ifdef HAVE_SAMBA
-     gtk_widget_class_bind_template_child (widget_class, PpNewPrinterDialog, unlock_button);
-     gtk_widget_class_bind_template_child (widget_class, PpNewPrinterDialog, authenticate_button);
-+#endif
+-    gtk_widget_class_bind_template_child (widget_class, PpNewPrinterDialog, unlock_button);
+-    gtk_widget_class_bind_template_child (widget_class, PpNewPrinterDialog, authenticate_button);
  
      /* dialogstack */
 +#ifdef HAVE_SAMBA
@@ -597,20 +634,224 @@ index 4368324..a78ed75 100644
      gtk_widget_class_bind_template_child (widget_class, PpNewPrinterDialog, stack);
  
      /* scrolledwindow1 */
-@@ -1538,11 +1614,13 @@ pp_new_printer_dialog_class_init (PpNewPrinterDialogClass *klass)
+@@ -1538,12 +1610,6 @@ pp_new_printer_dialog_class_init (PpNewPrinterDialogClass *klass)
  
      gtk_widget_class_bind_template_child (widget_class, PpNewPrinterDialog, search_entry);
  
-+#ifdef HAVE_SAMBA
-     /* authentication page */
-     gtk_widget_class_bind_template_child (widget_class, PpNewPrinterDialog, authentication_title);
-     gtk_widget_class_bind_template_child (widget_class, PpNewPrinterDialog, authentication_text);
-     gtk_widget_class_bind_template_child (widget_class, PpNewPrinterDialog, username_entry);
-     gtk_widget_class_bind_template_child (widget_class, PpNewPrinterDialog, password_entry);
-+#endif
- 
+-    /* authentication page */
+-    gtk_widget_class_bind_template_child (widget_class, PpNewPrinterDialog, authentication_title);
+-    gtk_widget_class_bind_template_child (widget_class, PpNewPrinterDialog, authentication_text);
+-    gtk_widget_class_bind_template_child (widget_class, PpNewPrinterDialog, username_entry);
+-    gtk_widget_class_bind_template_child (widget_class, PpNewPrinterDialog, password_entry);
+-
      gtk_widget_class_bind_template_callback (widget_class, add_cb);
      gtk_widget_class_bind_template_callback (widget_class, cancel_cb);
+ 
+@@ -1556,7 +1622,29 @@ pp_new_printer_dialog_class_init (PpNewPrinterDialogClass *klass)
+ void
+ pp_new_printer_dialog_init (PpNewPrinterDialog *self)
+ {
++#ifdef HAVE_SAMBA
++    g_autoptr(GtkBuilder) builder = NULL;
++#endif
++
+     gtk_widget_init_template (GTK_WIDGET (self));
++
++#ifdef HAVE_SAMBA
++    builder = gtk_builder_new_from_resource ("/org/gnome/control-center/printers/pp-samba-authentication.ui");
++    self->go_back_button = GTK_BUTTON (gtk_builder_get_object (builder, "go_back_button"));
++    self->unlock_button = GTK_BUTTON (gtk_builder_get_object (builder, "unlock_button"));
++    self->authenticate_button = GTK_BUTTON (gtk_builder_get_object (builder, "authenticate_button"));
++    self->authentication_title = GTK_LABEL (gtk_builder_get_object (builder, "authentication_title"));
++    self->authentication_text = GTK_LABEL (gtk_builder_get_object (builder, "authentication_text"));
++    self->username_entry = GTK_ENTRY (gtk_builder_get_object (builder, "username_entry"));
++    self->password_entry = GTK_ENTRY (gtk_builder_get_object (builder, "password_entry"));
++
++    gtk_stack_add_named (self->headerbar_topleft_buttons, GTK_WIDGET (self->go_back_button), AUTHENTICATION_PAGE);
++    gtk_stack_add_named (self->headerbar_topright_buttons, GTK_WIDGET (self->unlock_button), "unlock_button");
++    gtk_stack_add_named (self->headerbar_topright_buttons, GTK_WIDGET (self->authenticate_button),
++                         AUTHENTICATION_PAGE);
++    gtk_stack_add_named (self->dialog_stack, GTK_WIDGET (gtk_builder_get_object (builder, "authentication_page")),
++                         AUTHENTICATION_PAGE);
++#endif
+ }
+ 
+ void
+diff --git a/panels/printers/pp-new-printer-dialog.ui b/panels/printers/pp-new-printer-dialog.ui
+index d249016..e5b5b63 100644
+--- a/panels/printers/pp-new-printer-dialog.ui
++++ b/panels/printers/pp-new-printer-dialog.ui
+@@ -11,8 +11,6 @@
+       <column type="gchararray"/>
+       <!-- column-name device_description -->
+       <column type="gchararray"/>
+-      <!-- column-name server_needs_authentication -->
+-      <column type="gboolean"/>
+       <!-- column-name device_visible -->
+       <column type="gboolean"/>
+       <!-- column-name device -->
+@@ -70,19 +68,6 @@
+                   </object>
+                 </child>
+ 
+-                <child>
+-                  <object class="GtkStackPage">
+-                    <property name="name">authentication-page</property>
+-                    <property name="child">
+-                      <object class="GtkButton" id="go_back_button">
+-                        <property name="tooltip-text" translatable="yes">Back</property>
+-                        <property name="icon-name">go-previous-symbolic</property>
+-                        <property name="halign">start</property>
+-                      </object>
+-                    </property>
+-                  </object>
+-                </child>
+-
+               </object>
+             </child>
+             <child type="end">
+@@ -105,36 +90,6 @@
+                   </object>
+                 </child>
+ 
+-                <child>
+-                  <object class="GtkStackPage">
+-                    <property name="name">unlock_button</property>
+-                    <property name="child">
+-                      <object class="GtkButton" id="unlock_button">
+-                        <property name="label" translatable="yes" comments="Translators: This button opens authentication dialog for selected server.">_Unlock</property>
+-                        <property name="use_underline">True</property>
+-                        <style>
+-                          <class name="suggested-action"/>
+-                        </style>
+-                      </object>
+-                    </property>
+-                  </object>
+-                </child>
+-
+-                <child>
+-                  <object class="GtkStackPage">
+-                    <property name="name">authentication-page</property>
+-                    <property name="child">
+-                      <object class="GtkButton" id="authenticate_button">
+-                        <property name="label" translatable="yes" comments="Translators: This buttons submits the credentials for the selected server.">_Unlock</property>
+-                        <property name="use_underline">True</property>
+-                        <style>
+-                          <class name="suggested-action"/>
+-                        </style>
+-                      </object>
+-                    </property>
+-                  </object>
+-                </child>
+-
+               </object>
+             </child>
+           </object>
+@@ -223,104 +178,6 @@
+               </object>
+             </child>
+ 
+-            <child>
+-              <object class="GtkStackPage">
+-                <property name="name">authentication-page</property>
+-                <property name="child">
+-                  <object class="GtkGrid">
+-                    <property name="margin-top">20</property>
+-                    <property name="margin-bottom">20</property>
+-                    <property name="margin-start">20</property>
+-                    <property name="margin-end">20</property>
+-                    <property name="row_spacing">10</property>
+-                    <property name="column_spacing">15</property>
+-                    <property name="hexpand">True</property>
+-                    <property name="vexpand">True</property>
+-                    <style>
+-                      <class name="background"/>
+-                    </style>
+-                    <child>
+-                      <object class="GtkImage">
+-                        <property name="pixel_size">48</property>
+-                        <property name="icon_name">dialog-password-symbolic</property>
+-                        <layout>
+-                          <property name="column">0</property>
+-                          <property name="row">0</property>
+-                          <property name="row-span">2</property>
+-                        </layout>
+-                      </object>
+-                    </child>
+-                    <child>
+-                      <object class="GtkLabel" id="authentication_title">
+-                        <property name="label" translatable="yes">Authentication Required</property>
+-                        <property name="xalign">0</property>
+-                        <layout>
+-                          <property name="column">1</property>
+-                          <property name="row">0</property>
+-                        </layout>
+-                        <style>
+-                          <class name="heading" />
+-                        </style>
+-                      </object>
+-                    </child>
+-                    <child>
+-                      <object class="GtkLabel" id="authentication_text">
+-                        <property name="wrap">True</property>
+-                        <property name="max_width_chars">36</property>
+-                        <property name="xalign">0</property>
+-                        <property name="label" translatable="yes">Enter username and password to view printers on Print Server</property>
+-                        <layout>
+-                          <property name="column">1</property>
+-                          <property name="row">1</property>
+-                        </layout>
+-                      </object>
+-                    </child>
+-                    <child>
+-                      <object class="GtkLabel">
+-                        <property name="label" translatable="yes">Username</property>
+-                        <property name="mnemonic_widget">username_entry</property>
+-                        <layout>
+-                          <property name="column">0</property>
+-                          <property name="row">2</property>
+-                        </layout>
+-                      </object>
+-                    </child>
+-                    <child>
+-                      <object class="GtkEntry" id="username_entry">
+-                        <property name="activates_default">True</property>
+-                        <property name="hexpand">True</property>
+-                        <layout>
+-                          <property name="column">1</property>
+-                          <property name="row">2</property>
+-                        </layout>
+-                      </object>
+-                    </child>
+-                    <child>
+-                      <object class="GtkLabel">
+-                        <property name="label" translatable="yes">Password</property>
+-                        <property name="mnemonic_widget">password_entry</property>
+-                        <layout>
+-                          <property name="column">0</property>
+-                          <property name="row">3</property>
+-                        </layout>
+-                      </object>
+-                    </child>
+-                    <child>
+-                      <object class="GtkEntry" id="password_entry">
+-                        <property name="visibility">False</property>
+-                        <property name="activates_default">True</property>
+-                        <property name="hexpand">True</property>
+-                        <layout>
+-                          <property name="column">1</property>
+-                          <property name="row">3</property>
+-                        </layout>
+-                      </object>
+-                    </child>
+-                  </object>
+-                </property>
+-              </object>
+-            </child>
+-
+           </object>
+         </property>
+       </object>
 diff --git a/panels/printers/pp-print-device.c b/panels/printers/pp-print-device.c
 index b2663db..2ae5545 100644
 --- a/panels/printers/pp-print-device.c
@@ -720,6 +961,124 @@ index 01ee588..af21cb7 100644
  gint pp_print_device_get_acquisition_method (PpPrintDevice *device);
  gboolean pp_print_device_is_network_device (PpPrintDevice *device);
  
+diff --git a/panels/printers/pp-samba-authentication.ui b/panels/printers/pp-samba-authentication.ui
+new file mode 100644
+index 0000000..e2058e7
+--- /dev/null
++++ b/panels/printers/pp-samba-authentication.ui
+@@ -0,0 +1,112 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<interface>
++  <object class="GtkButton" id="go_back_button">
++    <property name="tooltip-text" translatable="yes">Back</property>
++    <property name="icon-name">go-previous-symbolic</property>
++    <property name="halign">start</property>
++  </object>
++  <object class="GtkButton" id="unlock_button">
++    <property name="label" translatable="yes" comments="Translators: This button opens authentication dialog for selected server.">_Unlock</property>
++    <property name="use_underline">True</property>
++    <style>
++      <class name="suggested-action"/>
++    </style>
++  </object>
++  <object class="GtkButton" id="authenticate_button">
++    <property name="label" translatable="yes" comments="Translators: This buttons submits the credentials for the selected server.">_Unlock</property>
++    <property name="use_underline">True</property>
++    <style>
++      <class name="suggested-action"/>
++    </style>
++  </object>
++  <object class="GtkGrid" id="authentication_page">
++    <property name="margin-top">20</property>
++    <property name="margin-bottom">20</property>
++    <property name="margin-start">20</property>
++    <property name="margin-end">20</property>
++    <property name="row_spacing">10</property>
++    <property name="column_spacing">15</property>
++    <property name="hexpand">True</property>
++    <property name="vexpand">True</property>
++    <style>
++      <class name="background"/>
++    </style>
++    <child>
++      <object class="GtkImage">
++        <property name="pixel_size">48</property>
++        <property name="icon_name">dialog-password-symbolic</property>
++        <layout>
++          <property name="column">0</property>
++          <property name="row">0</property>
++          <property name="row-span">2</property>
++        </layout>
++      </object>
++    </child>
++    <child>
++      <object class="GtkLabel" id="authentication_title">
++        <property name="label" translatable="yes">Authentication Required</property>
++        <property name="xalign">0</property>
++        <layout>
++          <property name="column">1</property>
++          <property name="row">0</property>
++        </layout>
++        <style>
++          <class name="heading"/>
++        </style>
++      </object>
++    </child>
++    <child>
++      <object class="GtkLabel" id="authentication_text">
++        <property name="wrap">True</property>
++        <property name="max_width_chars">36</property>
++        <property name="xalign">0</property>
++        <property name="label" translatable="yes">Enter username and password to view printers on Print Server</property>
++        <layout>
++          <property name="column">1</property>
++          <property name="row">1</property>
++        </layout>
++      </object>
++    </child>
++    <child>
++      <object class="GtkLabel">
++        <property name="label" translatable="yes">Username</property>
++        <property name="mnemonic_widget">username_entry</property>
++        <layout>
++          <property name="column">0</property>
++          <property name="row">2</property>
++        </layout>
++      </object>
++    </child>
++    <child>
++      <object class="GtkEntry" id="username_entry">
++        <property name="activates_default">True</property>
++        <property name="hexpand">True</property>
++        <layout>
++          <property name="column">1</property>
++          <property name="row">2</property>
++        </layout>
++      </object>
++    </child>
++    <child>
++      <object class="GtkLabel">
++        <property name="label" translatable="yes">Password</property>
++        <property name="mnemonic_widget">password_entry</property>
++        <layout>
++          <property name="column">0</property>
++          <property name="row">3</property>
++        </layout>
++      </object>
++    </child>
++    <child>
++      <object class="GtkEntry" id="password_entry">
++        <property name="visibility">False</property>
++        <property name="activates_default">True</property>
++        <property name="hexpand">True</property>
++        <layout>
++          <property name="column">1</property>
++          <property name="row">3</property>
++        </layout>
++      </object>
++    </child>
++  </object>
++</interface>
 diff --git a/panels/printers/pp-utils.c b/panels/printers/pp-utils.c
 index 0185b2e..10d0e84 100644
 --- a/panels/printers/pp-utils.c
@@ -793,6 +1152,33 @@ index aed34eb..8a056f4 100644
      ACQUISITION_METHOD_JETDIRECT,
      ACQUISITION_METHOD_LPD
  };
+diff --git a/panels/printers/printers.gresource.xml b/panels/printers/printers.gresource.xml.in
+similarity index 98%
+rename from panels/printers/printers.gresource.xml
+rename to panels/printers/printers.gresource.xml.in
+index 4115bb0..de1b7a9 100644
+--- a/panels/printers/printers.gresource.xml
++++ b/panels/printers/printers.gresource.xml.in
+@@ -3,6 +3,7 @@
+   <gresource prefix="/org/gnome/control-center/printers">
+     <file preprocess="xml-stripblanks">cc-printers-panel.ui</file>
+     <file preprocess="xml-stripblanks">pp-new-printer-dialog.ui</file>
++    @samba_ui@
+     <file preprocess="xml-stripblanks">pp-options-dialog.ui</file>
+     <file preprocess="xml-stripblanks">pp-ppd-selection-dialog.ui</file>
+     <file preprocess="xml-stripblanks">pp-details-dialog.ui</file>
+diff --git a/po/POTFILES.in b/po/POTFILES.in
+index a1531c3..894b6c2 100644
+--- a/po/POTFILES.in
++++ b/po/POTFILES.in
+@@ -145,6 +145,7 @@ panels/printers/pp-jobs-dialog.c
+ panels/printers/pp-new-printer.c
+ panels/printers/pp-new-printer-dialog.c
+ panels/printers/pp-new-printer-dialog.ui
++panels/printers/pp-samba-authentication.ui
+ panels/printers/pp-options-dialog.blp
+ panels/printers/pp-options-dialog.c
+ panels/printers/pp-ppd-option-widget.c
 diff --git a/shell/cc-panel-list.c b/shell/cc-panel-list.c
 index f2d1e26..7d61d09 100644
 --- a/shell/cc-panel-list.c
