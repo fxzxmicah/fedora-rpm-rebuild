@@ -1,16 +1,17 @@
 diff --git OLD/policycoreutils.spec NEW/policycoreutils.spec
-index 9fc6c5e..6deb926 100644
+index 9fc6c5e..7ac37ba 100644
 --- OLD/policycoreutils.spec
 +++ NEW/policycoreutils.spec
-@@ -46,6 +46,7 @@ Patch0003: 0003-sandbox-Use-matchbox-window-manager-instead-of-openb.patch
+@@ -46,6 +46,8 @@ Patch0003: 0003-sandbox-Use-matchbox-window-manager-instead-of-openb.patch
  Patch0004: 0004-Use-SHA-2-instead-of-SHA-1.patch
  Patch0005: 0005-python-sepolicy-Fix-spec-file-dependencies.patch
  Patch0006: 0006-sepolicy-Fix-detection-of-writeable-locations.patch
++# Replace fixfiles with a native executable
 +Patch9001: selinux-policycoreutils-native-fixfiles.patch
  # Patch list end
  
  # gen_changelog
-@@ -77,8 +78,8 @@ BuildRequires: (python3-wheel if python3-setuptools < 71)
+@@ -77,8 +79,8 @@ BuildRequires: (python3-wheel if python3-setuptools < 71)
  BuildRequires: systemd
  BuildRequires: git-core
  BuildRequires: gnupg2
@@ -21,6 +22,14 @@ index 9fc6c5e..6deb926 100644
  Recommends: rpm
  
  %description
+@@ -207,7 +209,6 @@ an SELinux environment.
+ %{_bindir}/audit2why
+ %{_mandir}/man1/audit2allow.1*
+ %{_mandir}/man1/audit2why.1*
+-%{_sysconfdir}/dbus-1/system.d/org.selinux.conf
+ %{_mandir}/man8/chcat.8*
+ %{_mandir}/man8/semanage*.8*
+ %{_datadir}/bash-completion/completions/semanage
 @@ -281,6 +282,7 @@ Requires: python3-libdnf5
  %else
  Requires: python3-dnf

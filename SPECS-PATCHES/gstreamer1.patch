@@ -1,5 +1,5 @@
 diff --git OLD/gstreamer1.spec NEW/gstreamer1.spec
-index 9129f66..af4c98e 100644
+index 9129f66..6b10e06 100644
 --- OLD/gstreamer1.spec
 +++ NEW/gstreamer1.spec
 @@ -62,12 +62,21 @@ types or processing capabilities can be added simply by installing new
@@ -33,7 +33,7 @@ index 9129f66..af4c98e 100644
  %{_libexecdir}/gstreamer-%{majorminor}/gst-plugin-scanner
  %attr(755,root,root) %caps(cap_net_bind_service,cap_net_admin,cap_sys_nice=ep) %{_libexecdir}/gstreamer-%{majorminor}/gst-ptp-helper
  #%%{_libexecdir}/gstreamer-%%{majorminor}/gst-ptp-helper-test
-@@ -145,9 +152,6 @@ install -m0644 -D %{SOURCE2} $RPM_BUILD_ROOT%{_rpmconfigdir}/fileattrs/gstreamer
+@@ -145,18 +152,21 @@ install -m0644 -D %{SOURCE2} $RPM_BUILD_ROOT%{_rpmconfigdir}/fileattrs/gstreamer
  %{_bindir}/gst-stats-%{majorminor}
  %{_bindir}/gst-typefind-%{majorminor}
  
@@ -43,7 +43,11 @@ index 9129f66..af4c98e 100644
  %doc %{_mandir}/man1/gst-inspect-%{majorminor}.*
  %doc %{_mandir}/man1/gst-launch-%{majorminor}.*
  %doc %{_mandir}/man1/gst-stats-%{majorminor}.*
-@@ -157,6 +161,10 @@ install -m0644 -D %{SOURCE2} $RPM_BUILD_ROOT%{_rpmconfigdir}/fileattrs/gstreamer
+ %doc %{_mandir}/man1/gst-typefind-%{majorminor}.*
+ 
++%dir %{_datadir}/gstreamer-%{majorminor}
++
+ %{_datadir}/bash-completion/completions/gst-inspect-1.0
  %{_datadir}/bash-completion/completions/gst-launch-1.0
  %{_datadir}/bash-completion/helpers/gst
  
@@ -54,7 +58,7 @@ index 9129f66..af4c98e 100644
  %files devel
  %dir %{_includedir}/gstreamer-%{majorminor}
  %dir %{_includedir}/gstreamer-%{majorminor}/gst
-@@ -170,6 +178,9 @@ install -m0644 -D %{SOURCE2} $RPM_BUILD_ROOT%{_rpmconfigdir}/fileattrs/gstreamer
+@@ -170,6 +180,9 @@ install -m0644 -D %{SOURCE2} $RPM_BUILD_ROOT%{_rpmconfigdir}/fileattrs/gstreamer
  %{_includedir}/gstreamer-%{majorminor}/gst/controller/*.h
  %{_includedir}/gstreamer-%{majorminor}/gst/net/*.h
  

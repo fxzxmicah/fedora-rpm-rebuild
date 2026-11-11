@@ -1,60 +1,25 @@
 diff --git OLD/icu.spec NEW/icu.spec
-index 754a6dc..6f96f50 100644
+index 754a6dc..db0699a 100644
 --- OLD/icu.spec
 +++ NEW/icu.spec
-@@ -128,6 +128,9 @@ chmod +x $RPM_BUILD_ROOT%{_libdir}/*.so.*
+@@ -128,6 +128,8 @@ chmod +x $RPM_BUILD_ROOT%{_libdir}/*.so.*
  )
  install -p -m755 -D %{SOURCE10} $RPM_BUILD_ROOT%{_bindir}/icu-config
  
-+# Keep the test framework in the build tree and tool-library linking private.
++# Keep the test framework in the build tree.
 +rm -f $RPM_BUILD_ROOT%{_libdir}/libicutest.so*
-+rm -f $RPM_BUILD_ROOT%{_libdir}/libicutu.so
  
  %check
  # test to ensure that -j(X>1) didn't "break" man pages. b.f.u #2357
-@@ -151,6 +154,7 @@ LD_LIBRARY_PATH=lib:stubdata:tools/ctestfw:$LD_LIBRARY_PATH bin/uconv -l
- %{_bindir}/gendict
- %{_bindir}/genrb
- %{_bindir}/icuexportdata
-+%{_bindir}/icuinfo
- %{_bindir}/makeconv
- %{_bindir}/pkgdata
- %{_bindir}/uconv
-@@ -160,6 +164,7 @@ LD_LIBRARY_PATH=lib:stubdata:tools/ctestfw:$LD_LIBRARY_PATH bin/uconv -l
- %{_sbindir}/gennorm2
- %{_sbindir}/gensprep
- %{_sbindir}/icupkg
-+%{_libdir}/libicutu.so.*
- %{_mandir}/man1/derb.1*
- %{_mandir}/man1/genbrk.1*
- %{_mandir}/man1/gencfu.1*
-@@ -167,6 +172,7 @@ LD_LIBRARY_PATH=lib:stubdata:tools/ctestfw:$LD_LIBRARY_PATH bin/uconv -l
- %{_mandir}/man1/gendict.1*
- %{_mandir}/man1/genrb.1*
- %{_mandir}/man1/icuexportdata.1*
-+%{_mandir}/man1/icuinfo.1*
- %{_mandir}/man1/makeconv.1*
- %{_mandir}/man1/pkgdata.1*
- %{_mandir}/man1/uconv.1*
-@@ -175,20 +181,21 @@ LD_LIBRARY_PATH=lib:stubdata:tools/ctestfw:$LD_LIBRARY_PATH bin/uconv -l
- %files -n lib%{name}
+@@ -176,7 +178,6 @@ LD_LIBRARY_PATH=lib:stubdata:tools/ctestfw:$LD_LIBRARY_PATH bin/uconv -l
  %license LICENSE
  %doc icu4c/readme.html
--%{_libdir}/*.so.*
+ %{_libdir}/*.so.*
 -%dir %{_datadir}/%{name}
-+%{_libdir}/libicudata.so.*
-+%{_libdir}/libicui18n.so.*
-+%{_libdir}/libicuio.so.*
-+%{_libdir}/libicuuc.so.*
  
  %files -n lib%{name}-devel
  %license LICENSE
- %doc icu4c/source/samples/
- %{_bindir}/%{name}-config*
--%{_bindir}/icuinfo
- %{_mandir}/man1/%{name}-config.1*
--%{_mandir}/man1/icuinfo.1*
- %{_includedir}/unicode
+@@ -189,6 +190,7 @@ LD_LIBRARY_PATH=lib:stubdata:tools/ctestfw:$LD_LIBRARY_PATH bin/uconv -l
  %{_libdir}/*.so
  %{_libdir}/pkgconfig/*.pc
  %{_libdir}/%{name}

@@ -1,5 +1,5 @@
 diff --git OLD/ibus.spec NEW/ibus.spec
-index e91c9c4..26fc634 100644
+index e91c9c4..c4741ac 100644
 --- OLD/ibus.spec
 +++ NEW/ibus.spec
 @@ -1,12 +1,12 @@
@@ -39,7 +39,18 @@ index e91c9c4..26fc634 100644
  Recommends:     %{name}-setup          = %{version}-%{release}
  
  Requires:       iso-codes
-@@ -183,6 +182,7 @@ This package contains IBus IM module for GTK4
+@@ -115,10 +114,6 @@ Requires:               dconf
+ Requires(postun):       dconf
+ Requires(posttrans):    dconf
+ 
+-Requires:               %{_sbindir}/alternatives
+-Requires(post):         %{_sbindir}/alternatives
+-Requires(postun):       %{_sbindir}/alternatives
+-
+ %global _xinputconf %{_sysconfdir}/X11/xinit/xinput.d/ibus.conf
+ 
+ %description
+@@ -183,6 +178,7 @@ This package contains IBus IM module for GTK4
  Summary:        IBus setup utility
  Requires:       %{name} = %{version}-%{release}
  Requires:       python3-gobject
@@ -47,6 +58,31 @@ index e91c9c4..26fc634 100644
  BuildRequires:  python3-gobject-devel
  BuildArch:      noarch
  
+@@ -212,18 +208,22 @@ in non-GNOME desktop sessions likes XFCE or Plasma because gnome-shell
+ shows the IBus Icon. This package depends on libdbusmenu-gtk3 for Wayland
+ desktop sessions.
+ 
++%if %{with xinit}
+ %package xinit
+ Summary:        IBus Xinit
+ Requires:       %{name} = %{version}-%{release}
+-%if %{with xinit}
+ # Owner of %%{_sysconfdir}/X11/xinit
+ Requires:       xorg-x11-xinit
+-%endif
++Requires:               %{_sbindir}/alternatives
++Requires(post):         %{_sbindir}/alternatives
++Requires(postun):       %{_sbindir}/alternatives
++
+ BuildArch:      noarch
+ 
+ %description xinit
+ This package includes xinit scripts to set environment variables of IBus
+ for Xorg desktop sessions and this is not needed by Wayland desktop sessions.
++%endif
+ 
+ %package devel
+ Summary:        Development tools for ibus
 @@ -271,8 +271,8 @@ the functionality of the installed %{name} package.
  
  
@@ -69,9 +105,19 @@ index e91c9c4..26fc634 100644
  rm -f $RPM_BUILD_ROOT%{_libdir}/libibus-*%{ibus_api_version}.la
  %if %{with gtk2}
  rm -f $RPM_BUILD_ROOT%{_libdir}/gtk-2.0/%{gtk2_binary_version}/immodules/im-ibus.la
-@@ -340,11 +344,11 @@ done
+@@ -328,6 +332,7 @@ rm -f $RPM_BUILD_ROOT%{_libdir}/gtk-4.0/%{gtk4_binary_version}/immodules/libim-i
+ rm -f $RPM_BUILD_ROOT%{_datadir}/installed-tests/ibus/xkb-latin-layouts.test
+ %endif
+ 
++%if %{with xinit}
+ # install man page
+ for S in %{SOURCE3}
+ do
+@@ -339,12 +344,13 @@ done
+ 
  # install xinput config file
  install -pm 644 -D %{SOURCE2} $RPM_BUILD_ROOT%{_xinputconf}
++%endif
  
 -install -m 755 -d $RPM_BUILD_ROOT%pkgcache/bus
 +install -m 755 -d $RPM_BUILD_ROOT%{pkgcache}/bus
@@ -83,8 +129,13 @@ index e91c9c4..26fc634 100644
  
  # install .desktop files
  echo "NoDisplay=true" >> $RPM_BUILD_ROOT%{_datadir}/applications/org.freedesktop.IBus.Setup.desktop
-@@ -392,12 +396,6 @@ desktop-file-install --delete-original          \
+@@ -387,44 +393,36 @@ desktop-file-install --delete-original          \
+ %check
+ %meson_test --no-suite ibus:display
  
+-%post xinit
+-%{_sbindir}/alternatives --install %{_sysconfdir}/X11/xinit/xinputrc xinputrc %{_xinputconf} 83 || :
+-
  %postun
  if [ "$1" -eq 0 ]; then
 -  # ibus 1.5.31 has no ibus-xinit and need to delete %%_xinputconf here
@@ -96,7 +147,21 @@ index e91c9c4..26fc634 100644
    # 'dconf update' sometimes does not update the db...
    dconf update || :
    [ -f %{_sysconfdir}/dconf/db/ibus ] && \
-@@ -414,17 +412,13 @@ fi
+       rm %{_sysconfdir}/dconf/db/ibus || :
+ fi
+ 
++%if %{with xinit}
++%post xinit
++%{_sbindir}/alternatives --install %{_sysconfdir}/X11/xinit/xinputrc xinputrc %{_xinputconf} 83 || :
++
+ %postun xinit
+ if [ "$1" -eq 0 ]; then
+   %{_sbindir}/alternatives --remove xinputrc %{_xinputconf} || :
+   # if alternative was set to manual, reset to auto
+   [ -L %{_sysconfdir}/alternatives/xinputrc -a "`readlink %{_sysconfdir}/alternatives/xinputrc`" = "%{_xinputconf}" ] && %{_sbindir}/alternatives --auto xinputrc || :
+ fi
++%endif
+ 
  %posttrans
  dconf update || :
  
@@ -116,7 +181,7 @@ index e91c9c4..26fc634 100644
  
  
  %ldconfig_scriptlets libs
-@@ -439,15 +433,11 @@ dconf update || :
+@@ -439,15 +437,11 @@ dconf update || :
  %{_datadir}/applications/org.freedesktop.IBus.Panel.Extension.Gtk3.desktop
  %{_datadir}/bash-completion/completions/ibus.bash
  %{_datadir}/dbus-1/services/*.service
@@ -132,7 +197,7 @@ index e91c9c4..26fc634 100644
  %{_datadir}/man/man1/ibus.1.gz
  %{_datadir}/man/man1/ibus-daemon.1.gz
  %{_datadir}/man/man7/ibus-emoji.7.gz
-@@ -466,10 +456,10 @@ dconf update || :
+@@ -466,10 +460,10 @@ dconf update || :
  %dir %{_prefix}/lib/systemd/user/gnome-session.target.wants
  %{_prefix}/lib/systemd/user/gnome-session.target.wants/*.service
  %{_prefix}/lib/systemd/user/org.freedesktop.IBus.session.*.service
@@ -146,7 +211,7 @@ index e91c9c4..26fc634 100644
  
  %files -n python3-ibus
  %{python3_sitearch}/gi/overrides/__pycache__/*.py*
-@@ -492,12 +482,11 @@ dconf update || :
+@@ -492,12 +486,11 @@ dconf update || :
  %dir %{_libdir}/gtk-4.0/%{gtk4_binary_version}/immodules
  %{_libdir}/gtk-4.0/%{gtk4_binary_version}/immodules/libim-ibus.so
  
@@ -160,3 +225,22 @@ index e91c9c4..26fc634 100644
  %{_datadir}/man/man1/ibus-setup.1.gz
  
  %files wayland
+@@ -507,16 +500,13 @@ dconf update || :
+ %{_datadir}/applications/org.freedesktop.IBus.Panel.Wayland.Gtk3.desktop
+ %{_libexecdir}/ibus-ui-gtk3
+ 
++%if %{with xinit}
+ %files xinit
+ %{_datadir}/man/man5/ibus.conf.5.gz
+-%if %{without xinit}
+-# ibus owns xinit directory without xorg-x11-xinit package
+-%dir %{_sysconfdir}/X11/xinit
+-%dir %{_sysconfdir}/X11/xinit/xinput.d
+-%endif
+ # Do not use %%config(noreplace) to always get the new keywords in _xinputconf
+ # For user customization, $HOME/.xinputrc can be used instead.
+ %config %{_xinputconf}
++%endif
+ 
+ %files devel
+ %{_libdir}/ibus
