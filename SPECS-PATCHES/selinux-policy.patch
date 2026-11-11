@@ -1,8 +1,18 @@
 diff --git OLD/selinux-policy.spec NEW/selinux-policy.spec
-index 29525fb..72b441e 100644
+index 29525fb..02f2d43 100644
 --- OLD/selinux-policy.spec
 +++ NEW/selinux-policy.spec
-@@ -66,6 +66,7 @@ BuildRequires: groff
+@@ -54,6 +54,9 @@ Source39: selinux-policy-mls.conf
+ # Script to convert /usr/sbin file context entries to /usr/bin
+ Source40: binsbin-convert.sh
+ 
++# Complete login-monitor access to optional backend directories.
++Patch0: selinux-policy-login-monitor-parent-watch.patch
++
+ # add_changelog
+ %{load:%{SOURCE7}}
+ 
+@@ -66,6 +69,7 @@ BuildRequires: groff
  Requires(pre): policycoreutils >= %{POLICYCOREUTILSVER}
  Requires(pre): /usr/bin/sha512sum
  Requires(meta): (rpm-plugin-selinux if rpm-libs)
@@ -10,7 +20,7 @@ index 29525fb..72b441e 100644
  Requires: selinux-policy-any = %{version}-%{release}
  Provides: selinux-policy-base = %{version}-%{release}
  Provides: selinux-policy-stable = %{STABLEVER}
-@@ -80,18 +81,12 @@ the policy has been adjusted to provide support for Fedora.
+@@ -80,18 +84,12 @@ the policy has been adjusted to provide support for Fedora.
  %{!?_licensedir:%global license %%doc}
  %license COPYING
  %dir %{_datadir}/selinux
@@ -29,7 +39,7 @@ index 29525fb..72b441e 100644
  %{_unitdir}/selinux-check-proper-disable.service
  %{_libexecdir}/selinux/binsbin-convert.sh
  %{_libexecdir}/selinux/varrun-convert.sh
-@@ -164,6 +159,17 @@ and some additional files.
+@@ -164,6 +162,17 @@ and some additional files.
  selinuxenabled && sepolgen-ifgen 2>/dev/null
  exit 0
  
@@ -47,7 +57,7 @@ index 29525fb..72b441e 100644
  %package doc
  Summary: SELinux policy documentation
  Requires(pre): selinux-policy = %{version}-%{release}
-@@ -734,6 +740,7 @@ exit 0
+@@ -734,6 +743,7 @@ exit 0
  %config(noreplace) %{_sysconfdir}/selinux/minimum/contexts/users/unconfined_u
  %config(noreplace) %{_sysconfdir}/selinux/minimum/contexts/users/sysadm_u
  %fileList minimum
@@ -55,7 +65,7 @@ index 29525fb..72b441e 100644
  %{_datadir}/selinux/minimum/modules-enabled.lst
  %endif
  
-@@ -791,6 +798,7 @@ exit 0
+@@ -791,6 +801,7 @@ exit 0
  %config(noreplace) %{_sysconfdir}/dnf/protected.d/selinux-policy-mls.conf
  %config(noreplace) %{_sysconfdir}/selinux/mls/contexts/users/unconfined_u
  %fileList mls

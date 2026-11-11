@@ -1,0 +1,85 @@
+From 8cde2f6a5e2e51098be0d09a3c265e24ef0db26e Mon Sep 17 00:00:00 2001
+From: Fxzx micah <48860358+fxzxmicah@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 01:30:55 +0800
+Subject: [PATCH] systemd: permit login monitors to watch backend directory
+ creation
+
+When libsystemd watches /run/systemd to detect login backend directories
+appearing later, confined callers need access to the parent directory as
+well as the selected backend directories. Without the parent watch
+permission, NetworkManager fails to create its login monitor with EACCES.
+
+Extend the logind and machined monitoring interfaces using the existing
+init directory list and watch interfaces. Directory read access is needed
+by inotify_add_watch(); no directory write access is granted. Apply the
+access consistently to callers of all three monitoring interfaces rather
+than adding a NetworkManager-specific rule.
+
+This change accompanies the libsystemd login-monitor change that supports
+backend directories not existing at monitor creation. It is not required
+by the upstream implementation that only watches existing category
+directories.
+---
+ policy/modules/system/systemd.if | 13 +++++++++----
+ 1 file changed, 9 insertions(+), 4 deletions(-)
+
+diff --git a/policy/modules/system/systemd.if b/policy/modules/system/systemd.if
+index cb87b8401..6c6bbf843 100644
+--- a/policy/modules/system/systemd.if
++++ b/policy/modules/system/systemd.if
+@@ -581,7 +581,7 @@ interface(`systemd_login_list_pid_dirs',`
+ 
+ ######################################
+ ## <summary>
+-##	Watch systemd_login PID directories.
++##	Watch systemd_login PID directories and their parent.
+ ## </summary>
+ ## <param name="domain">
+ ##	<summary>
+@@ -595,12 +595,14 @@ interface(`systemd_login_watch_pid_dirs',`
+ 	')
+ 
+ 	files_search_pids($1)
++	init_list_pid_dirs($1)
++	init_watch_pid_dir($1)
+ 	allow $1 systemd_logind_var_run_t:dir watch_dir_perms;
+ ')
+ 
+ ######################################
+ ## <summary>
+-##	Watch systemd_login session directories.
++##	Watch systemd_login session directories and their parent.
+ ## </summary>
+ ## <param name="domain">
+ ##	<summary>
+@@ -613,7 +615,8 @@ interface(`systemd_login_watch_session_dirs',`
+ 		type systemd_logind_sessions_t;
+ 	')
+ 
+-	init_search_pid_dirs($1)
++	init_list_pid_dirs($1)
++	init_watch_pid_dir($1)
+ 	allow $1 systemd_logind_sessions_t:dir watch_dir_perms;
+ ')
+ 
+@@ -2519,7 +2522,7 @@ interface(`systemd_machined_list_pid_dirs',`
+ 
+ ######################################
+ ## <summary>
+-##	Watch systemd-machined PID directories.
++##	Watch systemd-machined PID directories and their parent.
+ ## </summary>
+ ## <param name="domain">
+ ##	<summary>
+@@ -2533,6 +2536,8 @@ interface(`systemd_machined_watch_pid_dirs',`
+ 	')
+ 
+ 	files_search_pids($1)
++	init_list_pid_dirs($1)
++	init_watch_pid_dir($1)
+ 	allow $1 systemd_machined_var_run_t:dir watch_dir_perms;
+ ')
+ 
+-- 
+2.56.0
+
