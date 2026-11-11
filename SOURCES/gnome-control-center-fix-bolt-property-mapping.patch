@@ -1,0 +1,140 @@
+From bb17817fb15a87a9cf01d4d667ce8471190b212d Mon Sep 17 00:00:00 2001
+From: Felipe Borges <felipeborges@gnome.org>
+Date: Thu, 22 Oct 2026 13:27:00 +0200
+Subject: [PATCH] privacy, bolt: Restore the D-Bus property names in the nicks
+
+The bolt code carries the name of the matching D-Bus property in the
+GParamSpec nick, and bolt-proxy.c looks the cached properties up by
+nick.
+
+Commit a3a8ed7517 set every nick to NULL, so GLib fell back to the
+property name and we started asking boltd for "auth-mode" rather than
+"AuthMode":
+
+  cc-privacy-panel: WARNING: failed to get enum property 'auth-mode'
+
+That broke every property, not just that one. bolt_client_get_security()
+came back BOLT_SECURITY_UNKNOWN and we showed the "No Thunderbolt
+support" page on machines that do support it.
+
+The bus names aren't derivable from the property names either, syspath
+is SysfsPath and conntime is ConnectTime, so put them back and leave a
+note about why they have to stay.
+
+Fixes #3842
+
+(cherry picked from commit f499bf38b1fef52abf7eb5c822f588a9d711edb1)
+---
+ panels/privacy/bolt/bolt-client.c | 14 +++++----
+ panels/privacy/bolt/bolt-device.c | 50 +++++++++++++++++--------------
+ 2 files changed, 37 insertions(+), 27 deletions(-)
+
+diff --git a/panels/privacy/bolt/bolt-client.c b/panels/privacy/bolt/bolt-client.c
+index e019dba..58b31f5 100644
+--- a/panels/privacy/bolt/bolt-client.c
++++ b/panels/privacy/bolt/bolt-client.c
+@@ -91,15 +91,19 @@ bolt_client_class_init (BoltClientClass *klass)
+ 
+     proxy_class->get_dbus_signals = bolt_client_get_dbus_signals;
+ 
++    /* The nick of each property is the name of the corresponding D-Bus
++     * property. bolt-proxy.c uses it to look up the cached value. It must
++     * not be set to NULL. */
+     props[PROP_VERSION] =
+-        g_param_spec_uint ("version", NULL, NULL, 0, G_MAXUINT, 0, G_PARAM_READABLE | G_PARAM_STATIC_NAME);
++        g_param_spec_uint ("version", "Version", NULL, 0, G_MAXUINT, 0, G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
+ 
+-    props[PROP_PROBING] = g_param_spec_boolean ("probing", NULL, NULL, FALSE, G_PARAM_READABLE | G_PARAM_STATIC_NAME);
++    props[PROP_PROBING] =
++        g_param_spec_boolean ("probing", "Probing", NULL, FALSE, G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
+ 
+-    props[PROP_SECURITY] = g_param_spec_enum ("security-level", NULL, NULL, BOLT_TYPE_SECURITY, BOLT_SECURITY_UNKNOWN,
+-                                              G_PARAM_READABLE | G_PARAM_STATIC_NAME);
++    props[PROP_SECURITY] = g_param_spec_enum ("security-level", "SecurityLevel", NULL, BOLT_TYPE_SECURITY,
++                                              BOLT_SECURITY_UNKNOWN, G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
+ 
+-    props[PROP_AUTHMODE] = g_param_spec_flags ("auth-mode", NULL, NULL, BOLT_TYPE_AUTH_MODE, BOLT_AUTH_ENABLED,
++    props[PROP_AUTHMODE] = g_param_spec_flags ("auth-mode", "AuthMode", NULL, BOLT_TYPE_AUTH_MODE, BOLT_AUTH_ENABLED,
+                                                G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
+ 
+     g_object_class_install_properties (gobject_class, PROP_LAST, props);
+diff --git a/panels/privacy/bolt/bolt-device.c b/panels/privacy/bolt/bolt-device.c
+index 589331c..400fda9 100644
+--- a/panels/privacy/bolt/bolt-device.c
++++ b/panels/privacy/bolt/bolt-device.c
+@@ -76,44 +76,50 @@ bolt_device_class_init (BoltDeviceClass *klass)
+ 
+     gobject_class->get_property = bolt_device_get_property;
+ 
+-    props[PROP_UID] = g_param_spec_string ("uid", NULL, NULL, "unknown", G_PARAM_READABLE | G_PARAM_STATIC_NICK);
++    /* The nick of each property is the name of the corresponding D-Bus
++     * property. bolt-proxy.c uses it to look up the cached value. It must
++     * not be set to NULL. */
++    props[PROP_UID] = g_param_spec_string ("uid", "Uid", NULL, "unknown", G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
+ 
+-    props[PROP_NAME] = g_param_spec_string ("name", NULL, NULL, "unknown", G_PARAM_READABLE | G_PARAM_STATIC_NICK);
++    props[PROP_NAME] = g_param_spec_string ("name", "Name", NULL, "unknown", G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
+ 
+-    props[PROP_VENDOR] = g_param_spec_string ("vendor", NULL, NULL, "unknown", G_PARAM_READABLE | G_PARAM_STATIC_NICK);
++    props[PROP_VENDOR] =
++        g_param_spec_string ("vendor", "Vendor", NULL, "unknown", G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
+ 
+-    props[PROP_TYPE] = g_param_spec_enum ("type", NULL, NULL, BOLT_TYPE_DEVICE_TYPE, BOLT_DEVICE_PERIPHERAL,
+-                                          G_PARAM_READABLE | G_PARAM_STATIC_NICK);
++    props[PROP_TYPE] = g_param_spec_enum ("type", "Type", NULL, BOLT_TYPE_DEVICE_TYPE, BOLT_DEVICE_PERIPHERAL,
++                                          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
+ 
+-    props[PROP_STATUS] = g_param_spec_enum ("status", NULL, NULL, BOLT_TYPE_STATUS, BOLT_STATUS_DISCONNECTED,
+-                                            G_PARAM_READABLE | G_PARAM_STATIC_NICK);
++    props[PROP_STATUS] = g_param_spec_enum ("status", "Status", NULL, BOLT_TYPE_STATUS, BOLT_STATUS_DISCONNECTED,
++                                            G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
+ 
+-    props[PROP_AUTHFLAGS] = g_param_spec_flags ("authflags", NULL, NULL, BOLT_TYPE_AUTH_FLAGS, BOLT_AUTH_NONE,
++    props[PROP_AUTHFLAGS] = g_param_spec_flags ("authflags", "AuthFlags", NULL, BOLT_TYPE_AUTH_FLAGS, BOLT_AUTH_NONE,
+                                                 G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
+ 
+-    props[PROP_PARENT] = g_param_spec_string ("parent", NULL, NULL, "unknown", G_PARAM_READABLE | G_PARAM_STATIC_NICK);
++    props[PROP_PARENT] =
++        g_param_spec_string ("parent", "Parent", NULL, "unknown", G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
+ 
+     props[PROP_SYSPATH] =
+-        g_param_spec_string ("syspath", NULL, NULL, "unknown", G_PARAM_READABLE | G_PARAM_STATIC_NICK);
++        g_param_spec_string ("syspath", "SysfsPath", NULL, "unknown", G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
+ 
+-    props[PROP_CONNTIME] =
+-        g_param_spec_uint64 ("conntime", NULL, NULL, 0, G_MAXUINT64, 0, G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
++    props[PROP_CONNTIME] = g_param_spec_uint64 ("conntime", "ConnectTime", NULL, 0, G_MAXUINT64, 0,
++                                                G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
+ 
+-    props[PROP_AUTHTIME] =
+-        g_param_spec_uint64 ("authtime", NULL, NULL, 0, G_MAXUINT64, 0, G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
++    props[PROP_AUTHTIME] = g_param_spec_uint64 ("authtime", "AuthorizeTime", NULL, 0, G_MAXUINT64, 0,
++                                                G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
+ 
+-    props[PROP_STORED] = g_param_spec_boolean ("stored", NULL, NULL, FALSE, G_PARAM_READABLE | G_PARAM_STATIC_NICK);
++    props[PROP_STORED] =
++        g_param_spec_boolean ("stored", "Stored", NULL, FALSE, G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
+ 
+-    props[PROP_POLICY] = g_param_spec_enum ("policy", NULL, NULL, BOLT_TYPE_POLICY, BOLT_POLICY_DEFAULT,
+-                                            G_PARAM_READABLE | G_PARAM_STATIC_NICK);
++    props[PROP_POLICY] = g_param_spec_enum ("policy", "Policy", NULL, BOLT_TYPE_POLICY, BOLT_POLICY_DEFAULT,
++                                            G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
+ 
+-    props[PROP_KEY] = g_param_spec_enum ("key", NULL, NULL, BOLT_TYPE_KEY_STATE, BOLT_KEY_MISSING,
+-                                         G_PARAM_READABLE | G_PARAM_STATIC_NICK);
++    props[PROP_KEY] = g_param_spec_enum ("key", "Key", NULL, BOLT_TYPE_KEY_STATE, BOLT_KEY_MISSING,
++                                         G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
+ 
+-    props[PROP_STORETIME] =
+-        g_param_spec_uint64 ("storetime", NULL, NULL, 0, G_MAXUINT64, 0, G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
++    props[PROP_STORETIME] = g_param_spec_uint64 ("storetime", "StoreTime", NULL, 0, G_MAXUINT64, 0,
++                                                 G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
+ 
+-    props[PROP_LABEL] = g_param_spec_string ("label", NULL, NULL, NULL, G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
++    props[PROP_LABEL] = g_param_spec_string ("label", "Label", NULL, NULL, G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
+ 
+     g_object_class_install_properties (gobject_class, PROP_LAST, props);
+ }
+-- 
+2.56.0
+

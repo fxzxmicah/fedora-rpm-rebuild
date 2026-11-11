@@ -1,5 +1,5 @@
 diff --git OLD/gnome-control-center.spec NEW/gnome-control-center.spec
-index d87aa37..719e0a1 100644
+index d87aa37..b72877b 100644
 --- OLD/gnome-control-center.spec
 +++ NEW/gnome-control-center.spec
 @@ -11,8 +11,12 @@
@@ -17,18 +17,19 @@ index d87aa37..719e0a1 100644
  
  Name:           gnome-control-center
  Version:        51.1
-@@ -23,6 +27,10 @@ License:        GPL-2.0-or-later AND CC0-1.0
+@@ -23,6 +27,11 @@ License:        GPL-2.0-or-later AND CC0-1.0
  URL:            https://gitlab.gnome.org/GNOME/gnome-control-center/
  Source0:        https://download.gnome.org/sources/%{name}/%{gnome_major_version}/%{name}-%{gnome_tarball_version}.tar.xz
  
-+# Downstream optional feature and service visibility patches
++# Optional features, service visibility, and upstream fixes
 +Patch0:         gnome-control-center-make-libwacom-samba-optional.patch
 +Patch1:         gnome-control-center-hide-unavailable-service-entries.patch
++Patch2:         gnome-control-center-fix-bolt-property-mapping.patch
 +
  %gnome_check_version
  
  BuildRequires:  blueprint-compiler >= %{blueprint_compiler_version}
-@@ -63,7 +71,9 @@ BuildRequires:  pkgconfig(malcontent-0)
+@@ -63,7 +72,9 @@ BuildRequires:  pkgconfig(malcontent-0)
  BuildRequires:  pkgconfig(mm-glib)
  BuildRequires:  pkgconfig(polkit-gobject-1)
  BuildRequires:  pkgconfig(pwquality)
@@ -38,7 +39,7 @@ index d87aa37..719e0a1 100644
  BuildRequires:  pkgconfig(tecla)
  BuildRequires:  pkgconfig(udisks2)
  BuildRequires:  pkgconfig(upower-glib) >= %{upower_version}
-@@ -71,8 +81,10 @@ BuildRequires:  pkgconfig(x11)
+@@ -71,8 +82,10 @@ BuildRequires:  pkgconfig(x11)
  BuildRequires:  pkgconfig(xi)
  %ifnarch s390 s390x
  BuildRequires:  pkgconfig(gnome-bluetooth-3.0) >= %{gnome_bluetooth_version}
@@ -49,7 +50,7 @@ index d87aa37..719e0a1 100644
  
  # Versioned library deps
  Requires: libadwaita%{?_isa} >= %{libadwaita_version}
-@@ -120,10 +132,8 @@ Requires: /usr/bin/tecla
+@@ -120,10 +133,8 @@ Requires: /usr/bin/tecla
  %if 0%{?fedora} >= 35 || 0%{?rhel} >= 9
  # For the power panel
  Recommends: ppd-service
@@ -61,7 +62,7 @@ index d87aa37..719e0a1 100644
  %endif
  %endif
  
-@@ -153,6 +163,13 @@ for applications. This package contains directories where applications
+@@ -153,6 +164,13 @@ for applications. This package contains directories where applications
  can install configuration files that are picked up by the control-center
  utilities.
  
@@ -75,7 +76,7 @@ index d87aa37..719e0a1 100644
  %prep
  %autosetup -p1 -n %{name}-%{gnome_tarball_version}
  
-@@ -172,6 +189,16 @@ utilities.
+@@ -172,6 +190,16 @@ utilities.
    -Dmalcontent=true \
  %else
    -Dmalcontent=false \
@@ -92,7 +93,7 @@ index d87aa37..719e0a1 100644
  %endif
    %{nil}
  %meson_build
-@@ -198,7 +225,6 @@ rm -rf $RPM_BUILD_ROOT%{_datadir}/gnome/cursor-fonts
+@@ -198,7 +226,6 @@ rm -rf $RPM_BUILD_ROOT%{_datadir}/gnome/cursor-fonts
  %{_datadir}/dbus-1/services/org.gnome.Settings.service
  %{_datadir}/dbus-1/services/org.gnome.Settings.GlobalShortcutsProvider.service
  %{_datadir}/dbus-1/interfaces/org.gnome.GlobalShortcutsRebind.xml
@@ -100,7 +101,7 @@ index d87aa37..719e0a1 100644
  %{_datadir}/glib-2.0/schemas/org.gnome.Settings.gschema.xml
  %{_datadir}/gnome-control-center/keybindings/*.xml
  %{_datadir}/gnome-control-center/pixmaps
-@@ -208,7 +234,6 @@ rm -rf $RPM_BUILD_ROOT%{_datadir}/gnome/cursor-fonts
+@@ -208,7 +235,6 @@ rm -rf $RPM_BUILD_ROOT%{_datadir}/gnome/cursor-fonts
  %{_mandir}/man1/gnome-control-center.1*
  %{_metainfodir}/org.gnome.Settings.metainfo.xml
  %{_datadir}/pixmaps/faces
@@ -108,7 +109,7 @@ index d87aa37..719e0a1 100644
  %{_datadir}/polkit-1/actions/org.gnome.controlcenter.*.policy
  %{_datadir}/polkit-1/rules.d/gnome-control-center.rules
  %{_datadir}/sounds/gnome/default/*/*.ogg
-@@ -221,5 +246,9 @@ rm -rf $RPM_BUILD_ROOT%{_datadir}/gnome/cursor-fonts
+@@ -221,5 +247,9 @@ rm -rf $RPM_BUILD_ROOT%{_datadir}/gnome/cursor-fonts
  %dir %{_datadir}/gnome-control-center/keybindings
  %dir %{_datadir}/gnome/wm-properties
  
