@@ -38,7 +38,7 @@ RULES = [
     ('quota', r'systemd-quotacheck|/quotaon(-root|@)\.service'),
     ('udev', r'systemd-kexec|/kexec\.target$'),
     ('volatile-root', r'systemd-volatile-root'),
-    ('udev', r'systemd-(fstab-generator|remount-fs|validatefs)|'
+    ('udev', r'systemd-(fstab-generator|remount-fs|validatefs|makefs|mkswap)|'
              r'/systemd-(mount|umount)\.|/systemd-(mount|umount)$|'
              r'/20-systemd-stub\.conf$'),
     ('main', r'systemd-(getty-generator|sysctl)|'
@@ -93,7 +93,7 @@ RULES = [
     ('cryptsetup', r'cryptsetup|cryptenroll|integritysetup|veritysetup|'
                    r'/(crypttab|integritytab|veritytab)\.|/etc/(crypttab|integritytab)$|'
                    r'pam_systemd_loadkey'),
-    ('repart', r'systemd-(repart|growfs|makefs|mkswap)|/repart(/|\.|$)'),
+    ('repart', r'systemd-(repart|growfs)|/repart(/|\.|$)'),
     ('ukify', r'/man/[^/]+/ukify\.|/kernel/uki\.conf$|/boot/hwids(/|$)'),
     ('main', r'nss_myhostname|nss-myhostname|nss_systemd|nss-systemd'),
     ('udev',
@@ -112,7 +112,7 @@ KERNELLESS = re.compile(
     r'/dev-hugepages\.mount$|'
     r'/kexec\.target$|systemd-kexec|'
     r'systemd-pstore|/pstore\.conf|'
-    r'systemd-(fstab-generator|gpt-auto-generator|remount-fs|validatefs|'
+    r'systemd-(fstab-generator|gpt-auto-generator|remount-fs|validatefs|makefs|mkswap|'
     r'coredump|fsck|random-seed|time-wait-sync|timesync)|'
     r'/systemd-(mount|umount)\.|/systemd-(mount|umount)$|'
     r'/20-systemd-stub\.conf$|'
