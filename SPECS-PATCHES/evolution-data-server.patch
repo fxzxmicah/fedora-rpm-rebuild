@@ -1,5 +1,5 @@
 diff --git OLD/evolution-data-server.spec NEW/evolution-data-server.spec
-index 6316de9..dad40a1 100644
+index 6316de9..422eca1 100644
 --- OLD/evolution-data-server.spec
 +++ NEW/evolution-data-server.spec
 @@ -1,17 +1,15 @@
@@ -98,7 +98,25 @@ index 6316de9..dad40a1 100644
  	-DINCLUDE_INSTALL_DIR:PATH=%{_includedir} \
  	-DLIB_INSTALL_DIR:PATH=%{_libdir} \
  	-DSYSCONF_INSTALL_DIR:PATH=%{_sysconfdir} \
-@@ -427,13 +432,17 @@ find $RPM_BUILD_ROOT -name '*.so.*' -exec chmod +x {} \;
+@@ -304,6 +309,9 @@ export CFLAGS="$RPM_OPT_FLAGS -DLDAP_DEPRECATED -fPIC -I%{_includedir}/et -Wno-d
+ %install
+ %cmake_install
+ 
++# Omit obsolete GConf migration data.
++rm -rf %{buildroot}%{_datadir}/GConf
++
+ # make sure the directory exists, because it's owned by eds
+ mkdir $RPM_BUILD_ROOT/%{uimodules_dir} || :
+ mkdir $RPM_BUILD_ROOT/%{credential_modules_dir} || :
+@@ -372,7 +380,6 @@ find $RPM_BUILD_ROOT -name '*.so.*' -exec chmod +x {} \;
+ %{_datadir}/applications/org.gnome.evolution-data-server.OAuth2-handler.desktop
+ 
+ # GSettings schemas:
+-%{_datadir}/GConf/gsettings/evolution-data-server.convert
+ %{_datadir}/glib-2.0/schemas/org.gnome.Evolution.DefaultSources.gschema.xml
+ %{_datadir}/glib-2.0/schemas/org.gnome.evolution-data-server.gschema.xml
+ %{_datadir}/glib-2.0/schemas/org.gnome.evolution-data-server.addressbook.gschema.xml
+@@ -427,13 +434,17 @@ find $RPM_BUILD_ROOT -name '*.so.*' -exec chmod +x {} \;
  %{credential_modules_dir}/module-credentials-goa.so
  %{ebook_backends_dir}/libebookbackendcarddav.so
  %{ebook_backends_dir}/libebookbackendfile.so

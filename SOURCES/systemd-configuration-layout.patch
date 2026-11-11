@@ -1,4 +1,4 @@
-From 5f62dfa38842e193fe3a8e95ad0d06c8450603c5 Mon Sep 17 00:00:00 2001
+From 625e22f3c12e134f5c0058102d1ce25fb8f938cb Mon Sep 17 00:00:00 2001
 From: Fxzx micah <48860358+fxzxmicah@users.noreply.github.com>
 Date: Sun, 8 Nov 2026 14:48:22 +0800
 Subject: [PATCH] conf: separate component defaults and user configuration

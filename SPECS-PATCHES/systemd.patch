@@ -1,5 +1,5 @@
 diff --git OLD/systemd.spec NEW/systemd.spec
-index e026f5c..88ebed6 100644
+index e026f5c..d7ad4ce 100644
 --- OLD/systemd.spec
 +++ NEW/systemd.spec
 @@ -118,7 +118,6 @@ Source1:        triggers.systemd
@@ -18,7 +18,7 @@ index e026f5c..88ebed6 100644
  Source20:       macros.sysusers.compat
  Source21:       macros.sysusers
  Source22:       sysusers.attr
-@@ -142,6 +140,13 @@ Source25:       98-default-mac-none.link
+@@ -142,6 +140,14 @@ Source25:       98-default-mac-none.link
  
  Source26:       systemd-user
  
@@ -28,11 +28,12 @@ index e026f5c..88ebed6 100644
 +# Downstream component and path changes.
 +Patch100:       systemd-optional-components.patch
 +Patch101:       systemd-configuration-layout.patch
++Patch102:       systemd-login-monitor-optional-categories.patch
 +
  %if 0%{?fedora} < 40 && 0%{?rhel} < 10
  # Work-around for dracut issue: run generators directly when we are in initrd
  # https://bugzilla.redhat.com/show_bug.cgi?id=2164404
-@@ -297,11 +302,8 @@ Requires(post): grep
+@@ -297,11 +303,8 @@ Requires(post): grep
  # systemd-machine-id-setup requires libssl
  Requires(post): openssl-libs
  Recommends:     dbus >= 1.9.18
@@ -44,7 +45,7 @@ index e026f5c..88ebed6 100644
  Requires:       systemd-shared%{_isa} = %{version}-%{release}
  Requires:       /usr/bin/systemd-sysusers
  
-@@ -320,12 +322,10 @@ Provides:       /bin/systemctl
+@@ -320,12 +323,10 @@ Provides:       /bin/systemctl
  Provides:       /sbin/shutdown
  Provides:       syslog
  Provides:       systemd-units = %{version}-%{release}
@@ -59,7 +60,7 @@ index e026f5c..88ebed6 100644
  %if 0%{?fedora}
  Conflicts:      fedora-release < 23-0.12
  %endif
-@@ -345,15 +345,21 @@ Conflicts:      dracut < 060-2
+@@ -345,15 +346,21 @@ Conflicts:      dracut < 060-2
  Conflicts:      dracut < 059-16
  %endif
  
@@ -85,7 +86,7 @@ index e026f5c..88ebed6 100644
  %if %{with sbin_compat} || "%{_sbindir}" == "%{_bindir}"
  # Compat symlinks for Requires in other packages.
  # We rely on filesystem to create the symlinks for us.
-@@ -392,6 +398,7 @@ Requires:       libacl.so.1%{?elf_suffix}
+@@ -392,6 +399,7 @@ Requires:       libacl.so.1%{?elf_suffix}
    # Downgrade the dep for now.
    systemd:curl:recommended
    systemd-udev:curl:recommended
@@ -93,7 +94,7 @@ index e026f5c..88ebed6 100644
  
    # libssl + libcrypto are required by systemd-resolved/resolvectl.
    # Downgrade the dep in the main package.
-@@ -408,8 +415,7 @@ of the system. It provides aggressive parallelization capabilities, uses socket
+@@ -408,8 +416,7 @@ of the system. It provides aggressive parallelization capabilities, uses socket
  and D-Bus activation for starting services, offers on-demand starting of
  daemons, keeps track of processes using Linux control groups, maintains mount
  and automount points, and implements an elaborate transactional dependency-based
@@ -103,7 +104,7 @@ index e026f5c..88ebed6 100644
  utilities to control basic system configuration like the hostname, date, locale,
  maintain a list of logged-in users, system accounts, runtime directories and
  settings, and a logging daemons.
-@@ -420,8 +426,6 @@ This package was built from the %(c=%version; echo "v${c%.*}-stable") branch of
+@@ -420,8 +427,6 @@ This package was built from the %(c=%version; echo "v${c%.*}-stable") branch of
  %package libs
  Summary:        systemd libraries
  License:        LGPL-2.1-or-later AND MIT
@@ -112,7 +113,7 @@ index e026f5c..88ebed6 100644
  Conflicts:      systemd-shared < %{version}-%{release}
  
  %description libs
-@@ -439,13 +443,6 @@ Conflicts:      systemd-libs < %{version}-%{release}
+@@ -439,13 +444,6 @@ Conflicts:      systemd-libs < %{version}-%{release}
  %description shared
  Internal libraries used by various systemd binaries.
  
@@ -126,7 +127,7 @@ index e026f5c..88ebed6 100644
  %package rpm-macros
  Summary:        Macros that define paths and scriptlets related to systemd
  BuildArch:      noarch
-@@ -490,6 +487,7 @@ Requires(preun):  systemd%{_isa} = %{version}-%{release}
+@@ -490,6 +488,7 @@ Requires(preun):  systemd%{_isa} = %{version}-%{release}
  Requires(postun): systemd%{_isa} = %{version}-%{release}
  Requires(post): grep
  Requires:       kmod >= 18-4
@@ -134,7 +135,7 @@ index e026f5c..88ebed6 100644
  
  %if %{defined rhel} && 0%{?rhel} <= 10
  # Libkmod is used to load modules. Assume that if we need udevd, we certainly
-@@ -539,9 +537,6 @@ Recommends:     kbd
+@@ -539,9 +538,6 @@ Recommends:     kbd
  Provides:       u2f-hidraw-policy = 1.0.2-40
  Obsoletes:      u2f-hidraw-policy < 1.0.2-40
  
@@ -144,7 +145,7 @@ index e026f5c..88ebed6 100644
  # Newer versions of those are required to support X11 keycode remapping
  Conflicts:      xorg-x11-drv-evdev < 2.11.0
  Conflicts:      xorg-x11-drv-libinput < 1.5.0
-@@ -560,8 +555,21 @@ virtual machines, but not in containers.
+@@ -560,8 +556,21 @@ virtual machines, but not in containers.
  
  This package also provides systemd-timesyncd, a network time protocol daemon.
  
@@ -168,7 +169,7 @@ index e026f5c..88ebed6 100644
  
  %package imds
  Summary: Client for IMDS cloud metadata services
-@@ -574,11 +582,161 @@ on supported clouds.
+@@ -574,11 +583,161 @@ on supported clouds.
  
  This code should be considered experimental for now.
  
@@ -332,7 +333,7 @@ index e026f5c..88ebed6 100644
          filesystem(x86-32) or
          filesystem(x86-64) or
          filesystem(aarch64) or
-@@ -606,10 +764,29 @@ This package provides ukify, a script that combines a kernel image, an initrd,
+@@ -606,10 +765,29 @@ This package provides ukify, a script that combines a kernel image, an initrd,
  with a command line, and possibly PCR measurements and other metadata, into a
  Unified Kernel Image (UKI).
  
@@ -362,7 +363,7 @@ index e026f5c..88ebed6 100644
  
  Provides: systemd-boot-unsigned-%{efi_arch} = %version-%release
  Provides: systemd-boot = %version-%release
-@@ -628,6 +805,8 @@ the version that works with Secure Boot.
+@@ -628,6 +806,8 @@ the version that works with Secure Boot.
  %else
  %package boot
  Summary: UEFI boot manager (signed version)
@@ -371,7 +372,7 @@ index e026f5c..88ebed6 100644
  
  Provides: systemd-boot-signed-%{efi_arch} = %version-%release
  Provides: systemd-boot = %version-%release
-@@ -645,44 +824,133 @@ This package contains the signed version.
+@@ -645,44 +825,133 @@ This package contains the signed version.
  %endif
  %endif
  
@@ -532,7 +533,7 @@ index e026f5c..88ebed6 100644
  
  %package journal-remote
  # Name is the same as in Debian
-@@ -709,7 +977,6 @@ systemd-journal-upload.
+@@ -709,7 +978,6 @@ systemd-journal-upload.
  %package networkd
  Summary:        System daemon that manages network configurations
  Requires:       systemd%{_isa} = %{version}-%{release}
@@ -540,7 +541,7 @@ index e026f5c..88ebed6 100644
  Conflicts:      systemd-udev < %{version}-%{release}
  License:        LGPL-2.1-or-later
  
-@@ -745,7 +1012,7 @@ resolver, as well as an LLMNR and MulticastDNS resolver and responder.
+@@ -745,7 +1013,7 @@ resolver, as well as an LLMNR and MulticastDNS resolver and responder.
  
  %package oomd-defaults
  Summary:        Configuration files for systemd-oomd
@@ -549,7 +550,7 @@ index e026f5c..88ebed6 100644
  License:        LGPL-2.1-or-later
  BuildArch:      noarch
  
-@@ -753,6 +1020,16 @@ BuildArch:      noarch
+@@ -753,6 +1021,16 @@ BuildArch:      noarch
  A set of drop-in files for systemd units to enable action from systemd-oomd,
  a userspace out-of-memory (OOM) killer.
  
@@ -566,7 +567,7 @@ index e026f5c..88ebed6 100644
  %package tests
  Summary:       Internal unit tests for systemd
  Requires:      systemd%{_isa} = %{version}-%{release}
-@@ -770,27 +1047,25 @@ Different binaries test different parts of the codebase.
+@@ -770,27 +1048,25 @@ Different binaries test different parts of the codebase.
  %package standalone-repart
  Summary:       Standalone systemd-repart binary for use on systems without systemd
  Provides:      systemd-repart = %{version}-%{release}
@@ -598,7 +599,7 @@ index e026f5c..88ebed6 100644
  %endif
  
  %package standalone-tmpfiles
-@@ -814,7 +1089,7 @@ RemovePathPostfixes: .standalone
+@@ -814,7 +1090,7 @@ RemovePathPostfixes: .standalone
  %description standalone-sysusers
  Standalone systemd-sysusers binary with no dependencies on the systemd-shared
  library or other libraries from systemd-libs. This package conflicts with the
@@ -607,7 +608,7 @@ index e026f5c..88ebed6 100644
  
  %package standalone-shutdown
  Summary:       Standalone systemd-shutdown binary for use in exitrds
-@@ -867,9 +1142,6 @@ mv %{_sourcedir}/%{name}.fedora/* %{_sourcedir}
+@@ -867,9 +1143,6 @@ mv %{_sourcedir}/%{name}.fedora/* %{_sourcedir}
  # https://github.com/rpm-software-management/rpm/issues/3450
  sed -r -i 's/^u!/u/' sysusers.d/*.conf*
  
@@ -617,7 +618,7 @@ index e026f5c..88ebed6 100644
  %build
  echo %{status}
  
-@@ -905,6 +1177,8 @@ VMLINUX_H_PATH=$(%python3 -c '%find_vmlinux_h')
+@@ -905,6 +1178,8 @@ VMLINUX_H_PATH=$(%python3 -c '%find_vmlinux_h')
  CONFIGURE_OPTS=(
          -Dmode=release
          -Dslow-tests=true
@@ -626,7 +627,7 @@ index e026f5c..88ebed6 100644
          -Dntp-servers='0.%{ntpvendor}.pool.ntp.org 1.%{ntpvendor}.pool.ntp.org 2.%{ntpvendor}.pool.ntp.org 3.%{ntpvendor}.pool.ntp.org'
          -Ddns-servers=
          -Dservice-watchdog=
-@@ -948,6 +1222,7 @@ CONFIGURE_OPTS=(
+@@ -948,6 +1223,7 @@ CONFIGURE_OPTS=(
          -Defi=true
          -Dsysupdate=enabled
          -Dsysupdated=enabled
@@ -634,7 +635,7 @@ index e026f5c..88ebed6 100644
          -Dtpm=true
          -Dtpm2=enabled
          -Dhwdb=true
-@@ -1089,9 +1364,6 @@ touch %{buildroot}/etc/systemd/coredump.conf \
+@@ -1089,9 +1365,6 @@ touch %{buildroot}/etc/systemd/coredump.conf \
        %{buildroot}/etc/udev/udev.conf \
        %{buildroot}/etc/udev/iocost.conf
  
@@ -644,7 +645,7 @@ index e026f5c..88ebed6 100644
  # /etc/sysctl.conf compat
  install -Dm0644 %{SOURCE7} %{buildroot}/etc/sysctl.conf
  ln -s ../sysctl.conf %{buildroot}/etc/sysctl.d/99-sysctl.conf
-@@ -1119,8 +1391,6 @@ touch %{buildroot}%{_sysconfdir}/locale.conf
+@@ -1119,8 +1392,6 @@ touch %{buildroot}%{_sysconfdir}/locale.conf
  touch %{buildroot}%{_sysconfdir}/machine-id
  touch %{buildroot}%{_sysconfdir}/machine-info
  touch %{buildroot}%{_sysconfdir}/localtime
@@ -653,7 +654,7 @@ index e026f5c..88ebed6 100644
  install -d -m 0700 %{buildroot}%{_sysconfdir}/userdb
  
  # Make sure the shutdown/sleep drop-in dirs exist
-@@ -1161,9 +1431,6 @@ EOF
+@@ -1161,9 +1432,6 @@ EOF
  
  install -Dm0644 -t %{buildroot}/usr/lib/firewalld/services/ %{SOURCE8} %{SOURCE9}
  
@@ -663,11 +664,11 @@ index e026f5c..88ebed6 100644
  # https://bugzilla.redhat.com/show_bug.cgi?id=1378974
  install -Dm0644 -t %{buildroot}%{system_unit_dir}/systemd-udev-trigger.service.d/ %{SOURCE11}
  
-@@ -1243,6 +1510,14 @@ install -m 0644 -t %{buildroot}%{_prefix}/lib/pam.d/ %{SOURCE26}
+@@ -1243,6 +1511,14 @@ install -m 0644 -t %{buildroot}%{_prefix}/lib/pam.d/ %{SOURCE26}
  
  %find_lang %{name}
  
-+# The kernelless profile uses built-in pstore backends without module loading.
++# The external boot environment supplies pstore backends for kernelless systems.
 +install -d %{buildroot}%{system_unit_dir}/systemd-pstore.service.d
 +cat >%{buildroot}%{system_unit_dir}/systemd-pstore.service.d/10-kernelless.conf <<'EOF'
 +[Unit]
@@ -678,7 +679,7 @@ index e026f5c..88ebed6 100644
  # Split files in build root into rpms
  python3 %{SOURCE2} %buildroot %{!?want_bootloader:--no-bootloader}
  
-@@ -1251,6 +1526,9 @@ python3 %{SOURCE2} %buildroot %{!?want_bootloader:--no-bootloader}
+@@ -1251,6 +1527,9 @@ python3 %{SOURCE2} %buildroot %{!?want_bootloader:--no-bootloader}
  BRP_PESIGN_FILES=/usr/lib/systemd/boot/efi/systemd-boot%{efi_arch}.efi BRP_PESIGN_PACKAGES=systemd-boot /usr/lib/rpm/brp-suse.d/brp-99-pesign
  %endif
  
@@ -688,7 +689,7 @@ index e026f5c..88ebed6 100644
  %check
  %if %{with tests}
  meson test -C %{_vpath_builddir} -t 6 --print-errorlogs
-@@ -1280,6 +1558,28 @@ if [ $1 -ge 2 ] && [ -x "/usr/lib/systemd/systemd-update-helper" ]; then \
+@@ -1280,6 +1559,28 @@ if [ $1 -ge 2 ] && [ -x "/usr/lib/systemd/systemd-update-helper" ]; then \
  fi \
  %{nil}
  
@@ -717,7 +718,7 @@ index e026f5c..88ebed6 100644
  %post
  systemd-machine-id-setup &>/dev/null || :
  
-@@ -1307,6 +1607,9 @@ systemd-tmpfiles --create &>/dev/null || :
+@@ -1307,6 +1608,9 @@ systemd-tmpfiles --create &>/dev/null || :
  systemctl preset-all &>/dev/null || :
  systemctl --global preset-all &>/dev/null || :
  
@@ -727,7 +728,7 @@ index e026f5c..88ebed6 100644
  %posttrans
  if [ $1 -ge 2 ]; then
    [ -w %{_localstatedir} ] && journalctl --update-catalog || :
-@@ -1318,7 +1621,7 @@ if [ $1 -ge 2 ]; then
+@@ -1318,7 +1622,7 @@ if [ $1 -ge 2 ]; then
    rm -f %{_localstatedir}/lib/rpm-state/systemd-getty-was-active || :
  fi
  
@@ -736,7 +737,7 @@ index e026f5c..88ebed6 100644
  
  # FIXME: systemd-logind.service is excluded (https://github.com/systemd/systemd/pull/17558)
  
-@@ -1338,9 +1641,163 @@ if [ -f %{_localstatedir}/lib/rpm-state/systemd-getty-was-active ]; then
+@@ -1338,9 +1642,163 @@ if [ -f %{_localstatedir}/lib/rpm-state/systemd-getty-was-active ]; then
      systemctl --no-reload enable getty@.service || :
  fi
  
@@ -902,7 +903,7 @@ index e026f5c..88ebed6 100644
                          getty@.service
                          hibernate.target
                          hybrid-sleep.target
-@@ -1354,74 +1811,44 @@ fi
+@@ -1354,74 +1812,44 @@ fi
                          initrd-udevadm-cleanup-db.service
                          initrd-usr-fs.target
                          initrd.target
@@ -990,7 +991,7 @@ index e026f5c..88ebed6 100644
                          systemd-tmpfiles-setup-dev-early.service
                          systemd-tmpfiles-setup-dev.service
                          systemd-udev-load-credentials.service
-@@ -1429,19 +1856,38 @@ fi
+@@ -1429,19 +1857,38 @@ fi
                          systemd-udev-trigger.service
                          systemd-udevd-control.socket
                          systemd-udevd-kernel.socket
@@ -1038,7 +1039,7 @@ index e026f5c..88ebed6 100644
  %post udev
  systemd-hwdb update &>/dev/null
  
-@@ -1457,7 +1903,285 @@ systemd-hwdb update &>/dev/null
+@@ -1457,7 +1904,285 @@ systemd-hwdb update &>/dev/null
  %posttrans udev
  # Restart some services.
  # Others are either oneshot services, or sockets, and restarting them causes issues (#1378974)
@@ -1325,7 +1326,7 @@ index e026f5c..88ebed6 100644
  
  %global journal_remote_units_restart systemd-journal-gatewayd.service systemd-journal-remote.service systemd-journal-upload.service
  %global journal_remote_units_norestart systemd-journal-gatewayd.socket systemd-journal-remote.socket
-@@ -1568,46 +2292,83 @@ fi
+@@ -1568,46 +2293,83 @@ fi
  %license LICENSE.LGPL2.1
  %license LICENSES/MIT.txt
  %ghost %dir %attr(0755,-,-) /etc/systemd/system/basic.target.wants
@@ -1415,7 +1416,7 @@ index e026f5c..88ebed6 100644
  %if %{without obs}
  %files boot-unsigned -f .file-list-boot
  %else
-@@ -1615,11 +2376,47 @@ fi
+@@ -1615,11 +2377,47 @@ fi
  %endif
  %endif
  
@@ -1465,7 +1466,7 @@ index e026f5c..88ebed6 100644
  %files journal-remote -f .file-list-remote
  
  %files networkd -f .file-list-networkd
-@@ -1628,19 +2425,38 @@ fi
+@@ -1628,19 +2426,38 @@ fi
  
  %files oomd-defaults -f .file-list-oomd-defaults
  

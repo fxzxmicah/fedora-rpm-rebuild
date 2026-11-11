@@ -1,5 +1,5 @@
 diff --git OLD/filesystem.spec NEW/filesystem.spec
-index 5843f92..151585e 100644
+index 5843f92..2d0d48c 100644
 --- OLD/filesystem.spec
 +++ NEW/filesystem.spec
 @@ -55,6 +55,29 @@ This subpackage of filesystem package contains just the file with
@@ -42,7 +42,7 @@ index 5843f92..151585e 100644
 -        usr/{bin,games,include,%{_lib}/{bpf,games,X11,pkgconfig},lib/{debug/{.dwz,usr},games,locale,modules,sysimage,systemd/{system,user},swidtag,sysusers.d,tmpfiles.d},libexec,local/{bin,etc,games,lib,%{_lib}/bpf,src,share/{applications,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x},info},libexec,include,},share/{aclocal,appdata,applications,augeas/lenses,backgrounds,bash-completion{,/completions,/helpers},desktop-directories,dict,doc,empty,fish/vendor_completions.d,games,gnome,help,icons,idl,info,licenses,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x,0p,1p,3p,2const,2type,3const,3head,3t,3type},metainfo,mime-info,misc,modulefiles,omf,pixmaps,pkgconfig,sounds,themes,xsessions,X11/fonts,wayland-sessions,zsh/site-functions},src,src/kernels,src/debug} \
 -        var/{adm,empty,ftp,lib/{games,misc,rpm-state},local,log,nis,preserve,spool/{mail,lpd},tmp,db,cache/bpf,opt,games,yp}
 +        boot dev \
-+        etc/{X11,xdg/autostart,skel,sysconfig,keys,pki,bash_completion.d,default,rwtab.d} \
++        etc/{xdg/autostart,skel,sysconfig,keys,pki,default,rwtab.d} \
 +        home mnt root run tmp \
 +        usr/{bin,games,include,%{_lib}/games,lib/{debug/{.dwz,usr},games,locale,modules,sysimage,systemd/{system,user},swidtag,sysusers.d,tmpfiles.d},libexec,local/{bin,etc,games,lib,%{_lib},src,share/{applications,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x},info},libexec,include},share/{applications,backgrounds,bash-completion/{completions,helpers},desktop-directories,dict,doc,empty,games,gnome,help,icons,info,licenses,man/man{1,2,3,4,5,6,7,8,9,n,1x,2x,3x,4x,5x,6x,7x,8x,9x,0p,1p,3p,2const,2type,3const,3head,3t,3type},metainfo,misc,pixmaps,sounds,themes,X11,wayland-sessions},src,src/kernels,src/debug} \
 +        var/{adm,empty,lib/{games,misc,rpm-state},local,log,preserve,spool/{mail,lpd},tmp,db,cache,games,opt}
@@ -194,7 +194,7 @@ index 5843f92..151585e 100644
  %files srpm-macros
  %{_datadir}/filesystem/sbin-filenames
  %{_fileattrsdir}/filesystem.attr
-@@ -403,14 +470,11 @@ end
+@@ -403,34 +470,26 @@ end
  %dir %attr(555,root,root) /
  /bin
  /sbin
@@ -204,15 +204,14 @@ index 5843f92..151585e 100644
  /dev
  %dir /etc
 -/etc/X11
-+%ghost /etc/X11
  /etc/xdg
 -/etc/opt
 -/etc/pm
  /etc/skel
  /etc/sysconfig
  /etc/keys
-@@ -418,19 +482,16 @@ end
- /etc/bash_completion.d/
+ /etc/pki
+-/etc/bash_completion.d/
  %dir /etc/default
  %dir /etc/rwtab.d
 -%dir /etc/statetab.d
@@ -232,7 +231,7 @@ index 5843f92..151585e 100644
  %ghost %attr(555,root,root) /sys
  %attr(1777,root,root) /tmp
  %dir /usr
-@@ -440,8 +501,6 @@ end
+@@ -440,8 +499,6 @@ end
  %else
  %attr(555,root,root) /usr/sbin
  %endif
@@ -241,7 +240,7 @@ index 5843f92..151585e 100644
  %dir %attr(555,root,root) /usr/lib
  %dir /usr/lib/swidtag
  %dir /usr/lib/sysimage
-@@ -452,29 +511,12 @@ end
+@@ -452,29 +509,12 @@ end
  %dir /usr/lib/tmpfiles.d
  %dir /usr/lib/locale
  %dir /usr/lib/modules
@@ -271,7 +270,7 @@ index 5843f92..151585e 100644
  /usr/libexec
  %dir /usr/local
  %if %{with merged_sbin}
-@@ -484,16 +526,10 @@ end
+@@ -484,16 +524,10 @@ end
  %endif
  /usr/local/etc
  /usr/local/bin
@@ -288,7 +287,7 @@ index 5843f92..151585e 100644
  /usr/share/backgrounds
  %dir /usr/share/bash-completion
  /usr/share/bash-completion/completions
-@@ -502,54 +538,40 @@ end
+@@ -502,54 +536,40 @@ end
  /usr/share/dict
  /usr/share/doc
  %attr(555,root,root) %dir /usr/share/empty

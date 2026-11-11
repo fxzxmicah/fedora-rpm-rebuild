@@ -1,0 +1,22 @@
+diff --git OLD/gnome-settings-daemon.spec NEW/gnome-settings-daemon.spec
+index fca32d5..d30280f 100644
+--- OLD/gnome-settings-daemon.spec
++++ NEW/gnome-settings-daemon.spec
+@@ -109,6 +109,9 @@ for the default behavior of Workstation in the Server with GUI product.
+ %install
+ %meson_install
+ 
++# Omit obsolete GConf migration data.
++rm -rf %{buildroot}%{_datadir}/GConf
++
+ %if 0%{?rhel}
+ cp %{SOURCE1} %{SOURCE100} $RPM_BUILD_ROOT%{_datadir}/glib-2.0/schemas
+ %endif
+@@ -184,7 +187,6 @@ cp %{SOURCE1} %{SOURCE100} $RPM_BUILD_ROOT%{_datadir}/glib-2.0/schemas
+ %{_userunitdir}/*.target
+ %{_udevrulesdir}/61-gnome-settings-daemon-rfkill.rules
+ %{_datadir}/gnome-settings-daemon/
+-%{_datadir}/GConf/gsettings/gnome-settings-daemon.convert
+ 
+ %{_datadir}/glib-2.0/schemas/org.gnome.settings-daemon.enums.xml
+ %{_datadir}/glib-2.0/schemas/org.gnome.settings-daemon.plugins.gschema.xml

@@ -1,5 +1,5 @@
 diff --git OLD/gvfs.spec NEW/gvfs.spec
-index 732be03..aa67f33 100644
+index 732be03..fde9613 100644
 --- OLD/gvfs.spec
 +++ NEW/gvfs.spec
 @@ -18,6 +18,9 @@
@@ -150,7 +150,17 @@ index 732be03..aa67f33 100644
  %endif
          %{nil}
  %meson_build
-@@ -233,6 +302,16 @@ cp -p daemon/trashlib/COPYING COPYING.GPL3
+@@ -223,6 +292,9 @@ file services.
+ %install
+ %meson_install
+ 
++# Omit obsolete GConf migration data.
++rm -rf %{buildroot}%{_datadir}/GConf
++
+ # trashlib is GPLv3, include the license
+ cp -p daemon/trashlib/COPYING COPYING.GPL3
+ 
+@@ -233,6 +305,16 @@ cp -p daemon/trashlib/COPYING COPYING.GPL3
  killall -USR1 gvfsd >&/dev/null || :
  
  # Reload .mount files when single subpackage is installed:
@@ -167,7 +177,7 @@ index 732be03..aa67f33 100644
  %post smb
  killall -USR1 gvfsd >&/dev/null || :
  %ifnarch s390 s390x
-@@ -260,56 +339,34 @@ killall -USR1 gvfsd >&/dev/null || :
+@@ -260,56 +342,34 @@ killall -USR1 gvfsd >&/dev/null || :
  %dir %{_datadir}/gvfs
  %dir %{_datadir}/gvfs/mounts
  %{_datadir}/gvfs/mounts/admin.mount
@@ -229,7 +239,7 @@ index 732be03..aa67f33 100644
  
  %files client -f gvfs.lang
  %license COPYING COPYING.GPL3
-@@ -320,6 +377,44 @@ killall -USR1 gvfsd >&/dev/null || :
+@@ -320,6 +380,44 @@ killall -USR1 gvfsd >&/dev/null || :
  %{_libdir}/gio/modules/libgvfsdbus.so
  %{_mandir}/man7/gvfs.7*
  
@@ -274,11 +284,10 @@ index 732be03..aa67f33 100644
  %files fuse
  %{_libexecdir}/gvfsd-fuse
  %{_mandir}/man1/gvfsd-fuse.1*
-@@ -330,6 +425,8 @@ killall -USR1 gvfsd >&/dev/null || :
+@@ -330,6 +428,7 @@ killall -USR1 gvfsd >&/dev/null || :
  %{_libexecdir}/gvfsd-smb-browse
  %{_datadir}/gvfs/mounts/smb-browse.mount
  %{_datadir}/gvfs/mounts/smb.mount
-+%{_datadir}/GConf/gsettings/gvfs-smb.convert
 +%{_datadir}/glib-2.0/schemas/org.gnome.system.smb.gschema.xml
  
  

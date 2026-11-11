@@ -1,5 +1,5 @@
 diff --git OLD/mutter.spec NEW/mutter.spec
-index b255f7f..7e85b9f 100644
+index b255f7f..9e79214 100644
 --- OLD/mutter.spec
 +++ NEW/mutter.spec
 @@ -15,6 +15,9 @@
@@ -49,7 +49,7 @@ index b255f7f..7e85b9f 100644
  
  # Need common
  Requires: %{name}-common = %{version}-%{release}
-@@ -160,7 +167,13 @@ Viewer for nested mutter instances.
+@@ -160,19 +167,27 @@ Viewer for nested mutter instances.
  %autosetup -S git -n %{name}-%{gnome_tarball_version}
  
  %build
@@ -64,7 +64,14 @@ index b255f7f..7e85b9f 100644
  %meson_build
  
  %install
-@@ -172,7 +185,6 @@ Viewer for nested mutter instances.
+ %meson_install
+ 
++# Omit obsolete GConf migration data.
++rm -rf %{buildroot}%{_datadir}/GConf
++
+ %find_lang %{name}
+ 
+ %files -f %{name}.lang
  %license COPYING
  %doc NEWS
  %{_bindir}/gdctl
@@ -72,7 +79,7 @@ index b255f7f..7e85b9f 100644
  %{_bindir}/mutter
  %{_datadir}/polkit-1/actions/org.gnome.mutter.*.policy
  %{_libdir}/lib*.so.*
-@@ -182,7 +194,6 @@ Viewer for nested mutter instances.
+@@ -182,11 +197,9 @@ Viewer for nested mutter instances.
  %{_libexecdir}/mutter-x11-frames
  %{_mandir}/man1/mutter.1*
  %{_mandir}/man1/gdctl.1*
@@ -80,7 +87,11 @@ index b255f7f..7e85b9f 100644
  %{bash_completions_dir}/gdctl
  
  %files common
-@@ -205,10 +216,12 @@ Viewer for nested mutter instances.
+-%{_datadir}/GConf/gsettings/mutter-schemas.convert
+ %{_datadir}/glib-2.0/schemas/org.gnome.mutter.gschema.xml
+ %{_datadir}/glib-2.0/schemas/org.gnome.mutter.experimental.gschema.xml
+ %{_datadir}/glib-2.0/schemas/org.gnome.mutter.wayland.gschema.xml
+@@ -205,10 +218,12 @@ Viewer for nested mutter instances.
  %{_libexecdir}/installed-tests/mutter-%{mutter_api_version}
  
  %files devkit

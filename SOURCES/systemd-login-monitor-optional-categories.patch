@@ -1,0 +1,171 @@
+From 33016344969a29f54043d2cd3684371feb297ce3 Mon Sep 17 00:00:00 2001
+From: Fxzx micah <48860358+fxzxmicah@users.noreply.github.com>
+Date: Wed, 11 Nov 2026 21:40:03 +0800
+Subject: [PATCH] sd-login: monitor categories before their backend directories
+ exist
+
+A login monitor must not require every optional backend to be running. Register a parent-directory watch before watching the selected categories, and attach watches for newly available directories when the monitor is flushed. Keep the parent watch so backend removal and recreation remain observable.
+
+Retain category selection in the opaque monitor object and preserve the public descriptor and flush interface. Missing category directories are allowed; other inotify errors still propagate. This avoids coupling login monitoring clients to machined installation or startup.
+---
+ man/sd_login_monitor_new.xml       |  6 ++
+ src/libsystemd/sd-login/sd-login.c | 93 ++++++++++++++++++------------
+ 2 files changed, 63 insertions(+), 36 deletions(-)
+
+diff --git a/man/sd_login_monitor_new.xml b/man/sd_login_monitor_new.xml
+index b6b0bc4..2b06268 100644
+--- a/man/sd_login_monitor_new.xml
++++ b/man/sd_login_monitor_new.xml
+@@ -96,6 +96,12 @@
+     <function>sd_login_monitor_unref()</function> call after
+     use.</para>
+ 
++    <para>A category's runtime directory does not need to exist when the monitor is created. The monitor
++    watches <filename>/run/systemd/</filename> for category directories appearing later, and attaches watches
++    to them when <function>sd_login_monitor_flush()</function> is called. Notifications may also reflect
++    changes to other entries in that parent directory; applications must reread the relevant login state
++    after flushing the monitor.</para>
++
+     <para><function>sd_login_monitor_unref()</function> may be used to
+     destroy a monitor object. Note that this will invalidate any file
+     descriptor returned by
+diff --git a/src/libsystemd/sd-login/sd-login.c b/src/libsystemd/sd-login/sd-login.c
+index 1331190..8b0eac7 100644
+--- a/src/libsystemd/sd-login/sd-login.c
++++ b/src/libsystemd/sd-login/sd-login.c
+@@ -1172,56 +1172,76 @@ _public_ int sd_machine_get_ifindices(const char *machine, int **ret_ifindices)
+         return n;
+ }
+ 
+-static int MONITOR_TO_FD(sd_login_monitor *m) {
+-        return (int) (unsigned long) m - 1;
+-}
++static const struct {
++        const char *name;
++        const char *path;
++} monitor_categories[] = {
++        { "seat",    "/run/systemd/seats/"    },
++        { "session", "/run/systemd/sessions/" },
++        { "uid",     "/run/systemd/users/"    },
++        { "machine", "/run/systemd/machines/" },
++};
++
++struct sd_login_monitor {
++        int fd;
++        unsigned categories;
++};
++
++static int login_monitor_add_inotify_watches(sd_login_monitor *m) {
++        assert(m);
++
++        /* Watch the parent first so that directories created while watches are being installed cannot
++         * be missed. Keep this watch when all categories exist, as a backend may stop and start again. */
++        if (inotify_add_watch(m->fd, "/run/systemd/", IN_CREATE|IN_MOVED_TO|IN_ONLYDIR) < 0)
++                return -errno;
++
++        FOREACH_ELEMENT(c, monitor_categories) {
++                if (!FLAGS_SET(m->categories, 1U << (c - monitor_categories)))
++                        continue;
+ 
+-static sd_login_monitor* FD_TO_MONITOR(int fd) {
+-        return (sd_login_monitor*) (unsigned long) (fd + 1);
++                if (inotify_add_watch(m->fd, c->path, IN_MOVED_TO|IN_DELETE|IN_ONLYDIR) < 0 && errno != ENOENT)
++                        return -errno;
++        }
++
++        return 0;
+ }
+ 
+ _public_ int sd_login_monitor_new(const char *category, sd_login_monitor **ret) {
+-        _cleanup_close_ int fd = -EBADF;
++        _cleanup_(sd_login_monitor_unrefp) sd_login_monitor *m = NULL;
++        int r;
+ 
+         assert_return(ret, -EINVAL);
+ 
+-        fd = inotify_init1(IN_NONBLOCK|IN_CLOEXEC);
+-        if (fd < 0)
+-                return -errno;
+-
+-        static const struct {
+-                const char *name;
+-                const char *path;
+-        } categories[] = {
+-                { "seat",     "/run/systemd/seats/"    },
+-                { "session",  "/run/systemd/sessions/" },
+-                { "uid",      "/run/systemd/users/"    },
+-                { "machine",  "/run/systemd/machines/" },
+-        };
++        m = new(sd_login_monitor, 1);
++        if (!m)
++                return -ENOMEM;
+ 
+-        bool good = false;
+-        FOREACH_ELEMENT(c, categories) {
+-                if (category && !streq(category, c->name))
+-                        continue;
++        *m = (sd_login_monitor) { .fd = -EBADF };
+ 
+-                if (inotify_add_watch(fd, c->path, IN_MOVED_TO|IN_DELETE) < 0)
+-                        return -errno;
++        FOREACH_ELEMENT(c, monitor_categories)
++                if (!category || streq(category, c->name))
++                        m->categories |= 1U << (c - monitor_categories);
++        if (m->categories == 0)
++                return -EINVAL;
+ 
+-                good = true;
+-        }
++        m->fd = inotify_init1(IN_NONBLOCK|IN_CLOEXEC);
++        if (m->fd < 0)
++                return -errno;
+ 
+-        if (!good)
+-                return -EINVAL;
++        r = login_monitor_add_inotify_watches(m);
++        if (r < 0)
++                return r;
+ 
+-        *ret = FD_TO_MONITOR(TAKE_FD(fd));
++        *ret = TAKE_PTR(m);
+         return 0;
+ }
+ 
+ _public_ sd_login_monitor* sd_login_monitor_unref(sd_login_monitor *m) {
+-        if (m)
+-                (void) close(MONITOR_TO_FD(m));
++        if (!m)
++                return NULL;
+ 
+-        return NULL;
++        safe_close(m->fd);
++        return mfree(m);
+ }
+ 
+ _public_ int sd_login_monitor_flush(sd_login_monitor *m) {
+@@ -1229,18 +1249,19 @@ _public_ int sd_login_monitor_flush(sd_login_monitor *m) {
+ 
+         assert_return(m, -EINVAL);
+ 
+-        r = flush_fd(MONITOR_TO_FD(m));
++        r = flush_fd(m->fd);
+         if (r < 0)
+                 return r;
+ 
+-        return 0;
++        /* Attach to categories whose backend has appeared since the last notification. */
++        return login_monitor_add_inotify_watches(m);
+ }
+ 
+ _public_ int sd_login_monitor_get_fd(sd_login_monitor *m) {
+ 
+         assert_return(m, -EINVAL);
+ 
+-        return MONITOR_TO_FD(m);
++        return m->fd;
+ }
+ 
+ _public_ int sd_login_monitor_get_events(sd_login_monitor *m) {
+-- 
+2.54.0
+

@@ -1,5 +1,5 @@
 diff --git OLD/ibus.spec NEW/ibus.spec
-index e91c9c4..84d3fc0 100644
+index e91c9c4..26fc634 100644
 --- OLD/ibus.spec
 +++ NEW/ibus.spec
 @@ -1,12 +1,12 @@
@@ -58,7 +58,18 @@ index e91c9c4..84d3fc0 100644
  if test x"$SAVED_SUM" != x"$MY_SUM" ; then
      abort
  fi
-@@ -340,11 +340,11 @@ done
+@@ -317,6 +317,10 @@ fi
+ 
+ %install
+ %meson_install
++
++# Omit obsolete GConf migration data.
++rm -rf %{buildroot}%{_datadir}/GConf
++
+ rm -f $RPM_BUILD_ROOT%{_libdir}/libibus-*%{ibus_api_version}.la
+ %if %{with gtk2}
+ rm -f $RPM_BUILD_ROOT%{_libdir}/gtk-2.0/%{gtk2_binary_version}/immodules/im-ibus.la
+@@ -340,11 +344,11 @@ done
  # install xinput config file
  install -pm 644 -D %{SOURCE2} $RPM_BUILD_ROOT%{_xinputconf}
  
@@ -72,7 +83,7 @@ index e91c9c4..84d3fc0 100644
  
  # install .desktop files
  echo "NoDisplay=true" >> $RPM_BUILD_ROOT%{_datadir}/applications/org.freedesktop.IBus.Setup.desktop
-@@ -392,12 +392,6 @@ desktop-file-install --delete-original          \
+@@ -392,12 +396,6 @@ desktop-file-install --delete-original          \
  
  %postun
  if [ "$1" -eq 0 ]; then
@@ -85,7 +96,7 @@ index e91c9c4..84d3fc0 100644
    # 'dconf update' sometimes does not update the db...
    dconf update || :
    [ -f %{_sysconfdir}/dconf/db/ibus ] && \
-@@ -414,17 +408,13 @@ fi
+@@ -414,17 +412,13 @@ fi
  %posttrans
  dconf update || :
  
@@ -105,7 +116,15 @@ index e91c9c4..84d3fc0 100644
  
  
  %ldconfig_scriptlets libs
-@@ -447,7 +437,6 @@ dconf update || :
+@@ -439,15 +433,11 @@ dconf update || :
+ %{_datadir}/applications/org.freedesktop.IBus.Panel.Extension.Gtk3.desktop
+ %{_datadir}/bash-completion/completions/ibus.bash
+ %{_datadir}/dbus-1/services/*.service
+-%dir %{_datadir}/GConf
+-%dir %{_datadir}/GConf/gsettings
+-%{_datadir}/GConf/gsettings/*
+ %{_datadir}/glib-2.0/schemas/*.xml
+ %{_datadir}/ibus/component
  %{_datadir}/ibus/dicts
  %dir %{_datadir}/ibus/engine
  %{_datadir}/ibus/keymaps
@@ -113,7 +132,7 @@ index e91c9c4..84d3fc0 100644
  %{_datadir}/man/man1/ibus.1.gz
  %{_datadir}/man/man1/ibus-daemon.1.gz
  %{_datadir}/man/man7/ibus-emoji.7.gz
-@@ -466,10 +455,10 @@ dconf update || :
+@@ -466,10 +456,10 @@ dconf update || :
  %dir %{_prefix}/lib/systemd/user/gnome-session.target.wants
  %{_prefix}/lib/systemd/user/gnome-session.target.wants/*.service
  %{_prefix}/lib/systemd/user/org.freedesktop.IBus.session.*.service
@@ -127,7 +146,7 @@ index e91c9c4..84d3fc0 100644
  
  %files -n python3-ibus
  %{python3_sitearch}/gi/overrides/__pycache__/*.py*
-@@ -492,12 +481,11 @@ dconf update || :
+@@ -492,12 +482,11 @@ dconf update || :
  %dir %{_libdir}/gtk-4.0/%{gtk4_binary_version}/immodules
  %{_libdir}/gtk-4.0/%{gtk4_binary_version}/immodules/libim-ibus.so
  
