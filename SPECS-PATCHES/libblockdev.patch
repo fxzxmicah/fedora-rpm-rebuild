@@ -1,16 +1,17 @@
 diff --git OLD/libblockdev.spec NEW/libblockdev.spec
-index bb43800..6328984 100644
+index 0ba8065..6e53111 100644
 --- OLD/libblockdev.spec
 +++ NEW/libblockdev.spec
-@@ -93,6 +93,7 @@ URL:         https://github.com/storaged-project/libblockdev
+@@ -92,6 +92,8 @@ License:     LGPL-2.1-or-later
+ URL:         https://github.com/storaged-project/libblockdev
  Source0:     https://github.com/storaged-project/libblockdev/releases/download/%{version}/%{name}-%{version}.tar.gz
  
- Patch0:      0001-Check-dm_task_run-return-value-in-bd_dm_map_exists.patch
-+Patch1:      libblockdev-fallback-stub-plugin.patch
- 
++Patch0:      libblockdev-fallback-stub-plugin.patch
++
  BuildRequires: make
  BuildRequires: glib2-devel
-@@ -632,6 +633,19 @@ Requires: %{name}-s390%{?_isa} = %{version}-%{release}
+ %if %{with_gi}
+@@ -630,6 +632,19 @@ Requires: %{name}-s390%{?_isa} = %{version}-%{release}
  %description plugins-all
  A meta-package that pulls all the libblockdev plugins as dependencies.
  
@@ -30,7 +31,7 @@ index bb43800..6328984 100644
  
  %prep
  %autosetup -n %{name}-%{version} -p1
-@@ -656,10 +670,12 @@ autoreconf -ivf
+@@ -654,10 +669,12 @@ autoreconf -ivf
  %install
  %{make_install}
  find %{buildroot} -type f -name "*.la" | xargs %{__rm}
@@ -43,7 +44,7 @@ index bb43800..6328984 100644
  
  %if %{with_btrfs}
  %ldconfig_scriptlets btrfs
-@@ -759,6 +775,10 @@ find %{buildroot} -type f -name "*.la" | xargs %{__rm}
+@@ -757,6 +774,10 @@ find %{buildroot} -type f -name "*.la" | xargs %{__rm}
  %files utils
  %{_libdir}/libbd_utils.so.*
  

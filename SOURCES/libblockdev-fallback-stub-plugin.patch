@@ -1,3 +1,20 @@
+From 186a849c77cd598091fdac8f9d41502246746a44 Mon Sep 17 00:00:00 2001
+From: Fxzx micah <48860358+fxzxmicah@users.noreply.github.com>
+Date: Tue, 17 Nov 2026 02:06:56 +0800
+Subject: [PATCH] plugins: Add crypto and mdraid fallback stubs
+
+Try the real crypto and mdraid plugins first, then fall back to a small shared plugin that reports technology unavailability without pulling in their runtime dependencies.
+
+Provide every entry point loaded by libblockdev 3.6.0, including the flag-aware crypto open functions and formatting with a supplied volume key. Keep the public plugin declarations in scope so incompatible definitions fail at build time.
+---
+ data/conf.d/90-stub-plugins.cfg |   5 ++
+ data/conf.d/Makefile.am         |   1 +
+ src/plugins/Makefile.am         |   8 ++
+ src/plugins/stub.c              | 142 ++++++++++++++++++++++++++++++++
+ 4 files changed, 156 insertions(+)
+ create mode 100644 data/conf.d/90-stub-plugins.cfg
+ create mode 100644 src/plugins/stub.c
+
 diff --git a/data/conf.d/90-stub-plugins.cfg b/data/conf.d/90-stub-plugins.cfg
 new file mode 100644
 index 0000000..4b4b604
@@ -21,7 +38,7 @@ index 7238632..6b24268 100644
  if WITH_LVM_DBUS
  dist_libbdconf_DATA += ${srcdir}/10-lvm-dbus.cfg
 diff --git a/src/plugins/Makefile.am b/src/plugins/Makefile.am
-index 52e8959..5add692 100644
+index 114cd2e..c3617c9 100644
 --- a/src/plugins/Makefile.am
 +++ b/src/plugins/Makefile.am
 @@ -17,6 +17,8 @@ if WITH_BTRFS
@@ -48,10 +65,10 @@ index 52e8959..5add692 100644
  
 diff --git a/src/plugins/stub.c b/src/plugins/stub.c
 new file mode 100644
-index 0000000..dec72e7
+index 0000000..e02d356
 --- /dev/null
 +++ b/src/plugins/stub.c
-@@ -0,0 +1,137 @@
+@@ -0,0 +1,142 @@
 +#include <glib.h>
 +
 +#include "crypto.h"
@@ -120,7 +137,9 @@ index 0000000..dec72e7
 +CRYPTO_STUB_PTR (BDCryptoKeyslotContext *, bd_crypto_keyslot_context_new_keyring (const gchar *key_desc G_GNUC_UNUSED, GError **error))
 +CRYPTO_STUB_PTR (BDCryptoKeyslotContext *, bd_crypto_keyslot_context_new_volume_key (const guint8 *volume_key G_GNUC_UNUSED, gsize volume_key_size G_GNUC_UNUSED, GError **error))
 +CRYPTO_STUB_BOOL (bd_crypto_luks_format (const gchar *device G_GNUC_UNUSED, const gchar *cipher G_GNUC_UNUSED, guint64 key_size G_GNUC_UNUSED, BDCryptoKeyslotContext *context G_GNUC_UNUSED, guint64 min_entropy G_GNUC_UNUSED, BDCryptoLUKSVersion luks_version G_GNUC_UNUSED, BDCryptoLUKSExtra *extra G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_BOOL (bd_crypto_luks_format_volume_key (const gchar *device G_GNUC_UNUSED, const gchar *cipher G_GNUC_UNUSED, guint64 key_size G_GNUC_UNUSED, BDCryptoKeyslotContext *context G_GNUC_UNUSED, BDCryptoKeyslotContext *volume_key G_GNUC_UNUSED, guint64 min_entropy G_GNUC_UNUSED, BDCryptoLUKSVersion luks_version G_GNUC_UNUSED, BDCryptoLUKSExtra *extra G_GNUC_UNUSED, GError **error))
 +CRYPTO_STUB_BOOL (bd_crypto_luks_open (const gchar *device G_GNUC_UNUSED, const gchar *name G_GNUC_UNUSED, BDCryptoKeyslotContext *context G_GNUC_UNUSED, gboolean read_only G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_BOOL (bd_crypto_luks_open_flags (const gchar *device G_GNUC_UNUSED, const gchar *name G_GNUC_UNUSED, BDCryptoKeyslotContext *context G_GNUC_UNUSED, BDCryptoOpenFlags flags G_GNUC_UNUSED, GError **error))
 +CRYPTO_STUB_BOOL (bd_crypto_luks_close (const gchar *luks_device G_GNUC_UNUSED, GError **error))
 +CRYPTO_STUB_BOOL (bd_crypto_luks_add_key (const gchar *device G_GNUC_UNUSED, BDCryptoKeyslotContext *context G_GNUC_UNUSED, BDCryptoKeyslotContext *ncontext G_GNUC_UNUSED, GError **error))
 +CRYPTO_STUB_BOOL (bd_crypto_luks_remove_key (const gchar *device G_GNUC_UNUSED, BDCryptoKeyslotContext *context G_GNUC_UNUSED, GError **error))
@@ -146,11 +165,14 @@ index 0000000..dec72e7
 +CRYPTO_STUB_BOOL (bd_crypto_keyring_add_key (const gchar *key_desc G_GNUC_UNUSED, const guint8 *key_data G_GNUC_UNUSED, gsize data_len G_GNUC_UNUSED, GError **error))
 +CRYPTO_STUB_BOOL (bd_crypto_device_seems_encrypted (const gchar *device G_GNUC_UNUSED, GError **error))
 +CRYPTO_STUB_BOOL (bd_crypto_tc_open (const gchar *device G_GNUC_UNUSED, const gchar *name G_GNUC_UNUSED, BDCryptoKeyslotContext *context G_GNUC_UNUSED, const gchar **keyfiles G_GNUC_UNUSED, gboolean hidden G_GNUC_UNUSED, gboolean system G_GNUC_UNUSED, gboolean veracrypt G_GNUC_UNUSED, guint32 veracrypt_pim G_GNUC_UNUSED, gboolean read_only G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_BOOL (bd_crypto_tc_open_flags (const gchar *device G_GNUC_UNUSED, const gchar *name G_GNUC_UNUSED, BDCryptoKeyslotContext *context G_GNUC_UNUSED, const gchar **keyfiles G_GNUC_UNUSED, gboolean hidden G_GNUC_UNUSED, gboolean system G_GNUC_UNUSED, gboolean veracrypt G_GNUC_UNUSED, guint32 veracrypt_pim G_GNUC_UNUSED, BDCryptoOpenFlags flags G_GNUC_UNUSED, GError **error))
 +CRYPTO_STUB_BOOL (bd_crypto_tc_close (const gchar *tc_device G_GNUC_UNUSED, GError **error))
 +CRYPTO_STUB_BOOL (bd_crypto_escrow_device (const gchar *device G_GNUC_UNUSED, const gchar *passphrase G_GNUC_UNUSED, const gchar *cert_data G_GNUC_UNUSED, const gchar *directory G_GNUC_UNUSED, const gchar *backup_passphrase G_GNUC_UNUSED, GError **error))
 +CRYPTO_STUB_BOOL (bd_crypto_bitlk_open (const gchar *device G_GNUC_UNUSED, const gchar *name G_GNUC_UNUSED, BDCryptoKeyslotContext *context G_GNUC_UNUSED, gboolean read_only G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_BOOL (bd_crypto_bitlk_open_flags (const gchar *device G_GNUC_UNUSED, const gchar *name G_GNUC_UNUSED, BDCryptoKeyslotContext *context G_GNUC_UNUSED, BDCryptoOpenFlags flags G_GNUC_UNUSED, GError **error))
 +CRYPTO_STUB_BOOL (bd_crypto_bitlk_close (const gchar *bitlk_device G_GNUC_UNUSED, GError **error))
 +CRYPTO_STUB_BOOL (bd_crypto_fvault2_open (const gchar *device G_GNUC_UNUSED, const gchar *name G_GNUC_UNUSED, BDCryptoKeyslotContext *context G_GNUC_UNUSED, gboolean read_only G_GNUC_UNUSED, GError **error))
++CRYPTO_STUB_BOOL (bd_crypto_fvault2_open_flags (const gchar *device G_GNUC_UNUSED, const gchar *name G_GNUC_UNUSED, BDCryptoKeyslotContext *context G_GNUC_UNUSED, BDCryptoOpenFlags flags G_GNUC_UNUSED, GError **error))
 +CRYPTO_STUB_BOOL (bd_crypto_fvault2_close (const gchar *fvault2_device G_GNUC_UNUSED, GError **error))
 +CRYPTO_STUB_BOOL (bd_crypto_opal_is_supported (const gchar *device G_GNUC_UNUSED, GError **error))
 +CRYPTO_STUB_BOOL (bd_crypto_opal_wipe_device (const gchar *device G_GNUC_UNUSED, BDCryptoKeyslotContext *context G_GNUC_UNUSED, GError **error))
@@ -189,3 +211,6 @@ index 0000000..dec72e7
 +MD_STUB_BOOL (bd_md_set_bitmap_location (const gchar *raid_spec G_GNUC_UNUSED, const gchar *location G_GNUC_UNUSED, GError **error))
 +MD_STUB_PTR (gchar *, bd_md_get_bitmap_location (const gchar *raid_spec G_GNUC_UNUSED, GError **error))
 +MD_STUB_BOOL (bd_md_request_sync_action (const gchar *raid_spec G_GNUC_UNUSED, const gchar *action G_GNUC_UNUSED, GError **error))
+-- 
+2.56.0
+
