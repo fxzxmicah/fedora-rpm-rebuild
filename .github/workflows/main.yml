@@ -109,12 +109,15 @@ jobs:
     - name: Upload Copr
       if: env.success
       run: |
-        from graphlib import TopologicalSorter
+        from dataclasses import dataclass
+        from graphlib import CycleError, TopologicalSorter
         from pathlib import Path
-        from copr.v3 import Client
-        import libdnf5
         import platform
         import subprocess
+        import tomllib
+
+        from copr.v3 import Client
+        import libdnf5
 
 
         HOUR = 60 * 60
@@ -122,34 +125,56 @@ jobs:
         TIMEOUT_MARGIN = 2 * HOUR
 
 
-        def query_lines(*args):
-            return {
-                line.strip()
-                for line in subprocess.check_output(args, text=True).splitlines()
-                if line.strip()
-            }
+        @dataclass
+        class BuildDependencies:
+            sources: set[str]
+            unavailable: set[str]
 
 
-        def source_buildrequires(srpm):
-            source_name = subprocess.check_output(
-                ("rpm", "-qp", "--qf", "%{NAME}\\n", str(srpm)),
-                text=True,
+        def rpm_query(srpm, *options):
+            return subprocess.check_output(
+                ("rpm", "-qp", *options, str(srpm)), text=True
             ).strip()
-            if not source_name:
-                raise RuntimeError(f"Cannot determine source package name: {srpm}")
-
-            # BuildRequires become regular Requires in the source RPM.
-            buildrequires = query_lines(
-                "rpm", "-qp", "--requires", str(srpm)
-            )
-            return source_name, buildrequires
 
 
-        def create_solver():
-            """Load only available repositories, without the host RPM database."""
+        def source_packages():
+            srpms = {}
+            for srpm in sorted(Path("SRPMS").glob("*.src.rpm")):
+                source = rpm_query(srpm, "--qf", "%{NAME}")
+                if source in srpms:
+                    raise RuntimeError(f"Multiple SRPMs for source package {source}")
+                srpms[source] = srpm
+            if not srpms:
+                raise RuntimeError("No SRPMs found")
+            return srpms
+
+
+        def load_build_config():
+            with Path("workflows.toml").open("rb") as stream:
+                config = tomllib.load(stream)
+            sources = {path.stem for path in Path("SPECS-PATCHES").glob("*.patch")}
+            providers = {}
+            for source, capabilities in config["future_provides"].items():
+                if source not in sources:
+                    raise ValueError(f"Unknown future provider: {source}")
+                for capability in capabilities:
+                    if capability in providers:
+                        raise ValueError(f"Duplicate future capability: {capability}")
+                    providers[capability] = source
+            cycle_heads = {
+                head: {head, *members} for head, members in config["cycle_heads"].items()
+            }
+            for head, members in cycle_heads.items():
+                if not members <= sources:
+                    raise ValueError(f"Unknown sources in cycle {head}: {members - sources}")
+            return providers, cycle_heads
+
+
+        def create_solver(repositories):
+            """Load build repositories without the host RPM database."""
             base = libdnf5.base.Base()
-            config = base.get_config()
             base.load_config()
+            config = base.get_config()
             config.plugins = False
             config.install_weak_deps = False
             config.optional_metadata_types = ["filelists"]
@@ -158,132 +183,115 @@ jobs:
 
             repo_sack = base.get_repo_sack()
             repo_sack.create_repos_from_system_configuration()
+            for definition in repositories:
+                repo_config = repo_sack.create_repo(f"build-{definition['id']}").get_config()
+                repo_config.baseurl = [definition["baseurl"]]
+                for option in ("priority", "repo_gpgcheck"):
+                    if definition.get(option) is not None:
+                        setattr(repo_config, option, definition[option])
             repo_sack.load_repos(libdnf5.repo.Repo.Type_AVAILABLE)
             return base
 
 
-        def resolve_build_dependencies(base, package, buildrequires, selected):
-            """Return selected sources in the resolved build environment."""
+        def resolve_dependencies(base, package, srpm, selected, providers):
+            """Combine real buildroot dependencies with explicit future build edges."""
             goal = libdnf5.base.Goal(base)
-            # Only this source RPM supplies BuildRequires. DNF resolves the
-            # requested binaries and their strong Requires, using no other SRPMs.
-            for requirement in sorted(buildrequires):
-                # These describe RPM features, not installable build dependencies.
+            sources = set()
+            unavailable = set()
+            # An SRPM's Requires are its BuildRequires. DNF follows only the strong
+            # runtime Requires of the binaries installed to satisfy these roots.
+            for requirement in sorted(rpm_query(srpm, "--requires").splitlines()):
                 if requirement.startswith("rpmlib("):
                     continue
+                provider = providers.get(libdnf5.rpm.Reldep(base, requirement).get_name())
+                if provider is not None:
+                    sources.add(provider)
+                    query = libdnf5.rpm.PackageQuery(base)
+                    query.filter_provides(requirement)
+                    if query.empty():
+                        if provider not in selected or provider == package:
+                            raise RuntimeError(
+                                f"{package} requires {requirement}; {provider} must "
+                                "already be built or included as another source in this run"
+                            )
+                        unavailable.add(provider)
+                        continue
                 goal.add_install(requirement)
 
             transaction = goal.resolve()
             if transaction.get_problems() != libdnf5.base.GoalProblem_NO_PROBLEM:
-                logs = transaction.get_resolve_logs_as_strings()
-                details = "\n".join(f"  {line}" for line in logs)
-                if not details:
-                    details = "  libdnf5 returned no diagnostic messages"
                 raise RuntimeError(
-                    f"Cannot resolve BuildRequires for {package}:\n{details}"
+                    f"Cannot resolve BuildRequires for {package}:\n"
+                    + "\n".join(transaction.get_resolve_logs_as_strings())
                 )
 
-            dependencies = set()
-            for transaction_package in transaction.get_transaction_packages():
-                binary = transaction_package.get_package()
-                source_name = binary.get_source_name()
-                if source_name in selected and source_name != package:
-                    dependencies.add(source_name)
-            return dependencies
+            sources.update(
+                item.get_package().get_source_name()
+                for item in transaction.get_transaction_packages()
+            )
+            sources.intersection_update(selected)
+            sources.discard(package)
+            return BuildDependencies(sources, unavailable)
 
 
-        def dependency_groups(dependencies):
-            """Find strongly connected components with Tarjan's algorithm."""
-            indices = {}
-            lowlinks = {}
-            stack = []
-            active = set()
-            groups = []
-
-            def visit(package):
-                indices[package] = lowlinks[package] = len(indices)
-                stack.append(package)
-                active.add(package)
-
-                for dependency in sorted(dependencies[package]):
-                    if dependency not in indices:
-                        visit(dependency)
-                        lowlinks[package] = min(
-                            lowlinks[package], lowlinks[dependency]
+        def build_batches(dependencies, cycle_heads):
+            graph = {package: set(deps.sources) for package, deps in dependencies.items()}
+            for head, members in cycle_heads.items():
+                if head not in graph:
+                    continue
+                members = members & graph.keys()
+                try:
+                    TopologicalSorter({
+                        package: graph[package] & members for package in members
+                    }).prepare()
+                except CycleError:
+                    if dependencies[head].unavailable & members:
+                        raise RuntimeError(
+                            f"Cannot bootstrap {head}: it requires new artifacts "
+                            "from another member of its cycle"
                         )
-                    elif dependency in active:
-                        lowlinks[package] = min(
-                            lowlinks[package], indices[dependency]
-                        )
+                    graph[head].difference_update(members)
+                    for package in members - {head}:
+                        graph[package].add(head)
+                    print(f"Bootstrap cycle with {head}: {', '.join(sorted(members))}")
 
-                if lowlinks[package] == indices[package]:
-                    group = []
-                    while True:
-                        member = stack.pop()
-                        active.remove(member)
-                        group.append(member)
-                        if member == package:
-                            break
-                    groups.append(tuple(sorted(group)))
-
-            for package in sorted(dependencies):
-                if package not in indices:
-                    visit(package)
-            return groups
-
-
-        def build_batches(dependencies):
-            """Order strongly connected groups into parallel build batches."""
-            groups = dependency_groups(dependencies)
-            group_for = {
-                package: group for group in groups for package in group
-            }
-            sorter = TopologicalSorter({
-                group: {
-                    group_for[dependency]
-                    for package in group
-                    for dependency in dependencies[package]
-                } - {group}
-                for group in groups
-            })
-            sorter.prepare()
+            sorter = TopologicalSorter(graph)
+            try:
+                sorter.prepare()
+            except CycleError as error:
+                raise RuntimeError(
+                    "Dependency cycle remains; configure cycle_heads: "
+                    + " -> ".join(error.args[1])
+                ) from None
 
             batches = []
             while sorter.is_active():
-                ready = sorter.get_ready()
-                batches.append(sorted(ready))
+                ready = sorted(sorter.get_ready())
+                batches.append(ready)
                 sorter.done(*ready)
             return batches
 
 
         def build_timeout(client, owner, project, package):
             longest = None
-            builds = client.build_proxy.get_list(owner, project, package)
-            for build in builds:
+            for build in client.build_proxy.get_list(owner, project, package):
                 try:
-                    started = int(build.get("started_on"))
-                    ended = int(build.get("ended_on"))
+                    duration = int(build.get("ended_on")) - int(build.get("started_on"))
                 except (TypeError, ValueError):
                     continue
-                if ended >= started:
-                    longest = max(longest or 0, ended - started)
-
-            return (
-                DEFAULT_TIMEOUT if longest is None else longest + TIMEOUT_MARGIN
-            )
+                if duration >= 0:
+                    longest = max(longest or 0, duration)
+            return DEFAULT_TIMEOUT if longest is None else longest + TIMEOUT_MARGIN
 
 
-        def submit_batches(
-            client, owner, project, chroot, batches, srpms, timeouts
-        ):
-            batch_id = None
-            for batch in batches:
-                batch_options = (
-                    {"after_build_id": batch_id} if batch_id is not None else {}
-                )
-                for package in sorted(
-                    package for group in batch for package in group
-                ):
+        def submit_batches(client, owner, project, chroot, batches, srpms):
+            timeouts = {
+                package: build_timeout(client, owner, project, package) for package in srpms
+            }
+            batch_options = {}
+            for number, batch in enumerate(batches, start=1):
+                print(f"Copr batch {number}: {', '.join(batch)}")
+                for package in batch:
                     build = client.build_proxy.create_from_file(
                         ownername=owner,
                         projectname=project,
@@ -294,73 +302,37 @@ jobs:
                             **batch_options,
                         },
                     )
-                    print(
-                        f"Submitted {package} as build {build.id} "
-                        f"(timeout {timeouts[package]}s)"
-                    )
-                    # Any build in a Copr batch identifies the whole batch.
-                    batch_id = build.id
-                    batch_options = {"with_build_id": batch_id}
+                    print(f"Submitted {package} as build {build.id}")
+                    batch_options = {"with_build_id": build.id}
+                # Any build in a Copr batch identifies the whole batch.
+                batch_options = {"after_build_id": build.id}
 
 
         def repository_info(client):
-            repository = "${{ github.repository }}".split("/", 1)[1]
-            parts = repository.split("-")
-            project = "-".join(parts[1:])
             os_release = platform.freedesktop_os_release()
-            chroot = "-".join(
-                (os_release["ID"], os_release["VERSION_ID"], platform.machine())
+            return (
+                client.config["username"],
+                "${{ github.repository }}".split("/", 1)[1].partition("-")[2],
+                "-".join((os_release["ID"], os_release["VERSION_ID"], platform.machine())),
             )
-            return client.config["username"], project, chroot
 
 
         def main():
-            srpms = {}
-            buildrequires = {}
-            for srpm in sorted(Path("SRPMS").glob("*.src.rpm")):
-                source_name, required = source_buildrequires(srpm)
-                if source_name in srpms:
-                    raise RuntimeError(
-                        f"Multiple SRPMs for source package {source_name}"
-                    )
-                srpms[source_name] = srpm
-                buildrequires[source_name] = required
-
-            if not srpms:
-                raise RuntimeError("No SRPMs found")
-
-            # Each source has an independent buildroot. Combine its selected
-            # source dependencies only after resolving the binary transaction.
-            solver = create_solver()
-            dependencies = {
-                package: resolve_build_dependencies(
-                    solver, package, required, srpms
-                )
-                for package, required in buildrequires.items()
-            }
-            batches = build_batches(dependencies)
-
-            for number, batch in enumerate(batches, start=1):
-                packages = sorted(
-                    package for group in batch for package in group
-                )
-                print(f"Copr batch {number}: {', '.join(packages)}")
-                for group in batch:
-                    if len(group) > 1:
-                        print(
-                            "  Dependency cycle (using available repository "
-                            f"packages): {', '.join(group)}"
-                        )
-
+            srpms = source_packages()
+            providers, cycle_heads = load_build_config()
             client = Client.create_from_config_file("copr-api")
             owner, project, chroot = repository_info(client)
-            timeouts = {
-                package: build_timeout(client, owner, project, package)
-                for package in srpms
-            }
-            submit_batches(
-                client, owner, project, chroot, batches, srpms, timeouts
+            solver = create_solver(
+                client.project_chroot_proxy.get_build_config(owner, project, chroot)["repos"]
             )
+            batches = build_batches(
+                {
+                    package: resolve_dependencies(solver, package, srpm, srpms, providers)
+                    for package, srpm in srpms.items()
+                },
+                cycle_heads,
+            )
+            submit_batches(client, owner, project, chroot, batches, srpms)
 
 
         main()

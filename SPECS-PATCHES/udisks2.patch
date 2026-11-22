@@ -1,8 +1,32 @@
 diff --git OLD/udisks2.spec NEW/udisks2.spec
-index 0d1136b..d09177a 100644
+index 0d1136b..785afc9 100644
 --- OLD/udisks2.spec
 +++ NEW/udisks2.spec
-@@ -105,6 +105,7 @@ Recommends: ntfs-3g
+@@ -30,7 +30,13 @@ License: GPL-2.0-or-later
+ URL:     https://github.com/storaged-project/udisks
+ Source0: https://github.com/storaged-project/udisks/releases/download/udisks-%{version}/udisks-%{version}.tar.bz2
+ 
++# Independent optional storage modules and client bindings
++Patch: udisks2-modular-storage.patch
++
+ BuildRequires: make
++BuildRequires: autoconf
++BuildRequires: automake
++BuildRequires: libtool
+ BuildRequires: glib2-devel >= %{glib2_version}
+ BuildRequires: gobject-introspection-devel >= %{gobject_introspection_version}
+ BuildRequires: libgudev1-devel >= %{systemd_version}
+@@ -59,9 +65,7 @@ Requires: libblockdev        >= %{libblockdev_version}
+ Requires: libblockdev-part   >= %{libblockdev_version}
+ Requires: libblockdev-loop   >= %{libblockdev_version}
+ Requires: libblockdev-swap   >= %{libblockdev_version}
+-Requires: libblockdev-mdraid >= %{libblockdev_version}
+ Requires: libblockdev-fs     >= %{libblockdev_version}
+-Requires: libblockdev-crypto >= %{libblockdev_version}
+ Requires: libblockdev-nvme   >= %{libblockdev_version}
+ Requires: libblockdev-smart  >= %{libblockdev_version}
+ 
+@@ -105,6 +109,7 @@ Recommends: ntfs-3g
  Recommends: btrfs-progs
  %endif
  
@@ -10,7 +34,131 @@ index 0d1136b..d09177a 100644
  
  # For /proc/self/mountinfo, only available in 2.6.26 or higher
  Conflicts: kernel < 2.6.26
-@@ -191,6 +192,16 @@ Obsoletes: storaged-lsm < %{version}-%{release}
+@@ -126,9 +131,82 @@ Obsoletes: libstoraged < %{version}-%{release}
+ This package contains the dynamic library, which provides
+ access to the udisksd daemon.
+ 
++%package -n lib%{name}-crypto
++Summary: Client bindings for UDisks encryption
++License: LGPL-2.0-or-later
++Requires: lib%{name}%{?_isa} = %{version}-%{release}
++
++%description -n lib%{name}-crypto
++Client library and introspection data for UDisks encryption interfaces.
++
++%package -n lib%{name}-mdraid
++Summary: Client bindings for UDisks Linux MD RAID
++License: LGPL-2.0-or-later
++Requires: lib%{name}%{?_isa} = %{version}-%{release}
++
++%description -n lib%{name}-mdraid
++Client library and introspection data for UDisks Linux MD RAID interfaces.
++
++%package -n lib%{name}-lvm2
++Summary: Client bindings for UDisks LVM2
++License: LGPL-2.0-or-later
++Requires: lib%{name}%{?_isa} = %{version}-%{release}
++
++%description -n lib%{name}-lvm2
++Client library and introspection data for UDisks LVM2 interfaces.
++
++%package -n lib%{name}-iscsi
++Summary: Client bindings for UDisks iSCSI
++License: LGPL-2.0-or-later
++Requires: lib%{name}%{?_isa} = %{version}-%{release}
++
++%description -n lib%{name}-iscsi
++Client library and introspection data for UDisks iSCSI interfaces.
++
++%if 0%{?with_btrfs}
++%package -n lib%{name}-btrfs
++Summary: Client bindings for UDisks Btrfs
++License: LGPL-2.0-or-later
++Requires: lib%{name}%{?_isa} = %{version}-%{release}
++
++%description -n lib%{name}-btrfs
++Client library and introspection data for UDisks Btrfs interfaces.
++
++%endif
++
++%if 0%{?with_lsm}
++%package -n lib%{name}-lsm
++Summary: Client bindings for UDisks LSM
++License: LGPL-2.0-or-later
++Requires: lib%{name}%{?_isa} = %{version}-%{release}
++
++%description -n lib%{name}-lsm
++Client library and introspection data for UDisks LSM interfaces.
++
++%endif
++
++%package crypto
++Summary: UDisks encryption module
++Requires: %{name}%{?_isa} = %{version}-%{release}
++Requires: lib%{name}-crypto%{?_isa} = %{version}-%{release}
++Requires: libblockdev-crypto >= %{libblockdev_version}
++
++%description crypto
++Daemon support for encryption operations.
++
++%package mdraid
++Summary: UDisks Linux MD RAID module
++Requires: %{name}%{?_isa} = %{version}-%{release}
++Requires: lib%{name}-mdraid%{?_isa} = %{version}-%{release}
++Requires: libblockdev-mdraid >= %{libblockdev_version}
++
++%description mdraid
++Daemon support for Linux MD RAID operations.
++
+ %package -n %{name}-iscsi
+ Summary: Module for iSCSI
+ Requires: %{name}%{?_isa} = %{version}-%{release}
++Requires: lib%{name}-iscsi%{?_isa} = %{version}-%{release}
+ License: LGPL-2.0-or-later
+ Requires: iscsi-initiator-utils
+ BuildRequires: iscsi-initiator-utils-devel
+@@ -141,6 +219,7 @@ This package contains module for iSCSI configuration.
+ %package -n %{name}-lvm2
+ Summary: Module for LVM2
+ Requires: %{name}%{?_isa} = %{version}-%{release}
++Requires: lib%{name}-lvm2%{?_isa} = %{version}-%{release}
+ License: LGPL-2.0-or-later
+ Requires: lvm2
+ Requires: libblockdev-lvm >= %{libblockdev_version}
+@@ -154,6 +233,16 @@ This package contains module for LVM2 configuration.
+ %package -n lib%{name}-devel
+ Summary: Development files for lib%{name}
+ Requires: lib%{name}%{?_isa} = %{version}-%{release}
++Requires: lib%{name}-crypto%{?_isa} = %{version}-%{release}
++Requires: lib%{name}-mdraid%{?_isa} = %{version}-%{release}
++Requires: lib%{name}-lvm2%{?_isa} = %{version}-%{release}
++Requires: lib%{name}-iscsi%{?_isa} = %{version}-%{release}
++%if 0%{?with_btrfs}
++Requires: lib%{name}-btrfs%{?_isa} = %{version}-%{release}
++%endif
++%if 0%{?with_lsm}
++Requires: lib%{name}-lsm%{?_isa} = %{version}-%{release}
++%endif
+ License: LGPL-2.0-or-later
+ Provides:  libstoraged-devel = %{version}-%{release}
+ Obsoletes: libstoraged-devel < %{version}-%{release}
+@@ -166,6 +255,7 @@ a dynamic library, which provides access to the udisksd daemon.
+ %package -n %{name}-btrfs
+ Summary: Module for BTRFS
+ Requires: %{name}%{?_isa} = %{version}-%{release}
++Requires: lib%{name}-btrfs%{?_isa} = %{version}-%{release}
+ License: LGPL-2.0-or-later
+ Requires: libblockdev-btrfs >= %{libblockdev_version}
+ BuildRequires: libblockdev-btrfs-devel >= %{libblockdev_version}
+@@ -180,6 +270,7 @@ This package contains module for BTRFS configuration.
+ %package -n %{name}-lsm
+ Summary: Module for LSM
+ Requires: %{name}%{?_isa} = %{version}-%{release}
++Requires: lib%{name}-lsm%{?_isa} = %{version}-%{release}
+ License: LGPL-2.0-or-later
+ Requires: libstoragemgmt
+ BuildRequires: libstoragemgmt-devel
+@@ -191,6 +282,16 @@ Obsoletes: storaged-lsm < %{version}-%{release}
  This package contains module for LSM configuration.
  %endif
  
@@ -27,7 +175,41 @@ index 0d1136b..d09177a 100644
  %prep
  %autosetup -p1 -n udisks-%{version}
  rm -f src/tests/dbus-tests/config_h.py
-@@ -266,7 +277,6 @@ fi
+@@ -200,7 +301,7 @@ sed -i data/builtin_mount_options.conf -e 's/ntfs_drivers=ntfs3,ntfs/ntfs_driver
+ sed -i data/builtin_mount_options.conf -e 's/exfat_defaults=uid=\$UID,gid=\$GID,iocharset=utf8,errors=remount-ro/exfat_defaults=uid=\$UID,gid=\$GID,iocharset=utf8,errors=remount-ro,sys_tz/'
+ 
+ %build
+-# autoreconf -ivf
++autoreconf -ivf
+ # modules need to be explicitly enabled
+ %configure            \
+ %if %{with_gtk_doc}
+@@ -209,6 +310,8 @@ sed -i data/builtin_mount_options.conf -e 's/exfat_defaults=uid=\$UID,gid=\$GID,
+     --disable-gtk-doc \
+ %endif
+     --enable-smart    \
++    --enable-crypto   \
++    --enable-mdraid   \
+ %if 0%{?with_btrfs}
+     --enable-btrfs    \
+ %endif
+@@ -229,6 +332,7 @@ rm -fr %{buildroot}/%{_datadir}/gtk-doc/html/udisks2
+ mkdir -p %{buildroot}%{_sysconfdir}/udisks2/modules.conf.d
+ 
+ find %{buildroot} -name \*.la -o -name \*.a | xargs rm
++rm -f %{buildroot}%{_libdir}/libudisks2-daemon.so
+ 
+ chrpath --delete %{buildroot}/%{_sbindir}/umount.udisks2
+ chrpath --delete %{buildroot}/%{_bindir}/udisksctl
+@@ -258,15 +362,12 @@ fi
+ %license COPYING
+ 
+ %dir %{_sysconfdir}/udisks2
+-%if %{is_fedora}
+ %dir %{_sysconfdir}/udisks2/modules.conf.d
+-%endif
+ %{_sysconfdir}/udisks2/udisks2.conf
+ %{_sysconfdir}/udisks2/mount_options.conf.example
  
  %{_datadir}/dbus-1/system.d/org.freedesktop.UDisks2.conf
  %{_datadir}/bash-completion/completions/udisksctl
@@ -35,7 +217,95 @@ index 0d1136b..d09177a 100644
  %{_tmpfilesdir}/%{name}.conf
  %{_unitdir}/udisks2.service
  %{_udevrulesdir}/80-udisks2.rules
-@@ -340,6 +350,9 @@ fi
+@@ -275,8 +376,10 @@ fi
+ 
+ %dir %{_libdir}/udisks2
+ %dir %{_libdir}/udisks2/modules
++%dir %{_libdir}/udisks2/cli-modules
+ %dir %{_libexecdir}/udisks2
+ %{_libexecdir}/udisks2/udisksd
++%{_libdir}/libudisks2-daemon.so.*
+ 
+ %{_bindir}/udisksctl
+ 
+@@ -295,8 +398,56 @@ fi
+ 
+ %files -n lib%{name}
+ %{_libdir}/libudisks2.so.*
++%dir %{_libdir}/udisks2
++%dir %{_libdir}/udisks2/client-modules
+ %{_libdir}/girepository-1.0/UDisks-2.0.typelib
+ 
++%files -n lib%{name}-crypto
++%{_libdir}/libudisks2-crypto.so.*
++%{_libdir}/udisks2/client-modules/libudisks2-crypto.so
++%{_libdir}/girepository-1.0/UDisksCrypto-2.0.typelib
++
++%files -n lib%{name}-mdraid
++%{_libdir}/libudisks2-mdraid.so.*
++%{_libdir}/udisks2/client-modules/libudisks2-mdraid.so
++%{_libdir}/girepository-1.0/UDisksMDRaid-2.0.typelib
++
++%files -n lib%{name}-lvm2
++%{_libdir}/libudisks2-lvm2.so.*
++%{_libdir}/udisks2/client-modules/libudisks2-lvm2.so
++%{_libdir}/girepository-1.0/UDisksLVM2-2.0.typelib
++
++%files -n lib%{name}-iscsi
++%{_libdir}/libudisks2-iscsi.so.*
++%{_libdir}/udisks2/client-modules/libudisks2-iscsi.so
++%{_libdir}/girepository-1.0/UDisksISCSI-2.0.typelib
++
++%if 0%{?with_btrfs}
++%files -n lib%{name}-btrfs
++%{_libdir}/libudisks2-btrfs.so.*
++%{_libdir}/udisks2/client-modules/libudisks2-btrfs.so
++%{_libdir}/girepository-1.0/UDisksBTRFS-2.0.typelib
++
++%endif
++
++%if 0%{?with_lsm}
++%files -n lib%{name}-lsm
++%{_libdir}/libudisks2-lsm.so.*
++%{_libdir}/udisks2/client-modules/libudisks2-lsm.so
++%{_libdir}/girepository-1.0/UDisksLSM-2.0.typelib
++
++%endif
++
++%files crypto
++%{_libdir}/udisks2/modules/libudisks2_crypto.so
++%{_datadir}/polkit-1/actions/org.freedesktop.UDisks2.crypto.policy
++%config(noreplace) %{_sysconfdir}/udisks2/modules.conf.d/udisks2_crypto.conf
++%{_libdir}/udisks2/cli-modules/libudisks2_crypto_cli.so
++
++%files mdraid
++%{_libdir}/udisks2/modules/libudisks2_mdraid.so
++%{_datadir}/polkit-1/actions/org.freedesktop.UDisks2.mdraid.policy
++
+ %files -n %{name}-lvm2
+ %{_libdir}/udisks2/modules/libudisks2_lvm2.so
+ %{_datadir}/polkit-1/actions/org.freedesktop.UDisks2.lvm2.policy
+@@ -307,15 +458,18 @@ fi
+ 
+ %files -n lib%{name}-devel
+ %{_libdir}/libudisks2.so
++%{_libdir}/libudisks2-*.so
+ %dir %{_includedir}/udisks2
+ %dir %{_includedir}/udisks2/udisks
+ %{_includedir}/udisks2/udisks/*.h
+-%{_datadir}/gir-1.0/UDisks-2.0.gir
++%{_datadir}/gir-1.0/UDisks*-2.0.gir
+ %if %{with_gtk_doc}
+ %dir %{_datadir}/gtk-doc/html/udisks2
+ %{_datadir}/gtk-doc/html/udisks2/*
+ %endif
+ %{_libdir}/pkgconfig/udisks2.pc
++%{_libdir}/pkgconfig/udisks2-crypto.pc
++%{_libdir}/pkgconfig/udisks2-mdraid.pc
+ %{_libdir}/pkgconfig/udisks2-lvm2.pc
+ %{_libdir}/pkgconfig/udisks2-iscsi.pc
+ %if 0%{?with_btrfs}
+@@ -340,6 +494,9 @@ fi
  %attr(0600,root,root) %{_sysconfdir}/udisks2/modules.conf.d/udisks2_lsm.conf
  %endif
  

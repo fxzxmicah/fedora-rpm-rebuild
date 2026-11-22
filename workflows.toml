@@ -1,0 +1,10 @@
+# Rules apply only to cycles. Other prerequisites remain in effect.
+# Bootstrap glibc with repository tools, then build gcc against the new glibc.
+[cycle_heads]
+glibc = ["gcc"]
+
+# Source package names; declared capabilities add build-order constraints.
+# A missing capability requires its producer in the same run. Versions are
+# checked by the actual buildroot after that producer has been built.
+[future_provides]
+udisks2 = ["pkgconfig(udisks2-crypto)", "pkgconfig(udisks2-mdraid)"]

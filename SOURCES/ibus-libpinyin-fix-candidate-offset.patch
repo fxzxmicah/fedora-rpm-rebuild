@@ -1,0 +1,91 @@
+From bed474654fa6e10bd3c9646877a3463d70857fe9 Mon Sep 17 00:00:00 2001
+From: Fxzx micah <48860358+fxzxmicah@users.noreply.github.com>
+Date: Sun, 22 Nov 2026 04:46:18 +0800
+Subject: [PATCH] Preserve pinyin boundaries after candidate selection
+
+pinyin_choose_candidate() returns the end offset of the selected candidate.
+Looking up the next key and replacing this offset with its raw beginning
+skips any intervening pinyin separators. Passing the resulting lookup
+cursor back to libpinyin then triggers the zero_key != key assertion in
+_check_offset().
+
+Keep the returned candidate boundary for both the lookup cursor and the
+editing cursor. This also avoids dereferencing a missing next key when
+the remaining input does not contain another parsed syllable.
+
+Remove FullPinyinEditor's unused getLookupCursor() method. The base
+method is not virtual, so its callers never use this trailing-separator
+workaround.
+---
+ src/PYPFullPinyinEditor.cc    | 18 ------------------
+ src/PYPFullPinyinEditor.h     |  2 --
+ src/PYPLibPinyinCandidates.cc | 12 +++---------
+ 3 files changed, 3 insertions(+), 29 deletions(-)
+
+diff --git a/src/PYPFullPinyinEditor.cc b/src/PYPFullPinyinEditor.cc
+index b20a47c..8a2835f 100644
+--- a/src/PYPFullPinyinEditor.cc
++++ b/src/PYPFullPinyinEditor.cc
+@@ -135,21 +135,3 @@ FullPinyinEditor::updateAuxiliaryText (void)
+     if (DISPLAY_STYLE_COMPACT == m_config.displayStyle ())
+         Editor::updatePreeditText (text, 0, TRUE);
+ }
+-
+-guint
+-FullPinyinEditor::getLookupCursor (void)
+-{
+-    guint lookup_cursor = getPinyinCursor ();
+-
+-    /* as pinyin_get_pinyin_offset can't handle the last "'" characters,
+-       strip the string to work around it here. */
+-    String stripped = m_text;
+-    size_t pos = stripped.find_last_not_of ("'") + 1;
+-    if (pos < stripped.length ())
+-        stripped.erase (pos);
+-
+-    /* show candidates when pinyin cursor is at end. */
+-    if (lookup_cursor == stripped.length ())
+-        lookup_cursor = 0;
+-    return lookup_cursor;
+-}
+diff --git a/src/PYPFullPinyinEditor.h b/src/PYPFullPinyinEditor.h
+index b9b2b5d..9377f3a 100644
+--- a/src/PYPFullPinyinEditor.h
++++ b/src/PYPFullPinyinEditor.h
+@@ -42,8 +42,6 @@ protected:
+ 
+     virtual void updatePinyin (void);
+ 
+-    virtual guint getLookupCursor (void);
+-
+ };
+ 
+ };
+diff --git a/src/PYPLibPinyinCandidates.cc b/src/PYPLibPinyinCandidates.cc
+index 6726739..8f1ae1e 100644
+--- a/src/PYPLibPinyinCandidates.cc
++++ b/src/PYPLibPinyinCandidates.cc
+@@ -162,17 +162,11 @@ LibPinyinCandidates::selectCandidate (EnhancedCandidate & enhanced)
+         return SELECT_CANDIDATE_MODIFY_IN_PLACE|SELECT_CANDIDATE_COMMIT;
+     }
+ 
+-    PinyinKeyPos *pos = NULL;
+-    pinyin_get_pinyin_key_rest (instance, lookup_cursor, &pos);
+-
+-    guint16 begin = 0;
+-    pinyin_get_pinyin_key_rest_positions (instance, pos, &begin, NULL);
+-
+-    /* The cursor is at the end of the text input. */
++    /* Keep the candidate boundary before any following pinyin separators. */
+     if (m_editor->m_cursor == m_editor->m_text.length ())
+-        m_editor->m_lookup_cursor = begin;
++        m_editor->m_lookup_cursor = lookup_cursor;
+     else
+-        m_editor->m_cursor = begin;
++        m_editor->m_cursor = lookup_cursor;
+ 
+     return SELECT_CANDIDATE_UPDATE;
+ }
+-- 
+2.56.0
+

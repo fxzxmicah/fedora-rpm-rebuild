@@ -1,0 +1,22 @@
+diff --git OLD/gnome-disk-utility.spec NEW/gnome-disk-utility.spec
+index 8f825f5..f3e300c 100644
+--- OLD/gnome-disk-utility.spec
++++ NEW/gnome-disk-utility.spec
+@@ -9,6 +9,9 @@ License:        GPL-2.0-or-later AND CC0-1.0
+ URL:            https://gitlab.gnome.org/GNOME/gnome-disk-utility
+ Source0:        https://download.gnome.org/sources/%{name}/%{gnome_major_version}/%{name}-%{gnome_tarball_version}.tar.xz
+ 
++# Use independent optional UDisks interfaces
++Patch:          gnome-disk-utility-modular-udisks.patch
++
+ %gnome_check_version
+ 
+ BuildRequires:  gcc
+@@ -25,6 +28,7 @@ BuildRequires:  pkgconfig(libsecret-1)
+ BuildRequires:  pkgconfig(libsystemd)
+ BuildRequires:  pkgconfig(pwquality)
+ BuildRequires:  pkgconfig(udisks2)
++BuildRequires:  pkgconfig(udisks2-crypto)
+ BuildRequires:  gettext
+ BuildRequires:  /usr/bin/xsltproc
+ BuildRequires:  docbook-style-xsl

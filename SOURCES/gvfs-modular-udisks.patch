@@ -1,0 +1,194 @@
+From 15112f0bded5b47d380ae7183426ef3fb08adb2b Mon Sep 17 00:00:00 2001
+From: Fxzx micah <48860358+fxzxmicah@users.noreply.github.com>
+Date: Sat, 21 Nov 2026 22:58:53 +0800
+Subject: [PATCH] udisks2: Use the independent encryption client library
+
+Discover encryption support through exported module interfaces and use the
+module library for encrypted-device relationships. Keep ordinary volumes
+available when the encryption backend is not installed.
+---
+ meson.build                                |  3 ++-
+ monitor/udisks2/gvfsudisks2drive.c         |  2 +-
+ monitor/udisks2/gvfsudisks2mount.c         |  2 +-
+ monitor/udisks2/gvfsudisks2volume.c        | 30 ++++++++++++----------
+ monitor/udisks2/gvfsudisks2volumemonitor.c | 11 +++++---
+ monitor/udisks2/gvfsudisks2volumemonitor.h |  1 +
+ monitor/udisks2/meson.build                |  1 +
+ 7 files changed, 29 insertions(+), 21 deletions(-)
+
+diff --git a/meson.build b/meson.build
+index e5bfb4e..7c1bf45 100644
+--- a/meson.build
++++ b/meson.build
+@@ -341,7 +341,8 @@ config_h.set('HAVE_FUSE', enable_fuse)
+ enable_udisks2 = get_option('udisks2')
+ if enable_udisks2
+   assert(enable_gudev, 'UDisks2 requested but gudev is required')
+-  udisks2_dep = dependency('udisks2', version: '>= 1.97')
++  udisks2_dep = dependency('udisks2', version: '>= 2.11.2')
++  udisks2_crypto_dep = dependency('udisks2-crypto', version: '>= 2.11.2')
+ endif
+ 
+ # *** Check which command should be used to check processes blocking umount ***
+diff --git a/monitor/udisks2/gvfsudisks2drive.c b/monitor/udisks2/gvfsudisks2drive.c
+index 061df6d..5e39f82 100644
+--- a/monitor/udisks2/gvfsudisks2drive.c
++++ b/monitor/udisks2/gvfsudisks2drive.c
+@@ -712,7 +712,7 @@ unmount_and_lock (GVfsUDisks2Drive    *drive,
+                   UDisksClient *client;
+ 
+                   client = gvfs_udisks2_volume_monitor_get_udisks_client (drive->monitor);
+-                  cleartext_block = udisks_client_get_cleartext_block (client, block);
++                  cleartext_block = udisks_crypto_get_cleartext_block (client, block);
+                   if (cleartext_block != NULL)
+                     {
+                       data->pending_encrypted = g_list_prepend (data->pending_encrypted,
+diff --git a/monitor/udisks2/gvfsudisks2mount.c b/monitor/udisks2/gvfsudisks2mount.c
+index f378140..7921428 100644
+--- a/monitor/udisks2/gvfsudisks2mount.c
++++ b/monitor/udisks2/gvfsudisks2mount.c
+@@ -1049,7 +1049,7 @@ gvfs_udisks2_mount_unmount_with_operation (GMount              *_mount,
+               return;
+             }
+ 
+-          cleartext_block = udisks_client_get_cleartext_block (gvfs_udisks2_volume_monitor_get_udisks_client (mount->monitor),
++          cleartext_block = udisks_crypto_get_cleartext_block (gvfs_udisks2_volume_monitor_get_udisks_client (mount->monitor),
+                                                                block);
+           if (cleartext_block != NULL)
+             {
+diff --git a/monitor/udisks2/gvfsudisks2volume.c b/monitor/udisks2/gvfsudisks2volume.c
+index 164b0bc..8aacae9 100644
+--- a/monitor/udisks2/gvfsudisks2volume.c
++++ b/monitor/udisks2/gvfsudisks2volume.c
+@@ -279,7 +279,7 @@ update_volume (GVfsUDisks2Volume *volume)
+                                                volume->block);
+ 
+       /* If unlocked, use the values from the unlocked block device for presentation */
+-      cleartext_block = udisks_client_get_cleartext_block (udisks_client, volume->block);
++      cleartext_block = udisks_crypto_get_cleartext_block (udisks_client, volume->block);
+       if (cleartext_block != NULL)
+         block = cleartext_block;
+       else
+@@ -638,7 +638,7 @@ on_udisks_client_changed (UDisksClient *client,
+     {
+       UDisksBlock *cleartext_block;
+ 
+-      cleartext_block = udisks_client_get_cleartext_block (client, volume->block);
++      cleartext_block = udisks_crypto_get_cleartext_block (client, volume->block);
+       if (cleartext_block != NULL)
+         {
+           g_object_set_data (G_OBJECT (data->mount_operation), "x-udisks2-is-unlocked", GINT_TO_POINTER (1));
+@@ -869,24 +869,26 @@ gvfs_udisks2_volume_is_loop_class (GVfsUDisks2Volume *volume)
+ {
+   UDisksClient *client;
+   UDisksLoop *loop;
+-  UDisksObject *object;
++  UDisksBlock *backing;
++  gboolean ret;
+ 
+   if (volume->block == NULL)
+     return FALSE;
+ 
+   client = gvfs_udisks2_volume_monitor_get_udisks_client (volume->monitor);
+-
+-  /* Check if the volume is a loop device */
+   loop = udisks_client_get_loop_for_block (client, volume->block);
+   if (loop != NULL)
+-    return TRUE;
+-
+-  /* Check if the volume is an unlocked encrypted loop device */
+-  object = udisks_client_get_object (client, udisks_block_get_crypto_backing_device (volume->block));
+-  if (object != NULL && udisks_object_get_loop (object) != NULL)
+-    return TRUE;
++    {
++      g_object_unref (loop);
++      return TRUE;
++    }
+ 
+-  return FALSE;
++  backing = udisks_crypto_get_backing_block (client, volume->block);
++  loop = backing != NULL ? udisks_client_get_loop_for_block (client, backing) : NULL;
++  ret = loop != NULL;
++  g_clear_object (&loop);
++  g_clear_object (&backing);
++  return ret;
+ }
+ 
+ /* ---------------------------------------------------------------------------------------------------- */
+@@ -1329,7 +1331,7 @@ on_mount_operation_reply (GMountOperation       *mount_operation,
+           g_object_set_data (G_OBJECT (data->mount_operation), "x-udisks2-is-unlocked", GINT_TO_POINTER (0));
+ 
+           client = gvfs_udisks2_volume_monitor_get_udisks_client (volume->monitor);
+-          cleartext_block = udisks_client_get_cleartext_block (client, volume->block);
++          cleartext_block = udisks_crypto_get_cleartext_block (client, volume->block);
+           if (cleartext_block != NULL)
+             {
+               UDisksObject *object;
+@@ -1624,7 +1626,7 @@ gvfs_udisks2_volume_mount (GVolume             *_volume,
+     }
+ 
+   /* if encrypted and already unlocked, just mount the cleartext block device */
+-  block = udisks_client_get_cleartext_block (client, volume->block);
++  block = udisks_crypto_get_cleartext_block (client, volume->block);
+   if (block != NULL)
+     g_object_unref (block);
+   else
+diff --git a/monitor/udisks2/gvfsudisks2volumemonitor.c b/monitor/udisks2/gvfsudisks2volumemonitor.c
+index 0460234..9cda122 100644
+--- a/monitor/udisks2/gvfsudisks2volumemonitor.c
++++ b/monitor/udisks2/gvfsudisks2volumemonitor.c
+@@ -1115,12 +1115,13 @@ should_include_volume (GVfsUDisks2VolumeMonitor *monitor,
+         }
+     }
+ 
+-  /* show encrypted volumes... */
+-  if (g_strcmp0 (udisks_block_get_id_usage (block), "crypto") == 0)
++  /* Only advertise unlocking when the encryption module provides it. */
++  object = g_dbus_interface_get_object (G_DBUS_INTERFACE (block));
++  if (object != NULL && udisks_object_peek_encrypted (UDISKS_OBJECT (object)) != NULL)
+     {
+       UDisksBlock *cleartext_block;
+       /* ... unless the volume is unlocked and we don't want to show the cleartext volume */
+-      cleartext_block = udisks_client_get_cleartext_block (monitor->client, block);
++      cleartext_block = udisks_crypto_get_cleartext_block (monitor->client, block);
+       if (cleartext_block != NULL)
+         {
+           ret = should_include_volume (monitor, cleartext_block, mount_entries, mount_points_by_path, TRUE);
+@@ -1138,7 +1139,9 @@ should_include_volume (GVfsUDisks2VolumeMonitor *monitor,
+       /* ... but not unlocked volumes (because the volume for the encrypted part morphs
+        * into the cleartext part when unlocked)
+        */
+-      if (g_strcmp0 (udisks_block_get_crypto_backing_device (block), "/") != 0)
++      UDisksBlockCrypto *crypto = object != NULL ? udisks_object_peek_block_crypto (UDISKS_OBJECT (object)) : NULL;
++
++      if (crypto != NULL && g_strcmp0 (udisks_block_crypto_get_backing_device (crypto), "/") != 0)
+         {
+           goto out;
+         }
+diff --git a/monitor/udisks2/gvfsudisks2volumemonitor.h b/monitor/udisks2/gvfsudisks2volumemonitor.h
+index 790656c..e8eee71 100644
+--- a/monitor/udisks2/gvfsudisks2volumemonitor.h
++++ b/monitor/udisks2/gvfsudisks2volumemonitor.h
+@@ -29,6 +29,7 @@
+ #include <gio/gunixmounts.h>
+ 
+ #include <udisks/udisks.h>
++#include <udisks/udisks-crypto.h>
+ #include <gudev/gudev.h>
+ 
+ G_BEGIN_DECLS
+diff --git a/monitor/udisks2/meson.build b/monitor/udisks2/meson.build
+index 0cd8866..6b7fc9d 100644
+--- a/monitor/udisks2/meson.build
++++ b/monitor/udisks2/meson.build
+@@ -15,6 +15,7 @@ deps = [
+   libgvfscommon_monitor_dep,
+   libgvfsproxyvolumemonitordaemon_noin_dep,
+   udisks2_dep,
++  udisks2_crypto_dep,
+   gsettings_desktop_schemas_dep,
+ ]
+ 
+-- 
+2.56.0
+

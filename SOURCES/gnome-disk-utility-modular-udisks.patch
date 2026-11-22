@@ -1,0 +1,549 @@
+From 948c92cc47bed1440a85e801fb8286b7020f5a8b Mon Sep 17 00:00:00 2001
+From: Fxzx micah <48860358+fxzxmicah@users.noreply.github.com>
+Date: Sat, 21 Nov 2026 22:58:53 +0800
+Subject: [PATCH] disks: Use optional encryption interfaces
+
+Use the independent UDisks encryption bindings for device relationships and
+passphrase operations. Offer encryption only when the backend is available.
+
+Create encrypted filesystems by opening a new encrypted container first and
+formatting its returned cleartext device through the ordinary block API.
+---
+ meson.build                         |  3 +-
+ src/disks/gduapplication.c          | 14 ++---
+ src/disks/gducreatefilesystempage.c |  1 +
+ src/disks/gducreateformatdialog.c   | 95 ++++++++++++++++++++++++-----
+ src/disks/gducreateotherpage.c      |  1 +
+ src/disks/gdudevicetreemodel.c      |  8 +--
+ src/disks/gdutypes.h                |  1 +
+ src/disks/gduvolumegrid.c           | 60 ++++--------------
+ src/disks/gduwindow.c               | 47 ++------------
+ src/libgdu/gduutils.c               | 15 ++++-
+ src/libgdu/gduutils.h               |  2 +
+ src/libgdu/libgdutypes.h            |  1 +
+ src/libgdu/meson.build              |  1 +
+ 13 files changed, 128 insertions(+), 121 deletions(-)
+
+diff --git a/meson.build b/meson.build
+index 06e55e6..d409e57 100644
+--- a/meson.build
++++ b/meson.build
+@@ -79,7 +79,8 @@ liblzma_dep = dependency('liblzma', version: '>= 5.0.5')
+ libnotify_dep = dependency('libnotify', version: '>= 0.7')
+ libsecret_dep = dependency('libsecret-1', version: '>= 0.7')
+ pwquality_dep = dependency('pwquality', version: '>= 1.0.0')
+-udisk_dep = dependency('udisks2', version: '>= 2.7.6')
++udisk_dep = dependency('udisks2', version: '>= 2.11.2')
++udisk_crypto_dep = dependency('udisks2-crypto', version: '>= 2.11.2')
+ 
+ m_dep = cc.find_library('m')
+ 
+diff --git a/src/disks/gduapplication.c b/src/disks/gduapplication.c
+index 70b7007..3a149a3 100644
+--- a/src/disks/gduapplication.c
++++ b/src/disks/gduapplication.c
+@@ -132,8 +132,8 @@ gdu_application_object_from_block_device (GduApplication *app,
+                                           gchar **error_message)
+ {
+   struct stat statbuf;
+-  const gchar *crypto_backing_device;
+-  UDisksObject *object, *crypto_backing_object;
++  UDisksBlock *backing;
++  UDisksObject *object;
+   UDisksBlock *block;
+ 
+   object = NULL;
+@@ -154,12 +154,12 @@ gdu_application_object_from_block_device (GduApplication *app,
+   object = UDISKS_OBJECT (g_dbus_interface_dup_object (G_DBUS_INTERFACE (block)));
+   g_object_unref (block);
+ 
+-  crypto_backing_device = udisks_block_get_crypto_backing_device ((udisks_object_peek_block (object)));
+-  crypto_backing_object = udisks_client_get_object (app->client, crypto_backing_device);
+-  if (crypto_backing_object != NULL)
++  backing = udisks_crypto_get_backing_block (app->client, udisks_object_peek_block (object));
++  if (backing != NULL)
+     {
+       g_object_unref (object);
+-      object = crypto_backing_object;
++      object = UDISKS_OBJECT (g_dbus_interface_dup_object (G_DBUS_INTERFACE (backing)));
++      g_object_unref (backing);
+     }
+ 
+  out:
+@@ -631,7 +631,7 @@ gdu_application_has_running_job (GduApplication *application,
+           UDisksBlock *cleartext;
+ 
+           block_for_object = udisks_object_peek_block (object_iter);
+-          cleartext = udisks_client_get_cleartext_block (client, block_for_object);
++          cleartext = udisks_crypto_get_cleartext_block (client, block_for_object);
+           if (cleartext != NULL)
+             {
+               UDisksObject *cleartext_object;
+diff --git a/src/disks/gducreatefilesystempage.c b/src/disks/gducreatefilesystempage.c
+index bd64ee3..8b861eb 100644
+--- a/src/disks/gducreatefilesystempage.c
++++ b/src/disks/gducreatefilesystempage.c
+@@ -181,6 +181,7 @@ gdu_create_filesystem_page_new (UDisksClient *client, UDisksDrive *drive)
+ 
+   page = g_object_new (GDU_TYPE_CREATE_FILESYSTEM_PAGE, NULL);
+   priv = gdu_create_filesystem_page_get_instance_private (page);
++  gtk_widget_set_visible (GTK_WIDGET (priv->internal_encrypt_checkbutton), gdu_utils_can_encrypt (client));
+   g_signal_connect (priv->name_entry, "notify::text", G_CALLBACK (on_fs_name_changed), page);
+   g_signal_connect (priv->internal_encrypt_checkbutton, "toggled", G_CALLBACK (on_fs_type_changed), page);
+   g_signal_connect (priv->internal_radiobutton, "toggled", G_CALLBACK (on_fs_type_changed), page);
+diff --git a/src/disks/gducreateformatdialog.c b/src/disks/gducreateformatdialog.c
+index 62a7109..badbc1c 100644
+--- a/src/disks/gducreateformatdialog.c
++++ b/src/disks/gducreateformatdialog.c
+@@ -224,18 +224,12 @@ format_cb (GObject *source_object, GAsyncResult *res, gpointer user_data)
+ }
+ 
+ static void
+-ensure_unused_cb (UDisksClient *client, GAsyncResult *res, CreateFormatData *data)
++format_filesystem (CreateFormatData *data)
+ {
+   GVariantBuilder options_builder;
+   const gchar *fs_type;
+   const gchar *erase_type;
+ 
+-  if (!gdu_utils_ensure_unused_finish (client, res, NULL))
+-    {
+-      create_format_data_free (data);
+-      return;
+-    }
+-
+   fs_type = get_filesystem (data);
+   erase_type = gdu_create_filesystem_page_get_erase (data->filesystem_page);
+ 
+@@ -249,18 +243,11 @@ ensure_unused_cb (UDisksClient *client, GAsyncResult *res, CreateFormatData *dat
+       g_variant_builder_add (&options_builder, "{sv}", "take-ownership", g_variant_new_boolean (TRUE));
+     }
+ 
+-  if (get_encrypt (data))
+-    {
+-      g_variant_builder_add (&options_builder, "{sv}", "encrypt.passphrase",
+-                             g_variant_new_string (gdu_create_password_page_get_password (data->password_page)));
+-
+-      g_variant_builder_add (&options_builder, "{sv}", "encrypt.type", g_variant_new_string ("luks2"));
+-    }
+-
+   if (erase_type != NULL)
+     g_variant_builder_add (&options_builder, "{sv}", "erase", g_variant_new_string (erase_type));
+ 
+-  g_variant_builder_add (&options_builder, "{sv}", "update-partition-type", g_variant_new_boolean (TRUE));
++  if (!get_encrypt (data))
++    g_variant_builder_add (&options_builder, "{sv}", "update-partition-type", g_variant_new_boolean (TRUE));
+ 
+   udisks_block_call_format (data->block,
+                             fs_type,
+@@ -270,6 +257,82 @@ ensure_unused_cb (UDisksClient *client, GAsyncResult *res, CreateFormatData *dat
+                             data);
+ }
+ 
++static void
++crypto_format_cb (GObject *source_object, GAsyncResult *res, gpointer user_data)
++{
++  CreateFormatData *data = user_data;
++  GError *error = NULL;
++  gchar *path = NULL;
++  UDisksObject *object = NULL;
++  UDisksBlock *block;
++
++  if (!udisks_block_crypto_call_format_finish (UDISKS_BLOCK_CRYPTO (source_object), &path, res, &error))
++    goto out;
++  udisks_client_settle (data->client);
++  object = udisks_client_get_object (data->client, path);
++  block = object != NULL ? udisks_object_peek_block (object) : NULL;
++  if (block == NULL)
++    {
++      g_set_error_literal (&error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND,
++                           _("The newly created encrypted device is no longer available"));
++      goto out;
++    }
++  g_set_object (&data->block, block);
++  format_filesystem (data);
++
++ out:
++  if (error != NULL)
++    {
++      gdu_utils_show_error (GTK_WINDOW (data->parent_window), _("Error creating encrypted volume"), error);
++      g_error_free (error);
++      create_format_data_free (data);
++    }
++  g_clear_object (&object);
++  g_free (path);
++}
++
++static void
++ensure_unused_cb (UDisksClient *client, GAsyncResult *res, CreateFormatData *data)
++{
++  UDisksBlockCrypto *crypto;
++  GVariantBuilder options;
++  const gchar *password;
++
++  if (!gdu_utils_ensure_unused_finish (client, res, NULL))
++    {
++      create_format_data_free (data);
++      return;
++    }
++  if (!get_encrypt (data))
++    {
++      format_filesystem (data);
++      return;
++    }
++
++  crypto = udisks_object_peek_block_crypto (UDISKS_OBJECT (g_dbus_interface_get_object (G_DBUS_INTERFACE (data->block))));
++  if (crypto == NULL)
++    {
++      GError *error = g_error_new_literal (G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
++                                           _("Encryption support is not available"));
++
++      gdu_utils_show_error (GTK_WINDOW (data->parent_window), _("Error creating encrypted volume"), error);
++      g_error_free (error);
++      create_format_data_free (data);
++      return;
++    }
++
++  password = gdu_create_password_page_get_password (data->password_page);
++  g_variant_builder_init (&options, G_VARIANT_TYPE_VARDICT);
++  g_variant_builder_add (&options, "{sv}", "type", g_variant_new_string ("luks2"));
++  g_variant_builder_add (&options, "{sv}", "update-partition-type", g_variant_new_boolean (TRUE));
++  udisks_block_crypto_call_format (crypto,
++                                   g_variant_new_fixed_array (G_VARIANT_TYPE_BYTE, password, strlen (password), 1),
++                                   g_variant_builder_end (&options),
++                                   NULL,
++                                   crypto_format_cb,
++                                   data);
++}
++
+ void
+ finish_cb (GtkDialog *assistant, gint response_id, CreateFormatData *data);
+ 
+diff --git a/src/disks/gducreateotherpage.c b/src/disks/gducreateotherpage.c
+index d8d8d7f..0087d42 100644
+--- a/src/disks/gducreateotherpage.c
++++ b/src/disks/gducreateotherpage.c
+@@ -180,6 +180,7 @@ gdu_create_other_page_new (UDisksClient *client)
+ 
+   page = g_object_new (GDU_TYPE_CREATE_OTHER_PAGE, NULL);
+   priv = gdu_create_other_page_get_instance_private (page);
++  gtk_widget_set_visible (GTK_WIDGET (priv->other_encrypt_checkbutton), gdu_utils_can_encrypt (client));
+   priv->client = client;
+   g_signal_connect (priv->other_encrypt_checkbutton, "toggled", G_CALLBACK (on_fs_type_changed), page);
+ 
+diff --git a/src/disks/gdudevicetreemodel.c b/src/disks/gdudevicetreemodel.c
+index b34de60..b0525c4 100644
+--- a/src/disks/gdudevicetreemodel.c
++++ b/src/disks/gdudevicetreemodel.c
+@@ -746,7 +746,7 @@ block_has_jobs (GduDeviceTreeModel *model,
+   encrypted = udisks_object_get_encrypted (UDISKS_OBJECT (block_object));
+   if (encrypted != NULL)
+     {
+-      cleartext_block = udisks_client_get_cleartext_block (model->client, block);
++      cleartext_block = udisks_crypto_get_cleartext_block (model->client, block);
+       if (cleartext_block != NULL)
+         {
+           if (block_has_jobs (model, cleartext_block))
+@@ -1186,7 +1186,7 @@ should_include_block (UDisksObject *object)
+   gboolean ret;
+   const gchar *device;
+   const gchar *drive;
+-  const gchar *crypto_backing_device;
++  UDisksBlockCrypto *crypto;
+   guint64 size;
+ 
+   ret = FALSE;
+@@ -1225,8 +1225,8 @@ should_include_block (UDisksObject *object)
+     goto out;
+ 
+   /* Don't include if already shown in volume grid as an unlocked device */
+-  crypto_backing_device = udisks_block_get_crypto_backing_device (block);
+-  if (g_strcmp0 (crypto_backing_device, "/") != 0)
++  crypto = udisks_object_peek_block_crypto (object);
++  if (crypto != NULL && g_strcmp0 (udisks_block_crypto_get_backing_device (crypto), "/") != 0)
+     goto out;
+ 
+   ret = TRUE;
+diff --git a/src/disks/gdutypes.h b/src/disks/gdutypes.h
+index 701aa34..2de9c42 100644
+--- a/src/disks/gdutypes.h
++++ b/src/disks/gdutypes.h
+@@ -11,6 +11,7 @@
+ 
+ #include <gtk/gtk.h>
+ #include <udisks/udisks.h>
++#include <udisks/udisks-crypto.h>
+ 
+ #include <libgdu/libgdu.h>
+ 
+diff --git a/src/disks/gduvolumegrid.c b/src/disks/gduvolumegrid.c
+index 98a5d97..9814301 100644
+--- a/src/disks/gduvolumegrid.c
++++ b/src/disks/gduvolumegrid.c
+@@ -1110,47 +1110,11 @@ partition_sort_by_offset_func (UDisksObject *a,
+ static void grid_element_set_details (GduVolumeGrid  *grid,
+                                       GridElement    *element);
+ 
+-static UDisksObject *
+-lookup_cleartext_device_for_crypto_device (GduVolumeGrid *grid,
+-                                           const gchar   *object_path)
+-{
+-  GDBusObjectManager *object_manager;
+-  UDisksObject *ret;
+-  GList *objects;
+-  GList *l;
+-
+-  ret = NULL;
+-
+-  object_manager = udisks_client_get_object_manager (grid->client);
+-  objects = g_dbus_object_manager_get_objects (object_manager);
+-  for (l = objects; l != NULL; l = l->next)
+-    {
+-      UDisksObject *object = UDISKS_OBJECT (l->data);
+-      UDisksBlock *block;
+-
+-      block = udisks_object_peek_block (object);
+-      if (block == NULL)
+-        continue;
+-
+-      if (g_strcmp0 (udisks_block_get_crypto_backing_device (block),
+-                     object_path) == 0)
+-        {
+-          ret = g_object_ref (object);
+-          goto out;
+-        }
+-    }
+-
+- out:
+-  g_list_foreach (objects, (GFunc) g_object_unref, NULL);
+-  g_list_free (objects);
+-  return ret;
+-}
+-
+ static GridElement *
+ maybe_add_crypto (GduVolumeGrid    *grid,
+                   GridElement      *element)
+ {
+-  UDisksBlock *block;
++  UDisksEncrypted *encrypted;
+   GridElement *cleartext_element;
+ 
+   cleartext_element = NULL;
+@@ -1158,17 +1122,14 @@ maybe_add_crypto (GduVolumeGrid    *grid,
+   if (element->object == NULL)
+     goto out;
+ 
+-  block = udisks_object_peek_block (element->object);
+-  if (block == NULL)
+-    goto out;
+-
+-  if (g_strcmp0 (udisks_block_get_id_usage (block), "crypto") == 0)
++  encrypted = udisks_object_peek_encrypted (element->object);
++  if (encrypted != NULL)
+     {
+       UDisksObject *cleartext_object;
+       GridElement *embedded_cleartext_element;
+ 
+-      cleartext_object = lookup_cleartext_device_for_crypto_device (grid,
+-                                                                    g_dbus_object_get_object_path (G_DBUS_OBJECT (element->object)));
++      cleartext_object = udisks_client_get_object (grid->client,
++                                                   udisks_encrypted_get_cleartext_device (encrypted));
+       if (cleartext_object == NULL)
+         {
+           element->show_padlock_closed = TRUE;
+@@ -1877,7 +1838,7 @@ gdu_volume_grid_includes_object (GduVolumeGrid   *grid,
+                                  UDisksObject    *block_object)
+ {
+   UDisksBlock *block;
+-  const gchar *crypto_backing_device;
++  UDisksBlock *backing;
+   UDisksObject *crypto_object;
+   gboolean ret;
+ 
+@@ -1900,9 +1861,12 @@ gdu_volume_grid_includes_object (GduVolumeGrid   *grid,
+   block = udisks_object_peek_block (block_object);
+   if (block != NULL)
+     {
+-      crypto_backing_device = udisks_block_get_crypto_backing_device (block);
+-      crypto_object = (UDisksObject *) g_dbus_object_manager_get_object (udisks_client_get_object_manager (grid->client),
+-                                                                         crypto_backing_device);
++      backing = udisks_crypto_get_backing_block (grid->client, block);
++      if (backing != NULL)
++        {
++          crypto_object = UDISKS_OBJECT (g_dbus_interface_dup_object (G_DBUS_INTERFACE (backing)));
++          g_object_unref (backing);
++        }
+       if (crypto_object != NULL)
+         {
+           if (is_disk_or_partition_in_grid (grid, crypto_object))
+diff --git a/src/disks/gduwindow.c b/src/disks/gduwindow.c
+index 1a8f898..f13ac23 100644
+--- a/src/disks/gduwindow.c
++++ b/src/disks/gduwindow.c
+@@ -2339,42 +2339,6 @@ update_device_page_for_fake_block (GduWindow      *window,
+ 
+ /* ---------------------------------------------------------------------------------------------------- */
+ 
+-static UDisksObject *
+-lookup_cleartext_device_for_crypto_device (UDisksClient  *client,
+-                                           const gchar   *object_path)
+-{
+-  GDBusObjectManager *object_manager;
+-  UDisksObject *ret;
+-  GList *objects;
+-  GList *l;
+-
+-  ret = NULL;
+-
+-  object_manager = udisks_client_get_object_manager (client);
+-  objects = g_dbus_object_manager_get_objects (object_manager);
+-  for (l = objects; l != NULL; l = l->next)
+-    {
+-      UDisksObject *object = UDISKS_OBJECT (l->data);
+-      UDisksBlock *block;
+-
+-      block = udisks_object_peek_block (object);
+-      if (block == NULL)
+-        continue;
+-
+-      if (g_strcmp0 (udisks_block_get_crypto_backing_device (block),
+-                     object_path) == 0)
+-        {
+-          ret = g_object_ref (object);
+-          goto out;
+-        }
+-    }
+-
+- out:
+-  g_list_foreach (objects, (GFunc) g_object_unref, NULL);
+-  g_list_free (objects);
+-  return ret;
+-}
+-
+ static void
+ update_device_page_for_block (GduWindow          *window,
+                               UDisksObject       *object,
+@@ -2387,6 +2351,7 @@ update_device_page_for_block (GduWindow          *window,
+   const gchar *type;
+   const gchar *version;
+   UDisksFilesystem *filesystem;
++  UDisksEncrypted *encrypted;
+   UDisksPartition *partition;
+   UDisksPartitionTable *partition_table = NULL;
+   gboolean read_only;
+@@ -2400,6 +2365,7 @@ update_device_page_for_block (GduWindow          *window,
+   read_only = udisks_block_get_read_only (block);
+   partition = udisks_object_peek_partition (object);
+   filesystem = udisks_object_peek_filesystem (object);
++  encrypted = udisks_object_peek_encrypted (object);
+ 
+   partition_table = udisks_object_get_partition_table (object);
+   if (partition_table == NULL && partition != NULL)
+@@ -2597,12 +2563,9 @@ update_device_page_for_block (GduWindow          *window,
+           show_flags->volume_menu |= SHOW_FLAGS_VOLUME_MENU_CONFIGURE_FSTAB;
+         }
+     }
+-  else if (g_strcmp0 (udisks_block_get_id_usage (block), "crypto") == 0)
++  else if (encrypted != NULL)
+     {
+-      UDisksObject *cleartext_device;
+-      cleartext_device = lookup_cleartext_device_for_crypto_device (window->client,
+-                                                                    g_dbus_object_get_object_path (G_DBUS_OBJECT (object)));
+-      if (cleartext_device != NULL)
++      if (g_strcmp0 (udisks_encrypted_get_cleartext_device (encrypted), "/") != 0)
+         {
+           show_flags->volume_buttons |= SHOW_FLAGS_VOLUME_BUTTONS_ENCRYPTED_LOCK;
+           /* Translators: Shown as in-use part of 'Contents' if the encrypted device is unlocked */
+@@ -2616,7 +2579,7 @@ update_device_page_for_block (GduWindow          *window,
+         }
+     }
+ 
+-  if (g_strcmp0 (udisks_block_get_id_type (block), "crypto_LUKS") == 0)
++  if (encrypted != NULL && g_strcmp0 (udisks_block_get_id_type (block), "crypto_LUKS") == 0)
+     {
+       show_flags->volume_menu |= SHOW_FLAGS_VOLUME_MENU_CONFIGURE_CRYPTTAB;
+       show_flags->volume_menu |= SHOW_FLAGS_VOLUME_MENU_CHANGE_PASSPHRASE;
+diff --git a/src/libgdu/gduutils.c b/src/libgdu/gduutils.c
+index 831d0f2..b1a84f8 100644
+--- a/src/libgdu/gduutils.c
++++ b/src/libgdu/gduutils.c
+@@ -1038,6 +1038,16 @@ gdu_utils_can_format (UDisksClient *client,
+   return result ? result->available : FALSE;
+ }
+ 
++gboolean
++gdu_utils_can_encrypt (UDisksClient *client)
++{
++  UDisksObject *object = udisks_client_get_object (client, "/org/freedesktop/UDisks2/Manager");
++  gboolean ret = object != NULL && udisks_object_peek_manager_crypto (object) != NULL;
++
++  g_clear_object (&object);
++  return ret;
++}
++
+ gboolean
+ gdu_utils_can_take_ownership (const gchar *fstype)
+ {
+@@ -1266,7 +1276,7 @@ gdu_utils_get_all_contained_objects (UDisksClient *client,
+       if (block_for_object != NULL)
+         {
+           UDisksBlock *cleartext;
+-          cleartext = udisks_client_get_cleartext_block (client, block_for_object);
++          cleartext = udisks_crypto_get_cleartext_block (client, block_for_object);
+           if (cleartext != NULL)
+             {
+               UDisksObject *cleartext_object;
+@@ -1337,7 +1347,7 @@ gdu_utils_is_in_use_full (UDisksClient      *client,
+       if (encrypted_for_object != NULL)
+         {
+           UDisksBlock *cleartext;
+-          cleartext = udisks_client_get_cleartext_block (client, block_for_object);
++          cleartext = udisks_crypto_get_cleartext_block (client, block_for_object);
+           if (cleartext != NULL)
+             {
+               g_object_unref (cleartext);
+@@ -1797,4 +1807,3 @@ gdu_utils_get_default_unit (guint64 size)
+       return Byte;
+     }
+ }
+-
+diff --git a/src/libgdu/gduutils.h b/src/libgdu/gduutils.h
+index 0a1f204..6a57436 100644
+--- a/src/libgdu/gduutils.h
++++ b/src/libgdu/gduutils.h
+@@ -100,6 +100,8 @@ gboolean gdu_utils_can_format (UDisksClient *client,
+                                gboolean      flush,
+                                gchar       **missing_util_out);
+ 
++gboolean gdu_utils_can_encrypt (UDisksClient *client);
++
+ gboolean gdu_utils_can_take_ownership (const gchar  *fstype);
+ 
+ gboolean gdu_utils_can_check  (UDisksClient *client,
+diff --git a/src/libgdu/libgdutypes.h b/src/libgdu/libgdutypes.h
+index 489daa9..711d733 100644
+--- a/src/libgdu/libgdutypes.h
++++ b/src/libgdu/libgdutypes.h
+@@ -11,6 +11,7 @@
+ 
+ #include <gtk/gtk.h>
+ #include <udisks/udisks.h>
++#include <udisks/udisks-crypto.h>
+ 
+ #include "libgduenums.h"
+ 
+diff --git a/src/libgdu/meson.build b/src/libgdu/meson.build
+index bf751c5..a29e283 100644
+--- a/src/libgdu/meson.build
++++ b/src/libgdu/meson.build
+@@ -16,6 +16,7 @@ private_deps = [m_dep]
+ deps = [
+   gtk_dep,
+   udisk_dep,
++  udisk_crypto_dep,
+ ]
+ 
+ if enable_logind
+-- 
+2.56.0
+

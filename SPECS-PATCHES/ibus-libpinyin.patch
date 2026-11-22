@@ -1,17 +1,20 @@
 diff --git OLD/ibus-libpinyin.spec NEW/ibus-libpinyin.spec
-index b4d3c89..d885ddd 100644
+index b4d3c89..f8a6b1b 100644
 --- OLD/ibus-libpinyin.spec
 +++ NEW/ibus-libpinyin.spec
-@@ -6,7 +6,7 @@ License:    GPL-3.0-or-later
+@@ -6,7 +6,10 @@ License:    GPL-3.0-or-later
  URL:        https://github.com/libpinyin/ibus-libpinyin
  Source0:    http://downloads.sourceforge.net/libpinyin/ibus-libpinyin/%{name}-%{version}.tar.gz
  
 -Requires:       python3-gobject
++# Preserve pinyin boundaries after candidate selection.
++Patch0:     ibus-libpinyin-fix-candidate-offset.patch
++
 +Recommends:     %{name}-setup = %{version}-%{release}
  Requires:       ibus >= 1.5.11
  BuildRequires:  gcc-c++
  BuildRequires:  gettext-devel
-@@ -32,6 +32,16 @@ Obsoletes: ibus-pinyin < 1.4.0-17
+@@ -32,8 +35,18 @@ Obsoletes: ibus-pinyin < 1.4.0-17
  It includes a Chinese Pinyin input method and a Chinese ZhuYin (Bopomofo)
  input method based on libpinyin for IBus.
  
@@ -26,9 +29,12 @@ index b4d3c89..d885ddd 100644
 +This package provides the setup program for ibus-libpinyin.
 +
  %prep
- %setup -q
+-%setup -q
++%autosetup -p1
  
-@@ -58,12 +68,8 @@ desktop-file-validate $RPM_BUILD_ROOT%{_datadir}/applications/ibus-setup-libbopo
+ %build
+ %configure --disable-static \
+@@ -58,12 +71,8 @@ desktop-file-validate $RPM_BUILD_ROOT%{_datadir}/applications/ibus-setup-libbopo
  %doc AUTHORS COPYING README
  %{_datadir}/metainfo/*.appdata.xml
  %{_datadir}/glib-2.0/schemas/*.gschema.xml
@@ -41,7 +47,7 @@ index b4d3c89..d885ddd 100644
  %{_datadir}/ibus-libpinyin/base.lua
  %{_datadir}/ibus-libpinyin/user.lua
  %{_datadir}/ibus-libpinyin/network.txt
-@@ -74,6 +80,12 @@ desktop-file-validate $RPM_BUILD_ROOT%{_datadir}/applications/ibus-setup-libbopo
+@@ -74,6 +83,12 @@ desktop-file-validate $RPM_BUILD_ROOT%{_datadir}/applications/ibus-setup-libbopo
  %{_datadir}/ibus/component/*
  %{_datadir}/ibus-libpinyin/default.xml
  
