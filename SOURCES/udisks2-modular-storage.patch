@@ -1,4 +1,4 @@
-From 5c7069f94b5fe4b500d365a37aa3fa08031a7463 Mon Sep 17 00:00:00 2001
+From 701b37058fca719011c58c2b83944e9f60ae4630 Mon Sep 17 00:00:00 2001
 From: Fxzx micah <48860358+fxzxmicah@users.noreply.github.com>
 Date: Sat, 21 Nov 2026 22:58:53 +0800
 Subject: [PATCH] storage: Isolate optional protocols and daemon backends
@@ -24,6 +24,7 @@ formatting through explicit interfaces.
  data/org.freedesktop.UDisks2.xml              |  568 +----
  doc/Makefile.am                               |  120 +-
  doc/man/udisks2.conf.5.xml.in.in              |   27 +-
+ doc/udisks2-docs.xml.btrfs.generated.in       |    1 +
  doc/udisks2-docs.xml.crypto.daemon.in         |    5 +
  doc/udisks2-docs.xml.crypto.daemon.sed        |    3 +
  doc/udisks2-docs.xml.crypto.dbus.in           |    3 +
@@ -31,16 +32,23 @@ formatting through explicit interfaces.
  doc/udisks2-docs.xml.crypto.sed               |    7 +
  doc/udisks2-docs.xml.daemon.part.in           |   11 +-
  doc/udisks2-docs.xml.in.in                    |    8 +-
+ doc/udisks2-docs.xml.iscsi.generated.in       |    1 +
+ doc/udisks2-docs.xml.lsm.generated.in         |    1 +
+ doc/udisks2-docs.xml.lvm2.generated.in        |    1 +
  doc/udisks2-docs.xml.mdraid.daemon.in         |    5 +
  doc/udisks2-docs.xml.mdraid.daemon.sed        |    3 +
  doc/udisks2-docs.xml.mdraid.dbus.in           |    3 +
  doc/udisks2-docs.xml.mdraid.generated.in      |    4 +
  doc/udisks2-docs.xml.mdraid.sed               |    7 +
+ doc/udisks2-sections.txt.btrfs.sections.in    |    8 +
  doc/udisks2-sections.txt.crypto.daemon.in     |   36 +
  doc/udisks2-sections.txt.crypto.sections.in   |  173 ++
  doc/udisks2-sections.txt.crypto.sed           |    3 +
- doc/udisks2-sections.txt.daemon.sections.in   |   75 +-
+ doc/udisks2-sections.txt.daemon.sections.in   |   88 +-
  doc/udisks2-sections.txt.in.in                |  195 +-
+ doc/udisks2-sections.txt.iscsi.sections.in    |    8 +
+ doc/udisks2-sections.txt.lsm.sections.in      |    8 +
+ doc/udisks2-sections.txt.lvm2.sections.in     |   16 +
  doc/udisks2-sections.txt.mdraid.daemon.in     |   30 +
  doc/udisks2-sections.txt.mdraid.sections.in   |  204 ++
  doc/udisks2-sections.txt.mdraid.sed           |    3 +
@@ -59,7 +67,7 @@ formatting through explicit interfaces.
  modules/btrfs/udiskslinuxfilesystembtrfs.c    |    1 +
  modules/btrfs/udiskslinuxmanagerbtrfs.c       |    1 +
  modules/btrfs/udiskslinuxmodulebtrfs.c        |    1 +
- modules/crypto/Makefile.am                    |  115 +
+ modules/crypto/Makefile.am                    |  117 +
  modules/crypto/data/Makefile.am               |   27 +
  .../org.freedesktop.UDisks2.crypto.policy.in  |   81 +
  .../data/org.freedesktop.UDisks2.crypto.xml   |  219 ++
@@ -76,7 +84,7 @@ formatting through explicit interfaces.
  modules/crypto/udisksctlcrypto.c              |  509 +++++
  modules/crypto/udiskslinuxblockcrypto.c       |  590 +++++
  modules/crypto/udiskslinuxblockcrypto.h       |   51 +
- .../crypto}/udiskslinuxencrypted.c            |  161 +-
+ .../crypto}/udiskslinuxencrypted.c            |  162 +-
  .../crypto}/udiskslinuxencrypted.h            |    7 +-
  .../crypto}/udiskslinuxencryptedhelpers.c     |   26 +-
  .../crypto}/udiskslinuxencryptedhelpers.h     |    2 +-
@@ -156,7 +164,7 @@ formatting through explicit interfaces.
  src/udiskslinuxprovider.c                     |  444 +---
  src/udiskslinuxprovider.h                     |    3 +
  src/udisksmodule.c                            |  330 ++-
- src/udisksmodule.h                            |  105 +-
+ src/udisksmodule.h                            |  115 +-
  src/udisksmodulemanager.c                     |   51 +-
  src/udisksmoduleobject.c                      |   20 +
  src/udisksprivate.h                           |    5 -
@@ -188,7 +196,7 @@ formatting through explicit interfaces.
  udisks/udisksenumtypes.c.template             |   11 +-
  udisks/udisksobjectinfo-private.h             |   50 +
  udisks/udisksobjectinfo.c                     |  181 +-
- 170 files changed, 9544 insertions(+), 6398 deletions(-)
+ 178 files changed, 9614 insertions(+), 6398 deletions(-)
  create mode 100644 doc/udisks2-docs.xml.crypto.daemon.in
  create mode 100644 doc/udisks2-docs.xml.crypto.daemon.sed
  create mode 100644 doc/udisks2-docs.xml.crypto.dbus.in
@@ -1237,7 +1245,7 @@ index ab9e848..744330a 100644
    <!-- ********************************************************************** -->
  
 diff --git a/doc/Makefile.am b/doc/Makefile.am
-index b5289c4..4fa7804 100644
+index b5289c4..8f1b2da 100644
 --- a/doc/Makefile.am
 +++ b/doc/Makefile.am
 @@ -46,6 +46,8 @@ endif # ENABLE_DAEMON
@@ -1268,8 +1276,8 @@ index b5289c4..4fa7804 100644
 +	$(AM_V_at) $(SED) -f $(DOC_DIR)/$(UDISKS_TYPES).mdraid.sed $(builddir)/$(UDISKS_TYPES) > $(builddir)/$(UDISKS_TYPES).tmp && mv -f $(builddir)/$(UDISKS_TYPES).tmp $(builddir)/$(UDISKS_TYPES)
 +if ENABLE_DAEMON
 +	$(AM_V_at) $(SED) -f $(DOC_DIR)/$(DOC_MAIN_SGML_FILE).mdraid.daemon.sed $(builddir)/$(DOC_MAIN_SGML_FILE) > $(builddir)/$(DOC_MAIN_SGML_FILE).tmp && mv -f $(builddir)/$(DOC_MAIN_SGML_FILE).tmp $(builddir)/$(DOC_MAIN_SGML_FILE)
-+	$(AM_V_at) cat $(DOC_DIR)/$(UDISKS_SECTIONS).mdraid.daemon >> $(builddir)/$(UDISKS_SECTIONS)
-+	$(AM_V_at) cat $(DOC_DIR)/$(UDISKS_TYPES).mdraid.daemon >> $(builddir)/$(UDISKS_TYPES)
++	$(AM_V_at) cat $(builddir)/$(UDISKS_SECTIONS).mdraid.daemon >> $(builddir)/$(UDISKS_SECTIONS)
++	$(AM_V_at) cat $(builddir)/$(UDISKS_TYPES).mdraid.daemon >> $(builddir)/$(UDISKS_TYPES)
 +endif
 +else
 +	$(AM_V_at) $(SED) "/\# MDRAID_TYPES/d" $(builddir)/$(UDISKS_TYPES) > $(builddir)/$(UDISKS_TYPES).tmp && mv -f $(builddir)/$(UDISKS_TYPES).tmp $(builddir)/$(UDISKS_TYPES)
@@ -1285,8 +1293,8 @@ index b5289c4..4fa7804 100644
 +	$(AM_V_at) $(SED) -f $(DOC_DIR)/$(UDISKS_TYPES).crypto.sed $(builddir)/$(UDISKS_TYPES) > $(builddir)/$(UDISKS_TYPES).tmp && mv -f $(builddir)/$(UDISKS_TYPES).tmp $(builddir)/$(UDISKS_TYPES)
 +if ENABLE_DAEMON
 +	$(AM_V_at) $(SED) -f $(DOC_DIR)/$(DOC_MAIN_SGML_FILE).crypto.daemon.sed $(builddir)/$(DOC_MAIN_SGML_FILE) > $(builddir)/$(DOC_MAIN_SGML_FILE).tmp && mv -f $(builddir)/$(DOC_MAIN_SGML_FILE).tmp $(builddir)/$(DOC_MAIN_SGML_FILE)
-+	$(AM_V_at) cat $(DOC_DIR)/$(UDISKS_SECTIONS).crypto.daemon >> $(builddir)/$(UDISKS_SECTIONS)
-+	$(AM_V_at) cat $(DOC_DIR)/$(UDISKS_TYPES).crypto.daemon >> $(builddir)/$(UDISKS_TYPES)
++	$(AM_V_at) cat $(builddir)/$(UDISKS_SECTIONS).crypto.daemon >> $(builddir)/$(UDISKS_SECTIONS)
++	$(AM_V_at) cat $(builddir)/$(UDISKS_TYPES).crypto.daemon >> $(builddir)/$(UDISKS_TYPES)
 +endif
 +else
 +	$(AM_V_at) $(SED) "/\# CRYPTO_TYPES/d" $(builddir)/$(UDISKS_TYPES) > $(builddir)/$(UDISKS_TYPES).tmp && mv -f $(builddir)/$(UDISKS_TYPES).tmp $(builddir)/$(UDISKS_TYPES)
@@ -1447,6 +1455,14 @@ index be364a8..9e62d50 100644
    <refsect1>
      <title>AUTHOR</title>
      <para>
+diff --git a/doc/udisks2-docs.xml.btrfs.generated.in b/doc/udisks2-docs.xml.btrfs.generated.in
+index b0e5386..4738878 100644
+--- a/doc/udisks2-docs.xml.btrfs.generated.in
++++ b/doc/udisks2-docs.xml.btrfs.generated.in
+@@ -1,2 +1,3 @@
+       <xi:include href="../doc/xml/UDisksManagerBTRFS.xml"/>
+       <xi:include href="../doc/xml/UDisksFilesystemBTRFS.xml"/>
++      <xi:include href="../doc/xml/udisks-btrfs.xml"/>
 diff --git a/doc/udisks2-docs.xml.crypto.daemon.in b/doc/udisks2-docs.xml.crypto.daemon.in
 new file mode 100644
 index 0000000..2bd0695
@@ -1574,6 +1590,31 @@ index 08ef2a9..2c71abb 100644
        <xi:include href="xml/UDisksLoop.xml"/>
        <xi:include href="xml/UDisksNVMeController.xml"/>
        <xi:include href="xml/UDisksNVMeNamespace.xml"/>
+diff --git a/doc/udisks2-docs.xml.iscsi.generated.in b/doc/udisks2-docs.xml.iscsi.generated.in
+index 3963f76..eb5b3f5 100644
+--- a/doc/udisks2-docs.xml.iscsi.generated.in
++++ b/doc/udisks2-docs.xml.iscsi.generated.in
+@@ -1,2 +1,3 @@
+       <xi:include href="../doc/xml/UDisksISCSISession.xml"/>
+       <xi:include href="../doc/xml/UDisksManagerISCSIInitiator.xml"/>
++      <xi:include href="../doc/xml/udisks-iscsi.xml"/>
+diff --git a/doc/udisks2-docs.xml.lsm.generated.in b/doc/udisks2-docs.xml.lsm.generated.in
+index bc27684..a054ec7 100644
+--- a/doc/udisks2-docs.xml.lsm.generated.in
++++ b/doc/udisks2-docs.xml.lsm.generated.in
+@@ -1,2 +1,3 @@
+       <xi:include href="../doc/xml/UDisksDriveLSM.xml"/>
+       <xi:include href="../doc/xml/UDisksDriveLsmLocal.xml"/>
++      <xi:include href="../doc/xml/udisks-lsm.xml"/>
+diff --git a/doc/udisks2-docs.xml.lvm2.generated.in b/doc/udisks2-docs.xml.lvm2.generated.in
+index b6c0bd0..6f06149 100644
+--- a/doc/udisks2-docs.xml.lvm2.generated.in
++++ b/doc/udisks2-docs.xml.lvm2.generated.in
+@@ -4,3 +4,4 @@
+       <xi:include href="../doc/xml/UDisksVolumeGroup.xml"/>
+       <xi:include href="../doc/xml/UDisksLogicalVolume.xml"/>
+       <xi:include href="../doc/xml/UDisksVDOVolume.xml"/>
++      <xi:include href="../doc/xml/udisks-lvm2.xml"/>
 diff --git a/doc/udisks2-docs.xml.mdraid.daemon.in b/doc/udisks2-docs.xml.mdraid.daemon.in
 new file mode 100644
 index 0000000..0c2c57f
@@ -1626,6 +1667,22 @@ index 0000000..05e7d29
 +/<!-- MDRAID_GENERATED_CODE -->/ {
 +    r udisks2-docs.xml.mdraid.generated
 +    d }
+diff --git a/doc/udisks2-sections.txt.btrfs.sections.in b/doc/udisks2-sections.txt.btrfs.sections.in
+index be60ff8..9163759 100644
+--- a/doc/udisks2-sections.txt.btrfs.sections.in
++++ b/doc/udisks2-sections.txt.btrfs.sections.in
+@@ -79,3 +79,11 @@ udisks_filesystem_btrfs_complete_repair
+ udisks_filesystem_btrfs_complete_resize
+ udisks_filesystem_btrfs_complete_set_label
+ </SECTION>
++
++<SECTION>
++<FILE>udisks-btrfs</FILE>
++udisks_object_get_manager_btrfs
++udisks_object_peek_manager_btrfs
++udisks_object_get_filesystem_btrfs
++udisks_object_peek_filesystem_btrfs
++</SECTION>
 diff --git a/doc/udisks2-sections.txt.crypto.daemon.in b/doc/udisks2-sections.txt.crypto.daemon.in
 new file mode 100644
 index 0000000..44c4303
@@ -1857,7 +1914,7 @@ index 0000000..8328f07
 +    r udisks2-sections.txt.crypto.sections
 +    d }
 diff --git a/doc/udisks2-sections.txt.daemon.sections.in b/doc/udisks2-sections.txt.daemon.sections.in
-index 2f4531c..56bc8f8 100644
+index 2f4531c..df07ff0 100644
 --- a/doc/udisks2-sections.txt.daemon.sections.in
 +++ b/doc/udisks2-sections.txt.daemon.sections.in
 @@ -6,7 +6,6 @@ udisks_daemon_new
@@ -1899,7 +1956,15 @@ index 2f4531c..56bc8f8 100644
  udisks_ata_identify_get_word
  udisks_daemon_util_trigger_uevent
  udisks_daemon_util_trigger_uevent_sync
-@@ -372,18 +365,7 @@ UDISKS_TYPE_LINUX_FILESYSTEM
+@@ -351,6 +344,7 @@ UDisksLinuxBlock
+ udisks_linux_block_new
+ udisks_linux_block_update
+ udisks_linux_block_matches_id
++udisks_linux_block_teardown
+ <SUBSECTION Standard>
+ UDISKS_LINUX_BLOCK
+ UDISKS_IS_LINUX_BLOCK
+@@ -372,18 +366,7 @@ UDISKS_TYPE_LINUX_FILESYSTEM
  udisks_linux_filesystem_get_type
  </SECTION>
  
@@ -1919,7 +1984,7 @@ index 2f4531c..56bc8f8 100644
  
  <SECTION>
  <FILE>udiskslinuxswapspace</FILE>
-@@ -445,29 +427,7 @@ UDISKS_IS_FSTAB_ENTRY
+@@ -445,29 +428,7 @@ UDISKS_IS_FSTAB_ENTRY
  udisks_fstab_entry_get_type
  </SECTION>
  
@@ -1950,7 +2015,7 @@ index 2f4531c..56bc8f8 100644
  
  <SECTION>
  <FILE>udisksutabmonitor</FILE>
-@@ -517,36 +477,9 @@ UDISKS_TYPE_LINUX_PARTITION_TABLE
+@@ -517,36 +478,9 @@ UDISKS_TYPE_LINUX_PARTITION_TABLE
  udisks_linux_partition_table_get_type
  </SECTION>
  
@@ -1989,6 +2054,32 @@ index 2f4531c..56bc8f8 100644
  
  <SECTION>
  <FILE>UDisksModuleManager</FILE>
+@@ -571,6 +505,7 @@ udisks_module_manager_get_type
+ <FILE>UDisksModule</FILE>
+ UDisksModule
+ UDisksModuleClass
++UDisksConfigurationHandler
+ UDisksModuleIDFunc
+ UDisksModuleNewFunc
+ UDisksModuleObject
+@@ -584,6 +519,17 @@ udisks_module_new_block_object_interface
+ udisks_module_new_drive_object_interface
+ udisks_module_track_parent
+ udisks_module_get_daemon
++udisks_module_probe_device
++udisks_module_handle_uevent
++udisks_module_append_configuration
++udisks_module_get_configuration_handler
++udisks_module_teardown_block
++udisks_module_check_state
++udisks_module_setup_by_user
++udisks_module_get_objects
++udisks_module_export_object
++udisks_module_unexport_object
++udisks_module_clear_objects
+ udisks_module_object_process_uevent
+ udisks_module_object_housekeeping
+ <SUBSECTION Standard>
 diff --git a/doc/udisks2-sections.txt.in.in b/doc/udisks2-sections.txt.in.in
 index 2a17f1f..9984a5f 100644
 --- a/doc/udisks2-sections.txt.in.in
@@ -2291,6 +2382,62 @@ index 2a17f1f..9984a5f 100644
  </SECTION>
 +
 +<!-- MDRAID_GENERATED_SECTIONS -->
+diff --git a/doc/udisks2-sections.txt.iscsi.sections.in b/doc/udisks2-sections.txt.iscsi.sections.in
+index 272e290..58fbfcd 100644
+--- a/doc/udisks2-sections.txt.iscsi.sections.in
++++ b/doc/udisks2-sections.txt.iscsi.sections.in
+@@ -94,3 +94,11 @@ udisks_iscsi_session_skeleton_new
+ udisks_iscsi_session_complete_logout
+ udisks_iscsi_session_complete_logout_interface
+ </SECTION>
++
++<SECTION>
++<FILE>udisks-iscsi</FILE>
++udisks_object_get_manager_iscsi_initiator
++udisks_object_peek_manager_iscsi_initiator
++udisks_object_get_iscsi_session
++udisks_object_peek_iscsi_session
++</SECTION>
+diff --git a/doc/udisks2-sections.txt.lsm.sections.in b/doc/udisks2-sections.txt.lsm.sections.in
+index 4c51784..755c4c1 100644
+--- a/doc/udisks2-sections.txt.lsm.sections.in
++++ b/doc/udisks2-sections.txt.lsm.sections.in
+@@ -67,3 +67,11 @@ udisks_drive_lsm_local_complete_turn_fault_ledon
+ udisks_drive_lsm_local_complete_turn_ident_ledoff
+ udisks_drive_lsm_local_complete_turn_ident_ledon
+ </SECTION>
++
++<SECTION>
++<FILE>udisks-lsm</FILE>
++udisks_object_get_drive_lsm
++udisks_object_peek_drive_lsm
++udisks_object_get_drive_lsm_local
++udisks_object_peek_drive_lsm_local
++</SECTION>
+diff --git a/doc/udisks2-sections.txt.lvm2.sections.in b/doc/udisks2-sections.txt.lvm2.sections.in
+index ead3061..6d91db9 100644
+--- a/doc/udisks2-sections.txt.lvm2.sections.in
++++ b/doc/udisks2-sections.txt.lvm2.sections.in
+@@ -267,3 +267,19 @@ udisks_vdo_volume_complete_get_statistics
+ udisks_vdo_volume_complete_resize_logical
+ udisks_vdo_volume_complete_resize_physical
+ </SECTION>
++
++<SECTION>
++<FILE>udisks-lvm2</FILE>
++udisks_object_get_manager_lvm2
++udisks_object_peek_manager_lvm2
++udisks_object_get_block_lvm2
++udisks_object_peek_block_lvm2
++udisks_object_get_physical_volume
++udisks_object_peek_physical_volume
++udisks_object_get_volume_group
++udisks_object_peek_volume_group
++udisks_object_get_logical_volume
++udisks_object_peek_logical_volume
++udisks_object_get_vdo_volume
++udisks_object_peek_vdo_volume
++</SECTION>
 diff --git a/doc/udisks2-sections.txt.mdraid.daemon.in b/doc/udisks2-sections.txt.mdraid.daemon.in
 new file mode 100644
 index 0000000..27242bf
@@ -2754,10 +2901,10 @@ index 8d4d053..527dd2a 100644
  
 diff --git a/modules/crypto/Makefile.am b/modules/crypto/Makefile.am
 new file mode 100644
-index 0000000..a3a1101
+index 0000000..e8e18b1
 --- /dev/null
 +++ b/modules/crypto/Makefile.am
-@@ -0,0 +1,115 @@
+@@ -0,0 +1,117 @@
 +## Process this file with automake to produce Makefile.in
 +
 +SUBDIRS = data
@@ -2838,8 +2985,6 @@ index 0000000..a3a1101
 +	$(BLOCKDEV_LIBS)                                                       \
 +	$(NULL)
 +
-+all-local: module_link
-+
 +endif # ENABLE_DAEMON
 +
 +# Optional client commands use the CLI context, with no daemon symbols.
@@ -2865,7 +3010,11 @@ index 0000000..a3a1101
 +clean-local: module_unlink cli-module-unlink
 +	rm -f *~ $(BUILT_SOURCES)
 +
++if ENABLE_DAEMON
++all-local: module_link cli-module-link
++else
 +all-local: cli-module-link
++endif
 +
 +cli-module-link:
 +	$(AM_V_at) $(MKDIR_P) $(top_builddir)/tools/cli-modules
@@ -5365,7 +5514,7 @@ diff --git a/src/udiskslinuxencrypted.c b/modules/crypto/udiskslinuxencrypted.c
 similarity index 92%
 rename from src/udiskslinuxencrypted.c
 rename to modules/crypto/udiskslinuxencrypted.c
-index e327a31..73b6589 100644
+index e327a31..8a3a574 100644
 --- a/src/udiskslinuxencrypted.c
 +++ b/modules/crypto/udiskslinuxencrypted.c
 @@ -31,20 +31,24 @@
@@ -5424,7 +5573,14 @@ index e327a31..73b6589 100644
  
  /* ---------------------------------------------------------------------------------------------------- */
  
-@@ -102,17 +109,19 @@ udisks_linux_encrypted_class_init (UDisksLinuxEncryptedClass *klass)
+@@ -96,23 +103,26 @@ udisks_linux_encrypted_class_init (UDisksLinuxEncryptedClass *klass)
+ 
+ /**
+  * udisks_linux_encrypted_new:
++ * @object: The enclosing #UDisksLinuxBlockObject.
+  *
+  * Creates a new #UDisksLinuxEncrypted instance.
+  *
   * Returns: A new #UDisksLinuxEncrypted. Free with g_object_unref().
   */
  UDisksEncrypted *
@@ -5450,7 +5606,7 @@ index e327a31..73b6589 100644
  {
    const gchar *crypto_object_path = user_data;
    UDisksObject *ret = NULL;
-@@ -122,12 +131,12 @@ wait_for_cleartext_object (UDisksDaemon *daemon,
+@@ -122,12 +132,12 @@ wait_for_cleartext_object (UDisksDaemon *daemon,
    for (l = objects; l != NULL; l = l->next)
      {
        UDisksObject *object = UDISKS_OBJECT (l->data);
@@ -5466,7 +5622,7 @@ index e327a31..73b6589 100644
              {
                g_object_unref (block);
                ret = g_object_ref (object);
-@@ -161,29 +170,11 @@ static void
+@@ -161,29 +171,11 @@ static void
  update_metadata_size (UDisksLinuxEncrypted   *encrypted,
                        UDisksLinuxBlockObject *object)
  {
@@ -5499,7 +5655,7 @@ index e327a31..73b6589 100644
  }
  
  static void
-@@ -196,7 +187,7 @@ update_cleartext_device (UDisksLinuxEncrypted   *encrypted,
+@@ -196,7 +188,7 @@ update_cleartext_device (UDisksLinuxEncrypted   *encrypted,
  
    /* wait_for_cleartext is used primarily in unlock but does exactly what we
       want -- returns a cleartext object for an encrypted object */
@@ -5508,7 +5664,7 @@ index e327a31..73b6589 100644
  
    if (cleartext_object)
      {
-@@ -223,7 +214,6 @@ udisks_linux_encrypted_update (UDisksLinuxEncrypted   *encrypted,
+@@ -223,7 +215,6 @@ udisks_linux_encrypted_update (UDisksLinuxEncrypted   *encrypted,
  {
    UDisksBlock *block = udisks_object_peek_block (UDISKS_OBJECT (object));
  
@@ -5516,7 +5672,7 @@ index e327a31..73b6589 100644
  
    update_child_configuration (encrypted, object);
    update_cleartext_device (encrypted, object);
-@@ -238,7 +228,6 @@ udisks_linux_encrypted_update (UDisksLinuxEncrypted   *encrypted,
+@@ -238,7 +229,6 @@ udisks_linux_encrypted_update (UDisksLinuxEncrypted   *encrypted,
    if (udisks_linux_block_is_luks (block))
      update_metadata_size (encrypted, object);
  
@@ -5524,7 +5680,7 @@ index e327a31..73b6589 100644
  
    g_dbus_interface_skeleton_flush (G_DBUS_INTERFACE_SKELETON (encrypted));
  }
-@@ -434,7 +423,7 @@ handle_unlock (UDisksEncrypted        *encrypted,
+@@ -434,7 +424,7 @@ handle_unlock (UDisksEncrypted        *encrypted,
  
    /* Fail if device is already unlocked */
    cleartext_object = udisks_daemon_wait_for_object_sync (daemon,
@@ -5533,7 +5689,7 @@ index e327a31..73b6589 100644
                                                           g_strdup (g_dbus_object_get_object_path (G_DBUS_OBJECT (object))),
                                                           g_free,
                                                           0, /* timeout_seconds */
-@@ -591,7 +580,7 @@ handle_unlock (UDisksEncrypted        *encrypted,
+@@ -591,7 +581,7 @@ handle_unlock (UDisksEncrypted        *encrypted,
    else
      open_func = tcrypt_open_job_func;
  
@@ -5542,7 +5698,7 @@ index e327a31..73b6589 100644
    if (!udisks_daemon_launch_threaded_job_sync (daemon,
                                                 object,
                                                 "encrypted-unlock",
-@@ -615,15 +604,15 @@ handle_unlock (UDisksEncrypted        *encrypted,
+@@ -615,15 +605,15 @@ handle_unlock (UDisksEncrypted        *encrypted,
         * in this case we don't know for sure if we used the correct
         * encryption type. */
        udisks_encrypted_set_hint_encryption_type (encrypted, old_hint_encryption_type);
@@ -5561,7 +5717,7 @@ index e327a31..73b6589 100644
                                                           g_strdup (g_dbus_object_get_object_path (G_DBUS_OBJECT (object))),
                                                           g_free,
                                                           UDISKS_DEFAULT_WAIT_TIMEOUT,
-@@ -645,11 +634,12 @@ handle_unlock (UDisksEncrypted        *encrypted,
+@@ -645,11 +635,12 @@ handle_unlock (UDisksEncrypted        *encrypted,
    cleartext_device = udisks_linux_block_object_get_device (UDISKS_LINUX_BLOCK_OBJECT (cleartext_object));
  
    /* update the unlocked-crypto-dev file */
@@ -5579,7 +5735,7 @@ index e327a31..73b6589 100644
  
    /* ensure property changes are sent before the method return */
    g_dbus_interface_skeleton_flush (G_DBUS_INTERFACE_SKELETON (encrypted));
-@@ -739,7 +729,7 @@ udisks_linux_encrypted_lock (UDisksLinuxEncrypted   *encrypted,
+@@ -739,7 +730,7 @@ udisks_linux_encrypted_lock (UDisksLinuxEncrypted   *encrypted,
  
    /* Fail if device is not unlocked */
    cleartext_object = udisks_daemon_wait_for_object_sync (daemon,
@@ -5588,7 +5744,7 @@ index e327a31..73b6589 100644
                                                           g_strdup (g_dbus_object_get_object_path (G_DBUS_OBJECT (object))),
                                                           g_free,
                                                           0, /* timeout_seconds */
-@@ -756,9 +746,10 @@ udisks_linux_encrypted_lock (UDisksLinuxEncrypted   *encrypted,
+@@ -756,9 +747,10 @@ udisks_linux_encrypted_lock (UDisksLinuxEncrypted   *encrypted,
      }
    cleartext_block = udisks_object_peek_block (cleartext_object);
  
@@ -5602,7 +5758,7 @@ index e327a31..73b6589 100644
    if (cleartext_device_from_file == 0)
      {
        /* allow locking stuff not mentioned in unlocked-crypto-dev, but treat it like root unlocked it */
-@@ -811,7 +802,7 @@ udisks_linux_encrypted_lock (UDisksLinuxEncrypted   *encrypted,
+@@ -811,7 +803,7 @@ udisks_linux_encrypted_lock (UDisksLinuxEncrypted   *encrypted,
    else
      close_func = tcrypt_close_job_func;
  
@@ -5611,7 +5767,7 @@ index e327a31..73b6589 100644
    if (!udisks_daemon_launch_threaded_job_sync (daemon,
                                                 object,
                                                 "encrypted-lock",
-@@ -832,15 +823,15 @@ udisks_linux_encrypted_lock (UDisksLinuxEncrypted   *encrypted,
+@@ -832,15 +824,15 @@ udisks_linux_encrypted_lock (UDisksLinuxEncrypted   *encrypted,
                     loc_error->message);
        ret = FALSE;
        g_clear_error (&loc_error);
@@ -5630,7 +5786,7 @@ index e327a31..73b6589 100644
                                                           cleartext_path,
                                                           NULL,
                                                           UDISKS_DEFAULT_WAIT_TIMEOUT,
-@@ -996,7 +987,7 @@ handle_change_passphrase (UDisksEncrypted        *encrypted,
+@@ -996,7 +988,7 @@ handle_change_passphrase (UDisksEncrypted        *encrypted,
                                       &(data.new_passphrase)))
      data.new_passphrase = g_string_new (new_passphrase);
  
@@ -5639,7 +5795,7 @@ index e327a31..73b6589 100644
    if (!udisks_daemon_launch_threaded_job_sync (daemon,
                                                 object,
                                                 "encrypted-modify",
-@@ -1015,11 +1006,11 @@ handle_change_passphrase (UDisksEncrypted        *encrypted,
+@@ -1015,11 +1007,11 @@ handle_change_passphrase (UDisksEncrypted        *encrypted,
                                               udisks_block_get_device (block),
                                               error->message);
        g_clear_error (&error);
@@ -5653,7 +5809,7 @@ index e327a31..73b6589 100644
  
    udisks_encrypted_complete_change_passphrase (encrypted, invocation);
  
-@@ -1093,7 +1084,7 @@ handle_resize (UDisksEncrypted       *encrypted,
+@@ -1093,7 +1085,7 @@ handle_resize (UDisksEncrypted       *encrypted,
  
    /* Fail if device is not unlocked */
    cleartext_object = udisks_daemon_wait_for_object_sync (daemon,
@@ -5662,7 +5818,7 @@ index e327a31..73b6589 100644
                                                           g_strdup (g_dbus_object_get_object_path (G_DBUS_OBJECT (object))),
                                                           g_free,
                                                           0, /* timeout_seconds */
-@@ -1175,7 +1166,7 @@ handle_resize (UDisksEncrypted       *encrypted,
+@@ -1175,7 +1167,7 @@ handle_resize (UDisksEncrypted       *encrypted,
        goto out;
      }
  
@@ -5671,7 +5827,7 @@ index e327a31..73b6589 100644
  
    /* TODO: implement progress parsing for udisks_job_set_progress(_valid) */
    if (! bd_crypto_luks_resize (udisks_block_get_device (cleartext_block),
-@@ -1190,11 +1181,11 @@ handle_resize (UDisksEncrypted       *encrypted,
+@@ -1190,11 +1182,11 @@ handle_resize (UDisksEncrypted       *encrypted,
                                               udisks_block_get_device (cleartext_block),
                                               error->message);
        udisks_simple_job_complete (UDISKS_SIMPLE_JOB (job), FALSE, error->message);
@@ -5685,7 +5841,7 @@ index e327a31..73b6589 100644
  
    udisks_encrypted_complete_resize (encrypted, invocation);
    udisks_simple_job_complete (UDISKS_SIMPLE_JOB (job), TRUE, NULL);
-@@ -1317,7 +1308,7 @@ handle_convert (UDisksEncrypted       *encrypted,
+@@ -1317,7 +1309,7 @@ handle_convert (UDisksEncrypted       *encrypted,
        goto out;
      }
  
@@ -5694,7 +5850,7 @@ index e327a31..73b6589 100644
  
    if (! bd_crypto_luks_convert (udisks_block_get_device (block),
                                  bd_target_version,
-@@ -1330,11 +1321,11 @@ handle_convert (UDisksEncrypted       *encrypted,
+@@ -1330,11 +1322,11 @@ handle_convert (UDisksEncrypted       *encrypted,
                                               udisks_block_get_device (block),
                                               error->message);
        udisks_simple_job_complete (UDISKS_SIMPLE_JOB (job), FALSE, error->message);
@@ -5708,7 +5864,7 @@ index e327a31..73b6589 100644
  
    udisks_encrypted_complete_convert (encrypted, invocation);
    udisks_simple_job_complete (UDISKS_SIMPLE_JOB (job), TRUE, NULL);
-@@ -1430,7 +1421,7 @@ handle_header_backup (UDisksEncrypted       *encrypted,
+@@ -1430,7 +1422,7 @@ handle_header_backup (UDisksEncrypted       *encrypted,
          goto out;
        }
  
@@ -5717,7 +5873,7 @@ index e327a31..73b6589 100644
  
      if (!bd_crypto_luks_header_backup (udisks_block_get_device (block), backup_file, &error))
        {
-@@ -1441,11 +1432,11 @@ handle_header_backup (UDisksEncrypted       *encrypted,
+@@ -1441,11 +1433,11 @@ handle_header_backup (UDisksEncrypted       *encrypted,
                                                 udisks_block_get_device (block),
                                                 error->message);
          udisks_simple_job_complete (UDISKS_SIMPLE_JOB (job), FALSE, error->message);
@@ -5731,7 +5887,7 @@ index e327a31..73b6589 100644
  
      udisks_encrypted_complete_header_backup (encrypted, invocation);
      udisks_simple_job_complete (UDISKS_SIMPLE_JOB (job), TRUE, NULL);
-@@ -1472,3 +1463,23 @@ encrypted_iface_init (UDisksEncryptedIface *iface)
+@@ -1472,3 +1464,23 @@ encrypted_iface_init (UDisksEncryptedIface *iface)
    iface->handle_convert             = handle_convert;
    iface->handle_header_backup       = handle_header_backup;
  }
@@ -11175,7 +11331,7 @@ index 40dc6ba..133562e 100644
  guint16 udisks_ata_identify_get_word (const guchar *identify_data, guint word_number);
  
 diff --git a/src/udiskslinuxblock.c b/src/udiskslinuxblock.c
-index a0bfba7..2157c12 100644
+index a0bfba7..ad0d00e 100644
 --- a/src/udiskslinuxblock.c
 +++ b/src/udiskslinuxblock.c
 @@ -42,7 +42,6 @@
@@ -12999,7 +13155,7 @@ index a0bfba7..2157c12 100644
 -}
 +  if (table)
 +    {
-+      GList *ps, *l;
++      GList *ps;
 +      ps = udisks_linux_partition_table_get_partitions (daemon, table, &num_parts);
 +      g_object_unref (table);
 +      for (l = ps; l != NULL; l = l->next)
@@ -15398,18 +15554,28 @@ index 3c9ce6f..057b404 100644
 +  return UDISKS_MODULE_GET_CLASS (module)->teardown_block (module, block, invocation, options, error);
  }
 diff --git a/src/udisksmodule.h b/src/udisksmodule.h
-index b35627c..fc04454 100644
+index b35627c..86f7a10 100644
 --- a/src/udisksmodule.h
 +++ b/src/udisksmodule.h
-@@ -51,8 +51,21 @@ struct _UDisksModule
+@@ -51,6 +51,29 @@ struct _UDisksModule
  
    UDisksDaemon *daemon;
    gchar        *name;
 +  GHashTable   *objects;
 +  GMutex        objects_lock;
- };
- 
-+typedef struct
++};
++
++typedef struct _UDisksConfigurationHandler UDisksConfigurationHandler;
++
++/**
++ * UDisksConfigurationHandler:
++ * @action_id: The polkit action required to modify an item.
++ * @message: The authorization message.
++ * @modify: The callback that adds, updates or removes an item.
++ *
++ * A module's handler for a configuration item type.
++ */
++struct _UDisksConfigurationHandler
 +{
 +  const gchar *action_id;
 +  const gchar *message;
@@ -15418,12 +15584,10 @@ index b35627c..fc04454 100644
 +                      GVariant     *old_details,
 +                      GVariant     *new_details,
 +                      GError      **error);
-+} UDisksConfigurationHandler;
-+
+ };
+ 
  /**
-  * UDisksModuleIDFunc:
-  *
-@@ -94,7 +107,13 @@ typedef UDisksModule* (*UDisksModuleNewFunc) (UDisksDaemon  *daemon,
+@@ -94,7 +117,13 @@ typedef UDisksModule* (*UDisksModuleNewFunc) (UDisksDaemon  *daemon,
   * @get_drive_object_interface_types: Virtual function for udisks_module_get_drive_object_interface_types(). The default implementation returns %NULL.
   * @new_block_object_interface: Virtual function for udisks_module_new_block_object_interface(). The default implementation returns %NULL.
   * @new_drive_object_interface: Virtual function for udisks_module_new_drive_object_interface(). The default implementation returns %NULL.
@@ -15438,7 +15602,7 @@ index b35627c..fc04454 100644
   *
   * Class structure for #UDisksModule.
   */
-@@ -102,22 +121,44 @@ struct _UDisksModuleClass
+@@ -102,22 +131,44 @@ struct _UDisksModuleClass
  {
    GObjectClass parent_class;
  
@@ -15499,7 +15663,7 @@ index b35627c..fc04454 100644
  };
  
  
-@@ -142,10 +183,40 @@ GDBusInterfaceSkeleton  *udisks_module_new_block_object_interface       (UDisksM
+@@ -142,10 +193,40 @@ GDBusInterfaceSkeleton  *udisks_module_new_block_object_interface       (UDisksM
  GDBusInterfaceSkeleton  *udisks_module_new_drive_object_interface       (UDisksModule           *module,
                                                                           UDisksLinuxDriveObject *object,
                                                                           GType                   interface_type);
