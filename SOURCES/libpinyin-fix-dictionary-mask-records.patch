@@ -1,0 +1,75 @@
+From 80ea183686c6ce578e552c13aa798ccc68acc4e8 Mon Sep 17 00:00:00 2001
+From: Fxzx micah <48860358+fxzxmicah@users.noreply.github.com>
+Date: Fri, 27 Nov 2026 19:11:49 +0800
+Subject: [PATCH] Reset cached record sizes before filtering dictionary indexes
+
+The Kyoto Cabinet visitors and Tkrzw processors reuse index entries across
+records. MemoryChunk::set_content() overwrites bytes but does not shrink
+an existing chunk. A shorter record therefore retains tokens from the
+previous record, which are then written back under a different key.
+
+This corrupts both phrase and pronunciation indexes when masking out a
+dictionary. Subsequent learning can abort in _add_phrase() because one
+phrase appears to have multiple tokens in the same library, or because
+a token resolves to an unrelated phrase.
+
+Resize each cached chunk to the incoming record size before copying and
+filtering it. Berkeley DB already resets the chunk size with set_chunk().
+---
+ src/storage/chewing_large_table2_kyotodb.cpp | 1 +
+ src/storage/chewing_large_table2_tkrzwdb.cpp | 1 +
+ src/storage/phrase_large_table3_kyotodb.cpp  | 1 +
+ src/storage/phrase_large_table3_tkrzwdb.cpp  | 1 +
+ 4 files changed, 4 insertions(+)
+
+diff --git a/src/storage/chewing_large_table2_kyotodb.cpp b/src/storage/chewing_large_table2_kyotodb.cpp
+index 228cb28..772a229 100644
+--- a/src/storage/chewing_large_table2_kyotodb.cpp
++++ b/src/storage/chewing_large_table2_kyotodb.cpp
+@@ -468,6 +468,7 @@ public:
+                 g_ptr_array_index(m_entries, phrase_length);    \
+             assert(NULL != entry);                              \
+                                                                 \
++            entry->m_chunk.set_size(vsiz);                      \
+             entry->m_chunk.set_content(0, vbuf, vsiz);          \
+             entry->mask_out(m_mask, m_value);                   \
+                                                                 \
+diff --git a/src/storage/chewing_large_table2_tkrzwdb.cpp b/src/storage/chewing_large_table2_tkrzwdb.cpp
+index 8ae83e0..aa4086c 100644
+--- a/src/storage/chewing_large_table2_tkrzwdb.cpp
++++ b/src/storage/chewing_large_table2_tkrzwdb.cpp
+@@ -436,6 +436,7 @@ public:
+                 g_ptr_array_index(m_entries, phrase_length);            \
+             assert(NULL != entry);                                      \
+                                                                         \
++            entry->m_chunk.set_size(value.size());                      \
+             entry->m_chunk.set_content                                  \
+                 (0, const_cast<char*>(value.data()), value.size());     \
+             entry->mask_out(m_mask, m_value);                           \
+diff --git a/src/storage/phrase_large_table3_kyotodb.cpp b/src/storage/phrase_large_table3_kyotodb.cpp
+index 31e0021..f1fc06e 100644
+--- a/src/storage/phrase_large_table3_kyotodb.cpp
++++ b/src/storage/phrase_large_table3_kyotodb.cpp
+@@ -360,6 +360,7 @@ public:
+ 
+     virtual const char* visit_full(const char* kbuf, size_t ksiz,
+                                    const char* vbuf, size_t vsiz, size_t* sp) {
++        m_entry.m_chunk.set_size(vsiz);
+         m_entry.m_chunk.set_content(0, vbuf, vsiz);
+         m_entry.mask_out(m_mask, m_value);
+ 
+diff --git a/src/storage/phrase_large_table3_tkrzwdb.cpp b/src/storage/phrase_large_table3_tkrzwdb.cpp
+index 0e4094f..72a826a 100644
+--- a/src/storage/phrase_large_table3_tkrzwdb.cpp
++++ b/src/storage/phrase_large_table3_tkrzwdb.cpp
+@@ -286,6 +286,7 @@ public:
+         : m_mask(mask), m_value(value) {}
+ 
+     std::string_view ProcessFull(std::string_view key, std::string_view value) override {
++        m_entry.m_chunk.set_size(value.size());
+         m_entry.m_chunk.set_content(0, const_cast<char*>(value.data()), value.size());
+         m_entry.mask_out(m_mask, m_value);
+ 
+-- 
+2.56.0
+

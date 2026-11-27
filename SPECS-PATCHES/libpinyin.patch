@@ -1,0 +1,23 @@
+diff --git OLD/libpinyin.spec NEW/libpinyin.spec
+index 0da99f7..9ab0eaf 100644
+--- OLD/libpinyin.spec
++++ NEW/libpinyin.spec
+@@ -7,6 +7,9 @@ License:        GPL-3.0-or-later
+ URL:            https://github.com/libpinyin/libpinyin
+ Source0:        http://downloads.sourceforge.net/libpinyin/libpinyin/%{name}-%{version}.tar.gz
+ 
++# Preserve record boundaries when filtering dictionary indexes
++Patch0:         libpinyin-fix-dictionary-mask-records.patch
++
+ BuildRequires:  gcc-c++
+ BuildRequires:  kyotocabinet-devel, glib2-devel
+ BuildRequires:  make
+@@ -52,7 +55,7 @@ The libzhuyin package contains libzhuyin compatibility library.
+ 
+ 
+ %prep
+-%setup -q
++%autosetup -p1
+ 
+ %build
+ %configure --disable-static \
